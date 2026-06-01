@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Per-conversation metrics, optionally aggregated by conversation type.
+"""Per-conversation metrics, aggregated by conversation type.
 
 Outputs:
     stats_out/per_conversation.csv          one row per task_id (all 20 metrics)
     stats_out/per_type_aggregate.json       mean/median/std/min/max grouped by type
     stats_out/per_type_aggregate.csv        flat per-type summary
 
-Conversation-type mapping is read from $CONV_TYPES_CSV (in .env, optional).
-The CSV must have columns `task_id,type`. If missing, all rows get type "all".
+Conversation type and speaker genders are read from each sample's
+metadata.json (fields: conversation_type, speaker_{1,2}_actor_gender).
+Samples without a conversation_type are grouped under "unknown".
 
 Metrics computed per conversation (mean across annotators a/b/c unless noted):
   1  duration_min
@@ -206,6 +207,8 @@ def speaker_change_ftos(events_by_speaker: dict[int, list]) -> list[float]:
 
 
 def analyze(d: Path) -> dict:
+    meta_path = d / "metadata.json"
+    meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
     dur_s = wav_dur(d / "combined_audio.wav")
     dur_min = dur_s / 60
     n_win = int(np.ceil(dur_s / WINDOW_S))
@@ -311,6 +314,9 @@ def analyze(d: Path) -> dict:
 
     return {
         "task_id": d.name,
+        "conversation_type": meta.get("conversation_type", "unknown"),
+        "speaker_1_gender": meta.get("speaker_1_actor_gender", ""),
+        "speaker_2_gender": meta.get("speaker_2_actor_gender", ""),
         "duration_min": round(dur_min, 3),
         "n_events_mean": round(float(np.mean(n_events)), 1),
         "event_rate_per_min": round(float(np.mean(n_events)) / dur_min, 3),
@@ -356,12 +362,14 @@ def analyze(d: Path) -> dict:
     }
 
 
-def aggregate_by_type(rows: list[dict], type_map: dict[str, str]) -> dict:
+def aggregate_by_type(rows: list[dict]) -> dict:
     by: dict[str, list[dict]] = {}
     for r in rows:
-        t = type_map.get(r["task_id"], "all")
-        by.setdefault(t, []).append(r)
-    metrics = [k for k in rows[0] if k != "task_id"]
+        by.setdefault(r["conversation_type"], []).append(r)
+    by["all"] = list(rows)
+    metrics = [k for k in rows[0]
+               if k not in ("task_id", "conversation_type",
+                            "speaker_1_gender", "speaker_2_gender")]
     out: dict = {}
     for t, group in by.items():
         out[t] = {"n_conversations": len(group)}
@@ -387,17 +395,6 @@ def main() -> int:
     out_dir = Path(env.get("STATS_DIR", repo / "stats_out"))
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    type_map: dict[str, str] = {}
-    types_csv = env.get("CONV_TYPES_CSV", "").strip()
-    if types_csv and Path(types_csv).exists():
-        with open(types_csv) as f:
-            for r in csv.DictReader(f):
-                type_map[str(r["task_id"])] = r["type"]
-        print(f"Loaded {len(type_map)} type assignments from {types_csv}", file=sys.stderr)
-    else:
-        print("No CONV_TYPES_CSV set or file missing; aggregating as a single 'all' group.",
-              file=sys.stderr)
-
     sample_dirs = sorted([p for p in root.iterdir() if p.is_dir()],
                          key=lambda p: int(p.name) if p.name.isdigit() else p.name)
     print(f"Analyzing {len(sample_dirs)} conversations...", file=sys.stderr)
@@ -411,19 +408,19 @@ def main() -> int:
         if i % 20 == 0:
             print(f"  {i}/{len(sample_dirs)}", file=sys.stderr)
 
-    fieldnames = ["task_id", "conv_type"] + [k for k in rows[0] if k != "task_id"]
+    fieldnames = list(rows[0].keys())
     with (out_dir / "per_conversation.csv").open("w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
         w.writeheader()
-        for r in rows:
-            r["conv_type"] = type_map.get(r["task_id"], "all")
-            w.writerow(r)
+        w.writerows(rows)
 
-    agg = aggregate_by_type(rows, type_map)
+    agg = aggregate_by_type(rows)
     (out_dir / "per_type_aggregate.json").write_text(json.dumps(agg, indent=2))
 
     # flat csv: type x metric.mean
-    metric_keys = [k for k in rows[0] if k not in ("task_id", "conv_type")]
+    metric_keys = [k for k in rows[0]
+                   if k not in ("task_id", "conversation_type",
+                                "speaker_1_gender", "speaker_2_gender")]
     with (out_dir / "per_type_aggregate.csv").open("w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["type", "n_conversations"] + [f"{k}_mean" for k in metric_keys])
@@ -434,7 +431,8 @@ def main() -> int:
             w.writerow(row)
 
     print(f"Wrote per_conversation.csv, per_type_aggregate.json/csv to {out_dir}")
-    print(f"Types found: {sorted({r['conv_type'] for r in rows})}")
+    type_counts = Counter(r["conversation_type"] for r in rows)
+    print("Conversation types: " + ", ".join(f"{t}={n}" for t, n in type_counts.most_common()))
     return 0
 
 
