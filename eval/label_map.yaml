@@ -1,0 +1,33 @@
+# Maps the fine-grained Mundo annotator labels to the canonical event taxonomy
+# used for evaluation. Each canonical label has a list of source labels that
+# collapse into it. Labels not listed here are ignored when building consensus.
+
+Turn:
+  - Normal Turn
+  - Strong Floor Hold
+  - Bounded Response
+
+Interruption:
+  # Agent's perspective: any user vocalization treated as an interruption
+  # event the agent must handle, regardless of whether the user actually
+  # ends up holding the floor.
+  - Floor-taking Competitive Interruption
+  - Floor-taking Cooperative Interruption
+  - Non-floor Taking Competitive Interruption
+  - Non-floor Taking Cooperative Interruption
+
+Backchannel:
+  - Acknowledgement Backchannel
+  - Continuer Backchannel
+  - Reaction Backchannel
+
+Overlap:
+  - Overlap
+
+Laughter:
+  - Laughter
+
+NonContent:
+  - Non-Speech Noise
+  - Channel Bleed
+  - Speech, Non-Linguistic
