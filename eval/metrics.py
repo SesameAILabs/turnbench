@@ -10,12 +10,12 @@ Inputs:
 Metrics:
     EOT
         Gold EOT time = `end` of every consensus `Turn` event.
-        TP            : predicted EOT in (t_gold, t_gold + WINDOW_S]
-        FP-premature  : predicted EOT in (t_gold - WINDOW_S, t_gold]
-                        (model cut off the speaker)
+        TP            : predicted EOT in [t_gold - EARLY_TOL_S, t_gold + WINDOW_S]
+        FP-premature  : predicted EOT in (t_gold - WINDOW_S, t_gold - EARLY_TOL_S)
+                        (model cut the speaker off by more than EARLY_TOL_S)
         FP-spurious   : predicted EOT outside any gold EOT window
-        FN            : gold EOT with no TP within (t_gold, t_gold + WINDOW_S]
-        Latency       : t_pred - t_gold for each TP (always in [0, WINDOW_S])
+        FN            : gold EOT with no matched prediction
+        Latency       : t_pred - t_gold for each TP (in [-EARLY_TOL_S, WINDOW_S])
 
     Interruption
         Same shape as EOT, on gold `Interruption` events.
@@ -27,8 +27,10 @@ Metrics:
         NonContent, None}. A model that confuses backchannels with
         interruptions will show up clearly in the Backchannel column.
 
-All scoring is restricted to consensus events; regions without consensus are
-ignored (no predictions in those spans count for or against the model).
+All scoring is restricted to consensus events. Predictions that fall inside
+a non-consensus interval (any event from a/b/c that did not reach 3-way
+agreement) are filtered out before scoring — they neither help nor hurt the
+model's numbers.
 """
 from __future__ import annotations
 
@@ -38,7 +40,9 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 
-WINDOW_S = 2.0  # grace window for EOT / Interruption detection
+WINDOW_S = 2.0       # grace window AFTER gold for EOT / Interruption
+EARLY_TOL_S = 0.2    # acceptable lead before gold (matches consensus tolerance)
+                     # predictions earlier than this are flagged as premature
 CANONICAL_LABELS = ("Turn", "Interruption", "Backchannel", "Overlap", "Laughter", "NonContent")
 NON_INTERRUPTION = ("Backchannel", "Overlap", "Laughter", "NonContent")
 
@@ -83,10 +87,10 @@ def score_point_event(pred_times: list[float], gold_times: list[float]
         for i, t_p in enumerate(pred_sorted):
             if used[i]:
                 continue
-            if t_p <= t_g:
+            if t_p < t_g - EARLY_TOL_S:
                 continue
             if t_p > t_g + WINDOW_S:
-                break  # sorted — no later pred can match either
+                break  # sorted — no later pred can match this gold
             match_i = i
             break
         if match_i is None:
@@ -101,8 +105,8 @@ def score_point_event(pred_times: list[float], gold_times: list[float]
     for i, t_p in enumerate(pred_sorted):
         if used[i]:
             continue
-        # was it premature (in (t_g - WINDOW_S, t_g] for some gold)?
-        if any(t_g - WINDOW_S < t_p <= t_g for t_g in gold_times):
+        # premature = inside the larger pre-window but outside the TP early tol
+        if any(t_g - WINDOW_S < t_p < t_g - EARLY_TOL_S for t_g in gold_times):
             fp_premature += 1
         else:
             fp_spurious += 1
@@ -165,10 +169,18 @@ def aggregate(scores: dict, key: str) -> dict:
     }
 
 
+def in_excluded(t: float, sp: int, excluded: dict[int, list[tuple[float, float]]]) -> bool:
+    for s, e in excluded.get(sp, []):
+        if s <= t <= e:
+            return True
+    return False
+
+
 def evaluate_baseline(consensus_dir: Path, pred_dir: Path) -> dict:
     per_sample: dict[str, dict] = {}
+    n_filtered_total = 0
     for gold_file in sorted(consensus_dir.glob("*.jsonl")):
-        if gold_file.name.startswith("_"):
+        if gold_file.name.startswith("_") or gold_file.stem.endswith("_excluded"):
             continue
         task_id = gold_file.stem
         pred_file = pred_dir / f"{task_id}.jsonl"
@@ -176,7 +188,16 @@ def evaluate_baseline(consensus_dir: Path, pred_dir: Path) -> dict:
             continue
 
         gold = load_jsonl(gold_file)
-        pred = load_jsonl(pred_file)
+        pred_raw = load_jsonl(pred_file)
+
+        # Build per-speaker excluded intervals and drop predictions inside them.
+        excluded_file = consensus_dir / f"{task_id}_excluded.jsonl"
+        excluded: dict[int, list[tuple[float, float]]] = defaultdict(list)
+        if excluded_file.exists():
+            for x in load_jsonl(excluded_file):
+                excluded[x["speaker"]].append((x["start"], x["end"]))
+        pred = [p for p in pred_raw if not in_excluded(p["time"], p["speaker"], excluded)]
+        n_filtered_total += len(pred_raw) - len(pred)
 
         eot_score = {"tp": 0, "fn": 0, "fp_premature": 0, "fp_spurious": 0,
                      "fp_total": 0, "latencies_s": []}
@@ -205,6 +226,7 @@ def evaluate_baseline(consensus_dir: Path, pred_dir: Path) -> dict:
 
     summary = {
         "n_samples_scored": len(per_sample),
+        "n_predictions_filtered_excluded": n_filtered_total,
         "EOT": aggregate(per_sample, "EOT"),
         "Interruption": aggregate(per_sample, "Interruption"),
         "interruption_confusion_total": dict(sum(

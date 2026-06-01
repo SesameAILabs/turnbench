@@ -81,8 +81,22 @@ def map_events(events: list[tuple[float, float, str]],
     return [(s, e, canonical[lbl]) for s, e, lbl in events if lbl in canonical]
 
 
+def merge_intervals(intervals: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    if not intervals:
+        return []
+    intervals = sorted(intervals)
+    out = [intervals[0]]
+    for s, e in intervals[1:]:
+        ps, pe = out[-1]
+        if s <= pe:
+            out[-1] = (ps, max(pe, e))
+        else:
+            out.append((s, e))
+    return out
+
+
 def find_consensus(per_annotator: dict[str, list[tuple[float, float, str]]]
-                   ) -> tuple[list[dict], dict[str, int]]:
+                   ) -> tuple[list[dict], list[tuple[float, float]], dict[str, int]]:
     """Given canonical events for a/b/c on one speaker, return the consensus
     event list + a breakdown of why other candidates were dropped.
 
@@ -94,6 +108,7 @@ def find_consensus(per_annotator: dict[str, list[tuple[float, float, str]]]
     a_evs = per_annotator["a"]
     b_evs = per_annotator["b"]
     c_evs = per_annotator["c"]
+    used_a: set[int] = set()
     used_b: set[int] = set()
     used_c: set[int] = set()
     consensus = []
@@ -113,7 +128,7 @@ def find_consensus(per_annotator: dict[str, list[tuple[float, float, str]]]
                 best_d, best_i = d, i
         return best_i
 
-    for s_a, e_a, lbl in a_evs:
+    for ai, (s_a, e_a, lbl) in enumerate(a_evs):
         bi = nearest(s_a, lbl, b_evs, used_b)
         if bi is None:
             # any unused 'b' near s_a but different label?
@@ -141,6 +156,7 @@ def find_consensus(per_annotator: dict[str, list[tuple[float, float, str]]]
             drops["endpoint_spread"] += 1
             continue
 
+        used_a.add(ai)
         used_b.add(bi)
         used_c.add(ci)
         consensus.append({
@@ -150,11 +166,28 @@ def find_consensus(per_annotator: dict[str, list[tuple[float, float, str]]]
             "raw": {"a": [s_a, e_a], "b": [s_b, e_b], "c": [s_c, e_c]},
         })
 
-    return consensus, drops
+    # Excluded intervals = union of every annotator's event spans that did
+    # NOT make it into the consensus list. Predictions falling inside these
+    # intervals must not be scored.
+    excluded_raw = []
+    for i, (s, e, _) in enumerate(a_evs):
+        if i not in used_a:
+            excluded_raw.append((s, e))
+    for i, (s, e, _) in enumerate(b_evs):
+        if i not in used_b:
+            excluded_raw.append((s, e))
+    for i, (s, e, _) in enumerate(c_evs):
+        if i not in used_c:
+            excluded_raw.append((s, e))
+    excluded = merge_intervals(excluded_raw)
+
+    return consensus, excluded, drops
 
 
-def process_sample(d: Path, canonical: dict[str, str]) -> tuple[list[dict], dict]:
+def process_sample(d: Path, canonical: dict[str, str]
+                   ) -> tuple[list[dict], list[dict], dict]:
     all_events = []
+    all_excluded = []
     sample_drops: dict[str, int] = defaultdict(int)
     sample_counts: dict[str, int] = defaultdict(int)
 
@@ -164,15 +197,19 @@ def process_sample(d: Path, canonical: dict[str, str]) -> tuple[list[dict], dict
             raw = parse_srt(d / f"speaker_{sp}_annotation_{ann}.srt")
             per_ann[ann] = map_events(raw, canonical)
             sample_counts[f"sp{sp}_ann_{ann}_canonical"] = len(per_ann[ann])
-        consensus, drops = find_consensus(per_ann)
+        consensus, excluded, drops = find_consensus(per_ann)
         for ev in consensus:
             ev["speaker"] = sp
             all_events.append(ev)
+        for s, e in excluded:
+            all_excluded.append({"speaker": sp, "start": round(s, 4),
+                                 "end": round(e, 4)})
         for k, v in drops.items():
             sample_drops[f"sp{sp}_{k}"] += v
         sample_counts[f"sp{sp}_consensus"] = len(consensus)
+        sample_counts[f"sp{sp}_excluded_intervals"] = len(excluded)
 
-    return all_events, {"counts": dict(sample_counts), "drops": dict(sample_drops)}
+    return all_events, all_excluded, {"counts": dict(sample_counts), "drops": dict(sample_drops)}
 
 
 def main() -> int:
@@ -190,20 +227,27 @@ def main() -> int:
     print(f"Building consensus over {len(sample_dirs)} conversations...", file=sys.stderr)
 
     summary = {}
-    total = 0
+    total_events = 0
+    total_excluded = 0
     for i, d in enumerate(sample_dirs, 1):
-        events, info = process_sample(d, canonical)
-        total += len(events)
+        events, excluded, info = process_sample(d, canonical)
+        total_events += len(events)
+        total_excluded += len(excluded)
         with (out_dir / f"{d.name}.jsonl").open("w") as f:
             for ev in events:
                 f.write(json.dumps(ev) + "\n")
-        summary[d.name] = {"n_events": len(events), **info}
+        with (out_dir / f"{d.name}_excluded.jsonl").open("w") as f:
+            for x in excluded:
+                f.write(json.dumps(x) + "\n")
+        summary[d.name] = {"n_events": len(events),
+                           "n_excluded_intervals": len(excluded), **info}
         if i % 25 == 0:
-            print(f"  {i}/{len(sample_dirs)}  total consensus events so far: {total}",
-                  file=sys.stderr)
+            print(f"  {i}/{len(sample_dirs)}  consensus={total_events} "
+                  f"excluded_intervals={total_excluded}", file=sys.stderr)
 
     (out_dir / "_summary.json").write_text(json.dumps(summary, indent=2))
-    print(f"Wrote {total} consensus events across {len(sample_dirs)} samples to {out_dir}")
+    print(f"Wrote {total_events} consensus events and {total_excluded} excluded "
+          f"intervals across {len(sample_dirs)} samples to {out_dir}")
     return 0
 
 

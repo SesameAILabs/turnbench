@@ -60,7 +60,7 @@ python3 data_analysis/plot_per_type.py      # writes stats_out/figures/{heatmap_
 
 ## Evaluation
 
-**Gold construction (`eval/consensus.py`).** For each sample, the three annotators' fine labels are mapped to the canonical taxonomy (`eval/label_map.yaml`). An event is kept iff all three annotators emit the same canonical label and their start/end times agree within ±200 ms; gold start/end is the median of the three. Regions without consensus are excluded from scoring.
+**Gold construction (`eval/consensus.py`).** For each sample, the three annotators' fine labels are mapped to the canonical taxonomy (`eval/label_map.yaml`). An event is kept iff all three annotators emit the same canonical label and their start/end times agree within ±200 ms; gold start/end is the median of the three. Any annotator event that does NOT reach 3-way agreement contributes its time span to the `excluded_intervals` list — predictions falling inside these intervals are dropped before scoring (they neither help nor hurt the model).
 
 **Canonical taxonomy:** `Turn`, `Interruption`, `Backchannel`, `Overlap`, `Laughter`, `NonContent`. `EOT` is derived from `Turn` event end-times — not a separate label.
 
