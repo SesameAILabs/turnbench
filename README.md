@@ -40,6 +40,7 @@ baselines/           — model baselines (one folder per baseline, stubs to be i
   gemini/                Gemini (Google) zero-shot prompting
   espnet_turntaking/     ESPnet Turn-Taking Prediction (Switchboard, Arora et al. ICLR 2025)
   mimi_endpointer/       Kyutai Mimi codec + endpointer head
+  moshi/                 Kyutai Moshi — full-duplex spoken-language model
   kyutai_semantic_vad/   Kyutai / Unmute STT — semantic end-of-turn classifier
   vap/                   Voice Activity Projection (Ekstedt & Skantze, 2022)
   smart_turn_v3/         Pipecat Smart Turn v3 (Whisper-Tiny + linear head)
@@ -62,6 +63,7 @@ Each baseline lives in its own directory under `baselines/`. The minimum interfa
 | `gemini` | TBD | TBD | TBD |
 | `espnet_turntaking` | Audio (Whisper-medium) | 5-class @ 25 Hz (Continuation / Silence / Interruption / Backchannel / Turn-change) | ~307M |
 | `mimi_endpointer` | Audio (Mimi codec, 12.5 Hz) | 4-class {user, user-end, system, system-end} | <50M |
+| `moshi` | Audio (full-duplex, 12.5 Hz) | Per-frame voice-activity on system stream | ~7B |
 | `kyutai_semantic_vad` | Audio + ASR (Kyutai DSM) | Binary EOT (user-only) | >1B |
 | `vap` | Audio (two-stream, 50 Hz) | Continuous voice-activity projection per speaker | >100M |
 | `smart_turn_v3` | Audio (Whisper-tiny + linear) | Binary per chunk (turn-complete) | ~40M |
