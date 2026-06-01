@@ -36,12 +36,13 @@ data_analysis/       — corpus & per-conversation statistics + figures
   analyze.py             corpus-level totals, label inventory, per-annotator counts
   per_conversation.py    20 metrics per conversation, aggregated by type
   plot_per_type.py       z-score heatmap + small-multiples figures
-baselines/           — model baselines (stubs to be implemented)
-  silence_threshold.py
-  silero_vad.py
-  pyannote_segmentation.py
-  vap.py
-  turngpt.py
+baselines/           — model baselines (one folder per baseline, stubs to be implemented)
+  gemini/                Gemini (Google) zero-shot prompting
+  espnet_turntaking/     ESPnet Turn-Taking Prediction (Switchboard, Arora et al. ICLR 2025)
+  mimi_endpointer/       Kyutai Mimi codec + endpointer head
+  kyutai_semantic_vad/   Kyutai / Unmute STT — semantic end-of-turn classifier
+  vap/                   Voice Activity Projection (Ekstedt & Skantze, 2022)
+  smart_turn_v3/         Pipecat Smart Turn v3 (Whisper-Tiny + linear head)
 ```
 
 ## Running the analysis
@@ -54,12 +55,13 @@ python3 data_analysis/plot_per_type.py      # writes stats_out/figures/{heatmap_
 
 ## Baselines
 
-Each baseline exposes `predict(sample_dir) -> {speaker_id: [(start_s, end_s, label)]}` matching the gold SRT schema, so evaluation is uniform across models.
+Each baseline lives in its own directory under `baselines/`. The minimum interface is `predict(sample_dir) -> {speaker_id: [(start_s, end_s, label)]}` so evaluation is uniform across models; per-baseline output spaces (continuous probabilities, discrete classes) are documented in each module's docstring along with how EOT and interruption are derived for evaluation.
 
-| Baseline | Modality | Notes |
-| --- | --- | --- |
-| `silence_threshold` | Audio (energy) | Per-channel energy + gap detection |
-| `silero_vad` | Audio (VAD) | Pretrained Silero VAD |
-| `pyannote_segmentation` | Audio (segmentation) | `pyannote/segmentation-3.0` |
-| `vap` | Audio (joint VAD) | Voice Activity Projection (Ekstedt & Skantze, 2022) |
-| `turngpt` | Text | LM `<ts>` probability over ASR transcript |
+| Baseline | Modality | Output | Params |
+| --- | --- | --- | --- |
+| `gemini` | TBD | TBD | TBD |
+| `espnet_turntaking` | Audio (Whisper-medium) | 5-class @ 25 Hz (Continuation / Silence / Interruption / Backchannel / Turn-change) | ~307M |
+| `mimi_endpointer` | Audio (Mimi codec, 12.5 Hz) | 4-class {user, user-end, system, system-end} | <50M |
+| `kyutai_semantic_vad` | Audio + ASR (Kyutai DSM) | Binary EOT (user-only) | >1B |
+| `vap` | Audio (two-stream, 50 Hz) | Continuous voice-activity projection per speaker | >100M |
+| `smart_turn_v3` | Audio (Whisper-tiny + linear) | Binary per chunk (turn-complete) | ~40M |
