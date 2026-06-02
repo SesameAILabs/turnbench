@@ -4,24 +4,28 @@
 TODO: fill in description and eval methodology.
 
 Reads the dataset root from `TT_BENCHMARK_DATA` (see top-level
-`.env.example`). Runs bidirectionally — once with each speaker as the
-agent — and writes predictions to `predictions/gemini/<task_id>.jsonl`.
+`.env.example`). Emits predictions to
+`predictions/gemini/traces/<task_id>.npz` in the unified submission format
+(see `eval/submission_format.py`).
 """
 from __future__ import annotations
 
 import sys
 from pathlib import Path
 
+import numpy as np
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from runner import run  # noqa: E402
 
 
-def predict_for_agent(sample_dir: Path, agent_speaker: int) -> list[dict]:
-    """Returns a list of {"time": float, "speaker": int, "label": str}
-    events predicted by the model when running as the agent on
-    speaker `agent_speaker`'s channel (listening to the other speaker)."""
-    raise NotImplementedError("TODO: implement Gemini prompting + parsing")
+def predict_scores(sample_dir: Path) -> dict:
+    """Return per-frame score arrays for one conversation in the unified
+    submission format. Must include `frame_rate_hz` and four
+    `eot_score_speaker_{1,2}` / `interruption_score_speaker_{1,2}`
+    float arrays of equal length."""
+    raise NotImplementedError("TODO: implement gemini")
 
 
 if __name__ == "__main__":
-    sys.exit(run("gemini", predict_for_agent))
+    sys.exit(run("gemini", predict_scores))
