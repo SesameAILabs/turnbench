@@ -27,7 +27,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from _runner import run  # noqa: E402
+from runner import run  # noqa: E402
 
 
 def predict_for_agent(sample_dir: Path, agent_speaker: int) -> list[dict]:

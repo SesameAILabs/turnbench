@@ -14,7 +14,7 @@ agent listening to the OTHER speaker's channel. This module:
 
 A baseline's entry point is typically:
 
-    from baselines._runner import run
+    from baselines.runner import run
 
     def predict_for_agent(sample_dir, agent_speaker):
         ...
