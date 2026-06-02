@@ -33,7 +33,7 @@ The manifest carries metadata that is constant across the run:
     {
         "schema_version": "1.0",
         "run_name": ...,
-        "baseline": ...,            # e.g., "sesame"
+        "baseline": ...,            # e.g., "vap"
         "checkpoint": ...,          # optional, free-form
         "frame_rate_hz": 12.5,      # rate at which the per-frame arrays are sampled
         "lookahead_ms": 0,          # declared lookahead L per the protocol

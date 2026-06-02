@@ -52,18 +52,18 @@ from the start of the conversation.
 ```json
 {
   "schema_version": "1.0",
-  "run_name": "sesame_mega_55k_dev",
-  "baseline": "sesame",
-  "checkpoint": "p5b4b-ts-sf-2heads-vad-cond-mega-seq512-mt-...",
-  "frame_rate_hz": 12.5,
+  "run_name": "vap_dev",
+  "baseline": "vap",
+  "checkpoint": "vap-multilingual-2024",
+  "frame_rate_hz": 50.0,
   "lookahead_ms": 0,
   "split": "dev.txt",
   "task_ids": ["20", "21", ...],
   "extra": {
-    "stride_frames": 12,
+    "threshold": 0.5,
     "head_mapping": {
-      "eot_score": "agent_should_speak",
-      "interruption_score": "speculative_onset"
+      "eot_score": "<native head name>",
+      "interruption_score": "<native head name>"
     }
   }
 }

@@ -4,7 +4,7 @@ Turn-taking events benchmark — corpus of 154 dyadic conversations (~30 hours, 
 
 ## Dataset
 
-- **Source (Sesame, IaC-managed):** `gs://sesame-cmu-tt-benchmark-dev/full_delivery_with_metadata/`
+- **Source (gated GCS bucket; access granted via IAM per collaborator):** `gs://sesame-cmu-tt-benchmark-dev/full_delivery_with_metadata/`
 - **External mirror (Drive):** `turn-taking-benchmark/` folder on the project owner's Drive
 - **Sample layout** (per `task_id/`):
   - `combined_audio.wav`, `speaker_1_audio.wav`, `speaker_2_audio.wav`
@@ -92,7 +92,7 @@ Scores are continuous (probabilities or logits) sampled at `frame_rate_hz`. Each
 - `eot_score_speaker_K` — at each frame, *"Is speaker K finishing their turn?"*
 - `interruption_score_speaker_K` — at each frame, *"Is speaker K barging in on the other speaker?"*
 
-`speaker_1` and `speaker_2` mirror the dataset (`speaker_1_audio.wav` / `speaker_2_audio.wav`); do not remap by who the "agent" is — that's the eval code's job. Storing continuous scores rather than thresholded events lets `eval/metrics.py` sweep the detection threshold for the latency-vs-interruption-rate curve. Per-baseline native outputs (Sesame's `agent_should_speak` head, VAP's voice-activity projection, ESPnet's 5-class probabilities, etc.) are converted to the four canonical arrays inside each baseline's `predict_scores` adapter. Full specification and code examples in [`docs/SUBMISSION_FORMAT.md`](docs/SUBMISSION_FORMAT.md).
+`speaker_1` and `speaker_2` mirror the dataset (`speaker_1_audio.wav` / `speaker_2_audio.wav`); do not remap by who the "agent" is — that's the eval code's job. Storing continuous scores rather than thresholded events lets `eval/metrics.py` sweep the detection threshold for the latency-vs-interruption-rate curve. Per-baseline native outputs (VAP's voice-activity projection, ESPnet's 5-class probabilities, Mimi-endpointer's 4-class states, etc.) are converted to the four canonical arrays inside each baseline's `predict_scores` adapter. Full specification and code examples in [`docs/SUBMISSION_FORMAT.md`](docs/SUBMISSION_FORMAT.md).
 
 ## Splits
 
