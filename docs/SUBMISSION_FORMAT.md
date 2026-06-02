@@ -1,0 +1,119 @@
+# Submission format
+
+Every baseline writes predictions to the same on-disk layout so that
+`eval/metrics.py` is baseline-agnostic.
+
+```
+predictions/<run-name>/
+├── manifest.json
+└── traces/
+    └── <task_id>.npz
+```
+
+## Per-task NPZ file
+
+Each `<task_id>.npz` carries exactly four 1-D `float32` arrays, all of the
+same length `T`. `T` is the number of frames the baseline emits at its
+declared `frame_rate_hz` (12.5 Hz for Mimi-rate baselines, 50 Hz for VAP,
+etc.). Frame `i` corresponds to audio time `i / frame_rate_hz` seconds
+from the start of the conversation.
+
+| Array name | Semantics | Range |
+| --- | --- | --- |
+| `eot_score_speaker_1` | At each frame, the model's score that **speaker 1's current turn is at/near an end-of-turn**. Higher = the agent listening to speaker 1 should be ready to take the floor. | continuous (probability or logit) |
+| `eot_score_speaker_2` | Same, for speaker 2. | continuous |
+| `interruption_score_speaker_1` | At each frame, the model's score that **speaker 1 is interrupting speaker 2** — i.e., speaker 1 has entered the floor while speaker 2 was holding it. Higher = a barge-in by speaker 1. | continuous |
+| `interruption_score_speaker_2` | Same, for speaker 2 interrupting speaker 1. | continuous |
+
+### Important conventions
+
+1. **`speaker_1` and `speaker_2` mirror the dataset** — they correspond to
+   the `speaker_1_audio.wav` and `speaker_2_audio.wav` files in the
+   per-`task_id` sample directory. Do **not** remap by who the "agent" is;
+   that's the eval code's job, not the baseline's.
+2. **Scores are continuous, not thresholded.** Storing the raw probability
+   (or logit) is what lets the eval module sweep the detection threshold
+   for the latency-vs-interruption-rate curve. Binary state can always be
+   derived from a score; the reverse is lossy.
+3. **All four arrays have the same length `T`.** Mismatched lengths are
+   rejected by `eval/submission_format.load_traces`.
+4. **Bidirectional in one file.** A baseline whose native model only
+   understands "one speaker is the user" must run twice (once with each
+   speaker as the user) and write both directions into the same NPZ. See
+   `baselines/runner.py` for the standard adapter pattern.
+
+### Convention summary (mnemonics)
+
+- `eot_score_speaker_K` answers: *"Is speaker K finishing their turn now?"*
+- `interruption_score_speaker_K` answers: *"Is speaker K barging in on the other speaker now?"*
+
+## `manifest.json`
+
+```json
+{
+  "schema_version": "1.0",
+  "run_name": "sesame_mega_55k_dev",
+  "baseline": "sesame",
+  "checkpoint": "p5b4b-ts-sf-2heads-vad-cond-mega-seq512-mt-...",
+  "frame_rate_hz": 12.5,
+  "lookahead_ms": 0,
+  "split": "dev.txt",
+  "task_ids": ["20", "21", ...],
+  "extra": {
+    "stride_frames": 12,
+    "head_mapping": {
+      "eot_score": "agent_should_speak",
+      "interruption_score": "speculative_onset"
+    }
+  }
+}
+```
+
+Required keys: `schema_version`, `run_name`, `baseline`, `frame_rate_hz`,
+`split`, `task_ids`. `lookahead_ms` is the declared lookahead `L` from
+the evaluation protocol (§6.4 of the paper); it's used to group
+submissions into latency bins on the leaderboard. `checkpoint` and
+`extra` are free-form.
+
+## Writing predictions (Python)
+
+```python
+from pathlib import Path
+import numpy as np
+from eval.submission_format import Manifest, write_manifest, write_traces
+
+run_dir = Path("predictions/my_baseline_dev")
+
+# One call per task_id
+write_traces(
+    run_dir,
+    task_id="20",
+    eot_score_speaker_1=np.asarray(...).astype(np.float32),
+    eot_score_speaker_2=np.asarray(...).astype(np.float32),
+    interruption_score_speaker_1=np.asarray(...).astype(np.float32),
+    interruption_score_speaker_2=np.asarray(...).astype(np.float32),
+)
+
+# Once per run
+write_manifest(run_dir, Manifest(
+    run_name="my_baseline_dev",
+    baseline="my_baseline",
+    frame_rate_hz=12.5,
+    split="dev.txt",
+    task_ids=["20", "21", ...],
+))
+```
+
+The shared `baselines/runner.py` wraps this for you — implement
+`predict_scores(sample_dir) -> dict` returning the four arrays plus
+`frame_rate_hz`, and call `run("my_baseline", predict_scores)`.
+
+## Reading predictions (Python)
+
+```python
+from eval.submission_format import load_traces, load_manifest
+arrays = load_traces(Path("predictions/my_baseline_dev"), task_id="20")
+# arrays["eot_score_speaker_1"], ..., all float32 with shape (T,)
+manifest = load_manifest(Path("predictions/my_baseline_dev"))
+# manifest.frame_rate_hz, manifest.task_ids, ...
+```
