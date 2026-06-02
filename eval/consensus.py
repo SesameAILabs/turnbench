@@ -215,7 +215,7 @@ def process_sample(d: Path, canonical: dict[str, str]
 def main() -> int:
     repo = Path(__file__).resolve().parent.parent
     env = load_env(repo / ".env")
-    root = Path(env["DATA_ROOT"]) / env["BATCH"]
+    root = (Path(env["TT_BENCHMARK_DATA"]) if env.get("TT_BENCHMARK_DATA") else Path(env["DATA_ROOT"]) / env["BATCH"])
     out_dir = Path(env.get("STATS_DIR", repo / "stats_out")) / "consensus"
     out_dir.mkdir(parents=True, exist_ok=True)
 

@@ -34,7 +34,7 @@ def load_env(p: Path) -> dict[str, str]:
 def main() -> int:
     repo = Path(__file__).resolve().parent.parent
     env = load_env(repo / ".env")
-    data_root = Path(env["DATA_ROOT"]) / env["BATCH"]
+    data_root = (Path(env["TT_BENCHMARK_DATA"]) if env.get("TT_BENCHMARK_DATA") else Path(env["DATA_ROOT"]) / env["BATCH"])
     stats_dir = Path(env.get("STATS_DIR", repo / "stats_out"))
     consensus_dir = stats_dir / "consensus"
 

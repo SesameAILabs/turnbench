@@ -19,15 +19,26 @@ Evaluation:
                 been active (model decides to take the floor).
   Interruption: fire when system-stream activity rises while user is
                 still active.
+
+Reads the dataset root from `TT_BENCHMARK_DATA` (see top-level
+`.env.example`). Runs bidirectionally --- once with each speaker as the
+agent --- and writes predictions to `predictions/moshi/<task_id>.jsonl`.
 """
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _runner import run  # noqa: E402
 
-def predict(sample_dir: Path) -> dict[int, list[tuple[float, float, str]]]:
-    raise NotImplementedError("TODO: load Moshi checkpoint, read system-stream VA head")
+
+def predict_for_agent(sample_dir: Path, agent_speaker: int) -> list[dict]:
+    """Returns a list of {"time": float, "speaker": int, "label": str}
+    events predicted by the model when running as the agent on
+    speaker `agent_speaker`'s channel (listening to the other speaker)."""
+    raise NotImplementedError("TODO: implement moshi")
 
 
 if __name__ == "__main__":
-    raise SystemExit("Not implemented yet.")
+    sys.exit(run("moshi", predict_for_agent))
