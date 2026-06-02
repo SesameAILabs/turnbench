@@ -4,3 +4,9 @@ __pycache__/
 stats_out/
 .venv/
 
+# Predictions are derived from the (gated) dataset and may directly leak
+# annotator labels (e.g. oracle_annotator_*). Never commit.
+predictions/
+
+# Local consensus / clip output that depends on the dataset.
+eval/clips/
