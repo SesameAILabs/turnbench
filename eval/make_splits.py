@@ -13,7 +13,7 @@ Algorithm:
 Writes:
     eval/splits/dev.txt   one task_id per line
     eval/splits/test.txt  one task_id per line
-    eval/splits/_summary.json  per-split sample/speaker/type counts
+    eval/splits/random_summary.json  per-split sample/speaker/type counts
 """
 from __future__ import annotations
 
@@ -256,7 +256,7 @@ def main() -> int:
         "seed": SEED,
         "dev_frac_target": DEV_FRAC,
     }
-    (split_dir / "_summary.json").write_text(json.dumps(summary, indent=2))
+    (split_dir / "random_summary.json").write_text(json.dumps(summary, indent=2))
 
     # Print human-readable
     print(f"Total: {len(samples)} samples, {len(speaker_to_comp)} speakers, "
@@ -275,7 +275,7 @@ def main() -> int:
         print(f"{t:33s} {dev_types[t]:>8d} {test_types[t]:>8d}        "
               f"{rand_dev_types[t]:>8d} {rand_test_types[t]:>8d}")
 
-    print(f"\nWrote dev.txt, test.txt, random_dev.txt, random_test.txt, _summary.json")
+    print(f"\nWrote dev.txt, test.txt, random_dev.txt, random_test.txt, random_summary.json")
     return 0
 
 
