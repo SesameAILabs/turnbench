@@ -1,0 +1,20 @@
+{
+  "run_name": "example_run",
+  "baseline": "example",
+  "frame_rate_hz": 12.5,
+  "split": "example",
+  "task_ids": [
+    "EXAMPLE_001",
+    "EXAMPLE_002"
+  ],
+  "checkpoint": "synthetic",
+  "lookahead_ms": 0.0,
+  "schema_version": "1.0",
+  "extra": {
+    "purpose": "synthetic example to illustrate the submission layout",
+    "head_mapping": {
+      "eot_score": "<n/a>",
+      "interruption_score": "<n/a>"
+    }
+  }
+}
