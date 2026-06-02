@@ -1,0 +1,148 @@
+{
+  "speaker_disjoint": {
+    "n_samples": {
+      "dev": 38,
+      "test": 116
+    },
+    "n_speakers": {
+      "dev": 26,
+      "test": 80
+    },
+    "speaker_overlap": 0,
+    "n_components_dev": 13,
+    "n_components_test": 40,
+    "by_type": {
+      "Argumentative/Deliberative": {
+        "dev": 8,
+        "test": 24
+      },
+      "Casual/Spontaneous": {
+        "dev": 7,
+        "test": 22
+      },
+      "Collaborative/Problem-Solving": {
+        "dev": 6,
+        "test": 20
+      },
+      "Instructional": {
+        "dev": 6,
+        "test": 19
+      },
+      "Narrative/Storytelling": {
+        "dev": 5,
+        "test": 15
+      },
+      "Task-Oriented/Transactional": {
+        "dev": 6,
+        "test": 16
+      }
+    }
+  },
+  "random": {
+    "n_samples": {
+      "dev": 38,
+      "test": 116
+    },
+    "n_speakers": {
+      "dev": 60,
+      "test": 104
+    },
+    "speaker_overlap": 58,
+    "by_type": {
+      "Argumentative/Deliberative": {
+        "dev": 4,
+        "test": 28
+      },
+      "Casual/Spontaneous": {
+        "dev": 7,
+        "test": 22
+      },
+      "Collaborative/Problem-Solving": {
+        "dev": 6,
+        "test": 20
+      },
+      "Instructional": {
+        "dev": 8,
+        "test": 17
+      },
+      "Narrative/Storytelling": {
+        "dev": 6,
+        "test": 14
+      },
+      "Task-Oriented/Transactional": {
+        "dev": 7,
+        "test": 15
+      }
+    }
+  },
+  "totals": {
+    "n_samples": 154,
+    "n_speakers": 106,
+    "n_components": 53,
+    "component_sizes": [
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      1,
+      1,
+      1
+    ],
+    "by_type": {
+      "Instructional": 25,
+      "Argumentative/Deliberative": 32,
+      "Task-Oriented/Transactional": 22,
+      "Collaborative/Problem-Solving": 26,
+      "Casual/Spontaneous": 29,
+      "Narrative/Storytelling": 20
+    }
+  },
+  "seed": 2577,
+  "dev_frac_target": 0.25
+}
