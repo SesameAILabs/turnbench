@@ -87,7 +87,12 @@ predictions/<run-name>/
                               #   interruption_score_speaker_2
 ```
 
-Scores are continuous (probabilities or logits) sampled at `frame_rate_hz`. Storing scores rather than thresholded events lets `eval/metrics.py` sweep the detection threshold for the latency-vs-interruption-rate curve. Per-baseline native outputs (e.g., Sesame's `agent_should_speak` head, VAP's voice-activity projection, ESPnet's 5-class probabilities) are converted to the four canonical arrays inside each baseline's `predict_scores` adapter.
+Scores are continuous (probabilities or logits) sampled at `frame_rate_hz`. Each array has a precise per-channel semantics:
+
+- `eot_score_speaker_K` — at each frame, *"Is speaker K finishing their turn?"*
+- `interruption_score_speaker_K` — at each frame, *"Is speaker K barging in on the other speaker?"*
+
+`speaker_1` and `speaker_2` mirror the dataset (`speaker_1_audio.wav` / `speaker_2_audio.wav`); do not remap by who the "agent" is — that's the eval code's job. Storing continuous scores rather than thresholded events lets `eval/metrics.py` sweep the detection threshold for the latency-vs-interruption-rate curve. Per-baseline native outputs (Sesame's `agent_should_speak` head, VAP's voice-activity projection, ESPnet's 5-class probabilities, etc.) are converted to the four canonical arrays inside each baseline's `predict_scores` adapter. Full specification and code examples in [`docs/SUBMISSION_FORMAT.md`](docs/SUBMISSION_FORMAT.md).
 
 ## Splits
 

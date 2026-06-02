@@ -13,14 +13,20 @@ Layout on disk:
 Each per-task NPZ holds four float32 arrays of length T (T frames at the
 declared frame rate):
 
-    eot_score_speaker_1
-    eot_score_speaker_2
-    interruption_score_speaker_1
-    interruption_score_speaker_2
+    eot_score_speaker_1           "Is speaker 1's current turn ending?"
+    eot_score_speaker_2           "Is speaker 2's current turn ending?"
+    interruption_score_speaker_1  "Is speaker 1 barging in on speaker 2?"
+    interruption_score_speaker_2  "Is speaker 2 barging in on speaker 1?"
+
+Frame i corresponds to audio time i / frame_rate_hz seconds from the start
+of the conversation. `speaker_1` / `speaker_2` mirror the dataset's
+`speaker_1_audio.wav` / `speaker_2_audio.wav`; do NOT remap by who the
+"agent" is (that's the eval code's job).
 
 Scores are continuous (probabilities or logits). The eval module derives
 binary detections by thresholding, which lets us sweep the threshold for
-the latency-vs-interruption-rate curve.
+the latency-vs-interruption-rate curve. See docs/SUBMISSION_FORMAT.md for
+the full specification.
 
 The manifest carries metadata that is constant across the run:
 
