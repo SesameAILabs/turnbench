@@ -74,19 +74,20 @@ python3 data_analysis/plot_per_type.py      # writes stats_out/figures/{heatmap_
 
 **Canonical taxonomy:** `Turn`, `Interruption`, `Backchannel`, `Overlap`, `Laughter`, `NonContent`. `EOT` is derived from `Turn` event end-times — not a separate label.
 
-**Prediction format.** Each baseline emits one JSONL per `task_id` with point events:
+**Unified prediction format.** Every baseline writes to the same on-disk layout via `eval/submission_format.py`:
+
 ```
-{"speaker": 1, "time": 12.345, "label": "EOT"}
-{"speaker": 2, "time": 13.802, "label": "Interruption"}
+predictions/<run-name>/
+├── manifest.json            # baseline, checkpoint, frame_rate_hz, split, task_ids, lookahead_ms
+└── traces/
+    └── <task_id>.npz         # four float32 arrays:
+                              #   eot_score_speaker_1
+                              #   eot_score_speaker_2
+                              #   interruption_score_speaker_1
+                              #   interruption_score_speaker_2
 ```
 
-**Metrics (`eval/metrics.py`).** EOT and Interruption are scored independently, with a 2 s grace window:
-- **TP** — predicted in `(t_gold, t_gold + 2s]`. Latency = `t_pred - t_gold`.
-- **FP-premature** — predicted in `(t_gold - 2s, t_gold]` (model cut the speaker off).
-- **FP-spurious** — predicted outside any gold event window.
-- **FN** — gold event with no matching prediction.
-
-For predicted `Interruption`, a confusion histogram reports what gold event (if any) was actually present — so a model that misclassifies backchannels as interruptions is visible in the `Backchannel` column rather than hidden in spurious-FP totals.
+Scores are continuous (probabilities or logits) sampled at `frame_rate_hz`. Storing scores rather than thresholded events lets `eval/metrics.py` sweep the detection threshold for the latency-vs-interruption-rate curve. Per-baseline native outputs (e.g., Sesame's `agent_should_speak` head, VAP's voice-activity projection, ESPnet's 5-class probabilities) are converted to the four canonical arrays inside each baseline's `predict_scores` adapter.
 
 ## Splits
 
