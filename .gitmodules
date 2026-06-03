@@ -1,0 +1,3 @@
+[submodule "baselines/smart_turn_v3/smart_turn"]
+	path = baselines/smart_turn_v3/smart_turn
+	url = https://github.com/pipecat-ai/smart-turn
