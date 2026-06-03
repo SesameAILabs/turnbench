@@ -126,15 +126,21 @@ Each baseline lives in its own directory under `baselines/`. The minimum interfa
 
 **Bidirectional evaluation.** Every conversation is two-channel. Each baseline must run **twice per dialogue** — once treating speaker 1 as the agent (with speaker 2 as the human user) and once treating speaker 2 as the agent. The predicted events for both directions are written into the same JSONL with the appropriate `speaker` field; the eval module scores each direction independently and aggregates. Concretely, a baseline's `predict(sample_dir)` should return predictions for *both* speakers — see the baseline stubs for the boilerplate that reads `TT_BENCHMARK_DATA` and iterates over both directions.
 
-| Baseline | Modality | Output | Params |
-| --- | --- | --- | --- |
-| `sesame` | Internal CD model | Continuous per-frame heads @ 12.5 Hz | (internal) |
-| `gemini` | Full-duplex streaming dialogue | ASR/VAD-aligned timestamps over output audio | undisclosed |
-| `moshi` | Audio (full-duplex, 12.5 Hz) | Per-frame voice-activity on system stream | ~7B |
-| `espnet_turntaking` | Audio (frozen Whisper-medium) | 5-class @ 25 Hz (Continuation / Silence / Interruption / Backchannel / Turn-change) | ~307M |
-| `mimi_endpointer` | Audio (Mimi codec, 12.5 Hz) | 4-class per frame {user, user-end, system, system-end} | <50M |
-| `kyutai_semantic_vad` | Audio + ASR (Kyutai DSM) | Binary EOT per frame (user-only) | >1B |
-| `vap` | Audio (two-stream, 50 Hz) | Continuous voice-activity projection per speaker | >100M |
-| `smart_turn_v3` | Audio (Whisper-Tiny + linear head) | Binary per 8 s chunk (turn-complete) | ~40M |
-| `wavlm_base_causal` | Audio (frozen WavLM-Base-Plus, causal) | 5-class @ 25 Hz, fully causal single pass | ~98M (3.8M trainable) |
-| `wavlm_large_anchor` | Audio (frozen WavLM-Large, 4 s windows) | 5-class @ 25 Hz, autoregressive decoder | ~628M (313M trainable) |
+| Baseline | Modality | Output | Params | Status |
+| --- | --- | --- | --- | --- |
+| `oracle_annotator` | Sanity check | Replays one annotator's labels | n/a | implemented |
+| `sesame` | Internal CD model | Continuous per-frame heads @ 12.5 Hz | (internal) | predictions provided externally |
+| `gemini` | Full-duplex streaming dialogue | ASR/VAD-aligned timestamps over output audio | undisclosed | stub |
+| `moshi` | Audio (full-duplex, 12.5 Hz) | Per-frame voice-activity on system stream | ~7B | stub |
+| `espnet_turntaking` | Audio (frozen Whisper-medium) | 5-class @ 25 Hz (Continuation / Silence / Interruption / Backchannel / Turn-change) | ~307M | stub |
+| `mimi_endpointer` | Audio (Mimi codec, 12.5 Hz) | 4-class per frame {user, user-end, system, system-end} | <50M | stub |
+| `kyutai_semantic_vad` | Audio + ASR (Kyutai DSM) | Binary EOT per frame (user-only) | >1B | stub |
+| `vap` | Audio (two-stream, 50 Hz) | Continuous voice-activity projection per speaker | >100M | stub |
+| `smart_turn_v3` | Audio (Whisper-Tiny + linear head) | Binary per 8 s chunk (turn-complete) | ~40M | stub |
+| `wavlm_base_causal` | Audio (frozen WavLM-Base-Plus, causal) | 5-class @ 25 Hz, fully causal single pass | ~98M (3.8M trainable) | stub |
+| `wavlm_large_anchor` | Audio (frozen WavLM-Large, 4 s windows) | 5-class @ 25 Hz, autoregressive decoder | ~628M (313M trainable) | stub |
+
+Stubs are intentional placeholders documenting the intended interface — community
+contributions implementing them are welcome. Only `oracle_annotator` runs out of
+the box today; `sesame` predictions are produced by a partner pipeline and
+dropped into `predictions/sesame_*/` for evaluation.
