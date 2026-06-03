@@ -148,7 +148,7 @@ def load_model(checkpoint_path, device="cpu"):
     return model.to(device)
 
 
-CLASS_NAMES = ["silence", "system", "system_end", "user", "user_end"]
+CLASS_NAMES = ["bos", "system_end", "user_end", "system", "user"]
 
 
 if __name__ == "__main__":

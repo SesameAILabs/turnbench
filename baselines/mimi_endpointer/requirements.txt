@@ -1,0 +1,10 @@
+torch==2.7.0
+torchaudio==2.7.0
+moshi==0.2.11
+transformers==4.53.3
+soundfile==0.12.1
+numpy==1.26.4
+matplotlib==3.10.6
+tqdm==4.66.5
+huggingface_hub
+safetensors
