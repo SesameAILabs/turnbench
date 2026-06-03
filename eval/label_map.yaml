@@ -3,10 +3,17 @@
 # collapse into it. Labels not listed here are ignored when building consensus.
 
 Turn:
+  # All speaker-content events that contribute to floor-holding. Includes
+  # the explicit turn variants, in-turn fillers, overlaps, and awkward
+  # silences (which are still part of the speaking turn structure for
+  # EOT reconciliation purposes).
   - Normal Turn
   - Regular Turn
   - Strong Floor Hold
   - Bounded Response
+  - Filler
+  - Overlap
+  - Awkward Silence
 
 Interruption:
   # Agent's perspective: any user vocalization treated as an interruption
@@ -21,9 +28,6 @@ Backchannel:
   - Acknowledgement Backchannel
   - Continuer Backchannel
   - Reaction Backchannel
-
-Overlap:
-  - Overlap
 
 Laughter:
   - Laughter
