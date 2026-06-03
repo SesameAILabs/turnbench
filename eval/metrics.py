@@ -1,247 +1,286 @@
 #!/usr/bin/env python3
-"""Evaluate a baseline's predictions against the consensus gold.
+"""Score a baseline's unified-format predictions against the consensus gold.
 
 Inputs:
-    Gold:  stats_out/consensus/<task_id>.jsonl
-    Pred:  predictions/<baseline>/<task_id>.jsonl, same schema:
-               {"speaker": int, "time": float, "label": str}
-           (predictions are points in time, not intervals)
+    Predictions dir (`run_dir`) — `manifest.json` + `traces/<task_id>.npz`,
+        produced by `baselines/runner.py` (see eval/submission_format.py and
+        docs/SUBMISSION_FORMAT.md).
+    Consensus dir — `stats_out/consensus/<task_id>.jsonl` produced by
+        eval/consensus.py. Per-event lines: `{"speaker", "start", "end",
+        "label", "raw": ...}`.
 
-Metrics:
-    EOT
-        Gold EOT time = `end` of every consensus `Turn` event.
-        TP            : predicted EOT in [t_gold - EARLY_TOL_S, t_gold + WINDOW_S]
-        FP-premature  : predicted EOT in (t_gold - WINDOW_S, t_gold - EARLY_TOL_S)
-                        (model cut the speaker off by more than EARLY_TOL_S)
-        FP-spurious   : predicted EOT outside any gold EOT window
-        FN            : gold EOT with no matched prediction
-        Latency       : t_pred - t_gold for each TP (in [-EARLY_TOL_S, WINDOW_S])
+What we score (initial MVP, two tracks):
 
-    Interruption
-        Same shape as EOT, on gold `Interruption` events.
+  EOT detection
+      Gold event = the END time of a consensus `Turn` event for speaker K.
+      Score array = `eot_score_speaker_K`.
+      For each gold event, locate the first frame in the eval window
+      [t_gold - tau_pre, t_gold + tau_max] whose score crosses `threshold`.
+      Hit -> TP; miss -> FN.
 
-    Confusion (predicted Interruption)
-        For each predicted `Interruption`, what gold canonical label, if any,
-        lies in (t_pred - WINDOW_S, t_pred + WINDOW_S]? Reported as a 6-way
-        histogram: {Interruption, Backchannel, Overlap, Laughter,
-        NonContent, None}. A model that confuses backchannels with
-        interruptions will show up clearly in the Backchannel column.
+  Interruption detection
+      Gold event = the START time of a consensus `Interruption` event for
+      speaker K (i.e., speaker K is interrupting). Score array =
+      `interruption_score_speaker_K`. Same TP/FN scoring as EOT.
 
-All scoring is restricted to consensus events. Predictions that fall inside
-a non-consensus interval (any event from a/b/c that did not reach 3-way
-agreement) are filtered out before scoring — they neither help nor hurt the
-model's numbers.
+  False positives
+      Each threshold-crossing in the score that does NOT lie inside any
+      gold event window of the corresponding track is counted as one FP,
+      with a 1 s refractory so a single sustained high segment is counted
+      once rather than per frame.
+
+Metrics produced per track:
+    tp, fn, fp, precision, recall, f1
+    latency_p10_ms / latency_p50_ms / latency_p90_ms over TP detections,
+        where latency = (frame_time - t_gold) * 1000.
+
+Usage:
+    python -m eval.metrics \\
+        --run-dir   <run dir with manifest.json + traces/> \\
+        --gold-dir  stats_out/consensus \\
+        --threshold 0.5
+
+    # Sweep:
+    python -m eval.metrics --run-dir ... --gold-dir ... --sweep 0.05:0.95:0.05
 """
 from __future__ import annotations
 
+import argparse
 import json
 import sys
-from collections import Counter, defaultdict
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterable
+
+import numpy as np
+
+# allow `python eval/metrics.py` and `python -m eval.metrics`
+_REPO = Path(__file__).resolve().parent.parent
+if str(_REPO) not in sys.path:
+    sys.path.insert(0, str(_REPO))
+from eval.submission_format import load_manifest, load_traces  # noqa: E402
 
 
-WINDOW_S = 2.0       # grace window AFTER gold for EOT / Interruption
-EARLY_TOL_S = 0.2    # acceptable lead before gold (matches consensus tolerance)
-                     # predictions earlier than this are flagged as premature
-CANONICAL_LABELS = ("Turn", "Interruption", "Backchannel", "Overlap", "Laughter", "NonContent")
-NON_INTERRUPTION = ("Backchannel", "Overlap", "Laughter", "NonContent")
+TAU_PRE_S = 0.25       # speculative-early tolerance
+TAU_MAX_S = 2.00       # latency tolerance after gold event
+FP_REFRACTORY_S = 1.0  # collapse repeated above-threshold detections
 
 
-def load_jsonl(path: Path) -> list[dict]:
-    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+@dataclass
+class TrackScore:
+    tp: int = 0
+    fn: int = 0
+    fp: int = 0
+    latencies_ms: list[float] = None  # populated lazily
 
+    def __post_init__(self) -> None:
+        if self.latencies_ms is None:
+            self.latencies_ms = []
 
-def gold_eot_times(gold: list[dict]) -> dict[int, list[float]]:
-    """Per speaker, the end-times of consensus Turn events."""
-    out: dict[int, list[float]] = defaultdict(list)
-    for ev in gold:
-        if ev["label"] == "Turn":
-            out[ev["speaker"]].append(ev["end"])
-    for sp in out:
-        out[sp].sort()
-    return out
+    @property
+    def precision(self) -> float:
+        denom = self.tp + self.fp
+        return self.tp / denom if denom else 0.0
 
+    @property
+    def recall(self) -> float:
+        denom = self.tp + self.fn
+        return self.tp / denom if denom else 0.0
 
-def gold_event_times(gold: list[dict], label: str) -> dict[int, list[float]]:
-    """Per speaker, the start-times of consensus events with `label`."""
-    out: dict[int, list[float]] = defaultdict(list)
-    for ev in gold:
-        if ev["label"] == label:
-            out[ev["speaker"]].append(ev["start"])
-    for sp in out:
-        out[sp].sort()
-    return out
+    @property
+    def f1(self) -> float:
+        p, r = self.precision, self.recall
+        return 2 * p * r / (p + r) if (p + r) else 0.0
 
-
-def score_point_event(pred_times: list[float], gold_times: list[float]
-                      ) -> dict[str, float | list[float]]:
-    """Greedy 1:1 matching. Each gold event consumes at most one prediction in
-    its (t_g, t_g + WINDOW_S] window; the earliest unused prediction in that
-    window wins (lowest latency)."""
-    pred_sorted = sorted(pred_times)
-    used = [False] * len(pred_sorted)
-    tp_latencies: list[float] = []
-    fn = 0
-    for t_g in gold_times:
-        match_i = None
-        for i, t_p in enumerate(pred_sorted):
-            if used[i]:
-                continue
-            if t_p < t_g - EARLY_TOL_S:
-                continue
-            if t_p > t_g + WINDOW_S:
-                break  # sorted — no later pred can match this gold
-            match_i = i
-            break
-        if match_i is None:
-            fn += 1
-        else:
-            used[match_i] = True
-            tp_latencies.append(pred_sorted[match_i] - t_g)
-
-    tp = len(tp_latencies)
-    fp_premature = 0
-    fp_spurious = 0
-    for i, t_p in enumerate(pred_sorted):
-        if used[i]:
-            continue
-        # premature = inside the larger pre-window but outside the TP early tol
-        if any(t_g - WINDOW_S < t_p < t_g - EARLY_TOL_S for t_g in gold_times):
-            fp_premature += 1
-        else:
-            fp_spurious += 1
-
-    return {
-        "tp": tp,
-        "fn": fn,
-        "fp_premature": fp_premature,
-        "fp_spurious": fp_spurious,
-        "fp_total": fp_premature + fp_spurious,
-        "latencies_s": tp_latencies,
-    }
-
-
-def confusion_for_label(pred: list[dict], gold: list[dict], target: str
-                        ) -> dict[str, int]:
-    """For each prediction with label==target, find what gold canonical event
-    (if any) is within (t_pred - WINDOW_S, t_pred + WINDOW_S]. Reports counts."""
-    by_sp: dict[int, list[tuple[float, float, str]]] = defaultdict(list)
-    for ev in gold:
-        by_sp[ev["speaker"]].append((ev["start"], ev["end"], ev["label"]))
-    for sp in by_sp:
-        by_sp[sp].sort()
-
-    cm: Counter = Counter()
-    for p in pred:
-        if p["label"] != target:
-            continue
-        t_p, sp = p["time"], p["speaker"]
-        match = "None"
-        for s, e, lbl in by_sp.get(sp, []):
-            if t_p - WINDOW_S < s <= t_p + WINDOW_S or s <= t_p <= e:
-                match = lbl
-                break
-        cm[match] += 1
-    return dict(cm)
-
-
-def aggregate(scores: dict, key: str) -> dict:
-    total = {"tp": 0, "fn": 0, "fp_premature": 0, "fp_spurious": 0, "fp_total": 0}
-    latencies: list[float] = []
-    for s in scores.values():
-        for k in total:
-            total[k] += s[key][k]
-        latencies.extend(s[key]["latencies_s"])
-    p = total["tp"] / max(total["tp"] + total["fp_total"], 1)
-    r = total["tp"] / max(total["tp"] + total["fn"], 1)
-    f1 = 2 * p * r / max(p + r, 1e-9)
-    lat = sorted(latencies)
-    pct = lambda q: lat[int(q * (len(lat) - 1))] if lat else float("nan")
-    return {
-        **total,
-        "precision": round(p, 4),
-        "recall": round(r, 4),
-        "f1": round(f1, 4),
-        "latency_mean_s": round(sum(latencies) / len(latencies), 4) if latencies else None,
-        "latency_p50_s": round(pct(0.5), 4) if latencies else None,
-        "latency_p95_s": round(pct(0.95), 4) if latencies else None,
-        "n_predictions_matched": len(latencies),
-    }
-
-
-def in_excluded(t: float, sp: int, excluded: dict[int, list[tuple[float, float]]]) -> bool:
-    for s, e in excluded.get(sp, []):
-        if s <= t <= e:
-            return True
-    return False
-
-
-def evaluate_baseline(consensus_dir: Path, pred_dir: Path) -> dict:
-    per_sample: dict[str, dict] = {}
-    n_filtered_total = 0
-    for gold_file in sorted(consensus_dir.glob("*.jsonl")):
-        if gold_file.name.startswith("_") or gold_file.stem.endswith("_excluded"):
-            continue
-        task_id = gold_file.stem
-        pred_file = pred_dir / f"{task_id}.jsonl"
-        if not pred_file.exists():
-            continue
-
-        gold = load_jsonl(gold_file)
-        pred_raw = load_jsonl(pred_file)
-
-        # Build per-speaker excluded intervals and drop predictions inside them.
-        excluded_file = consensus_dir / f"{task_id}_excluded.jsonl"
-        excluded: dict[int, list[tuple[float, float]]] = defaultdict(list)
-        if excluded_file.exists():
-            for x in load_jsonl(excluded_file):
-                excluded[x["speaker"]].append((x["start"], x["end"]))
-        pred = [p for p in pred_raw if not in_excluded(p["time"], p["speaker"], excluded)]
-        n_filtered_total += len(pred_raw) - len(pred)
-
-        eot_score = {"tp": 0, "fn": 0, "fp_premature": 0, "fp_spurious": 0,
-                     "fp_total": 0, "latencies_s": []}
-        for sp, g_times in gold_eot_times(gold).items():
-            p_times = [p["time"] for p in pred if p["speaker"] == sp and p["label"] == "EOT"]
-            s = score_point_event(p_times, g_times)
-            for k in ("tp", "fn", "fp_premature", "fp_spurious", "fp_total"):
-                eot_score[k] += s[k]
-            eot_score["latencies_s"].extend(s["latencies_s"])
-
-        int_score = {"tp": 0, "fn": 0, "fp_premature": 0, "fp_spurious": 0,
-                     "fp_total": 0, "latencies_s": []}
-        for sp, g_times in gold_event_times(gold, "Interruption").items():
-            p_times = [p["time"] for p in pred
-                       if p["speaker"] == sp and p["label"] == "Interruption"]
-            s = score_point_event(p_times, g_times)
-            for k in ("tp", "fn", "fp_premature", "fp_spurious", "fp_total"):
-                int_score[k] += s[k]
-            int_score["latencies_s"].extend(s["latencies_s"])
-
-        per_sample[task_id] = {
-            "EOT": eot_score,
-            "Interruption": int_score,
-            "interruption_confusion": confusion_for_label(pred, gold, "Interruption"),
+    def latency_percentiles_ms(self) -> dict[str, float]:
+        if not self.latencies_ms:
+            return {"latency_p10_ms": float("nan"),
+                    "latency_p50_ms": float("nan"),
+                    "latency_p90_ms": float("nan")}
+        arr = np.asarray(self.latencies_ms, dtype=np.float64)
+        return {
+            "latency_p10_ms": float(np.percentile(arr, 10)),
+            "latency_p50_ms": float(np.percentile(arr, 50)),
+            "latency_p90_ms": float(np.percentile(arr, 90)),
         }
 
-    summary = {
-        "n_samples_scored": len(per_sample),
-        "n_predictions_filtered_excluded": n_filtered_total,
-        "EOT": aggregate(per_sample, "EOT"),
-        "Interruption": aggregate(per_sample, "Interruption"),
-        "interruption_confusion_total": dict(sum(
-            (Counter(s["interruption_confusion"]) for s in per_sample.values()), Counter()
-        )),
+    def as_dict(self) -> dict:
+        return {
+            "tp": self.tp, "fn": self.fn, "fp": self.fp,
+            "precision": round(self.precision, 4),
+            "recall": round(self.recall, 4),
+            "f1": round(self.f1, 4),
+            **{k: round(v, 1) for k, v in self.latency_percentiles_ms().items()},
+        }
+
+
+def load_gold_events(consensus_path: Path) -> list[dict]:
+    return [json.loads(line) for line in consensus_path.read_text().splitlines() if line.strip()]
+
+
+def gold_eot_events(gold: Iterable[dict]) -> list[tuple[float, int]]:
+    """Return (t_gold_seconds, speaker) for each consensus Turn event end."""
+    return [(ev["end"], ev["speaker"]) for ev in gold if ev["label"] == "Turn"]
+
+
+def gold_interruption_events(gold: Iterable[dict]) -> list[tuple[float, int]]:
+    """Return (t_gold_seconds, speaker) for each consensus Interruption start."""
+    return [(ev["start"], ev["speaker"]) for ev in gold if ev["label"] == "Interruption"]
+
+
+def score_track(
+    gold: list[tuple[float, int]],
+    score_by_speaker: dict[int, np.ndarray],
+    frame_rate_hz: float,
+    threshold: float,
+    *,
+    tau_pre_s: float = TAU_PRE_S,
+    tau_max_s: float = TAU_MAX_S,
+    fp_refractory_s: float = FP_REFRACTORY_S,
+) -> TrackScore:
+    out = TrackScore()
+    fps = frame_rate_hz
+
+    # Match each gold event to the first frame in its eval window where the
+    # score crosses the threshold.
+    gold_windows: dict[int, list[tuple[int, int]]] = {1: [], 2: []}
+    for t_gold, speaker in gold:
+        scores = score_by_speaker[speaker]
+        lo = max(0, int(np.floor((t_gold - tau_pre_s) * fps)))
+        hi = min(len(scores) - 1, int(np.ceil((t_gold + tau_max_s) * fps)))
+        gold_windows[speaker].append((lo, hi))
+        if lo > hi:
+            out.fn += 1
+            continue
+        window = scores[lo:hi + 1]
+        crossing = np.where(window > threshold)[0]
+        if len(crossing) == 0:
+            out.fn += 1
+        else:
+            frame_idx = lo + int(crossing[0])
+            t_pred = frame_idx / fps
+            out.tp += 1
+            out.latencies_ms.append((t_pred - t_gold) * 1000.0)
+
+    # Count FPs: threshold-crossings outside any gold window, with refractory.
+    refractory_frames = max(1, int(round(fp_refractory_s * fps)))
+    for speaker in (1, 2):
+        scores = score_by_speaker[speaker]
+        in_gold = np.zeros(len(scores), dtype=bool)
+        for lo, hi in gold_windows[speaker]:
+            in_gold[lo:hi + 1] = True
+        above = scores > threshold
+        spurious = above & ~in_gold
+        i = 0
+        while i < len(spurious):
+            if spurious[i]:
+                out.fp += 1
+                i += refractory_frames
+            else:
+                i += 1
+    return out
+
+
+def score_run(
+    run_dir: Path,
+    gold_dir: Path,
+    threshold: float,
+    *,
+    only_task_ids: set[str] | None = None,
+) -> dict:
+    """Score a single run at a single threshold; return aggregate metrics
+    plus a per-task breakdown."""
+    manifest = load_manifest(run_dir)
+    fps = manifest.frame_rate_hz
+    eot_total = TrackScore()
+    int_total = TrackScore()
+    per_task: dict[str, dict] = {}
+
+    task_ids = manifest.task_ids if only_task_ids is None else [
+        t for t in manifest.task_ids if t in only_task_ids
+    ]
+
+    for tid in task_ids:
+        gold_path = gold_dir / f"{tid}.jsonl"
+        if not gold_path.exists():
+            continue
+        gold = load_gold_events(gold_path)
+        traces = load_traces(run_dir, tid)
+        eot_scores = {1: traces["eot_score_speaker_1"], 2: traces["eot_score_speaker_2"]}
+        int_scores = {1: traces["interruption_score_speaker_1"],
+                      2: traces["interruption_score_speaker_2"]}
+
+        eot = score_track(gold_eot_events(gold), eot_scores, fps, threshold)
+        intr = score_track(gold_interruption_events(gold), int_scores, fps, threshold)
+
+        per_task[tid] = {"EOT": eot.as_dict(), "Interruption": intr.as_dict()}
+
+        eot_total.tp += eot.tp; eot_total.fn += eot.fn; eot_total.fp += eot.fp
+        eot_total.latencies_ms.extend(eot.latencies_ms)
+        int_total.tp += intr.tp; int_total.fn += intr.fn; int_total.fp += intr.fp
+        int_total.latencies_ms.extend(intr.latencies_ms)
+
+    return {
+        "run": manifest.run_name,
+        "baseline": manifest.baseline,
+        "checkpoint": manifest.checkpoint,
+        "split": manifest.split,
+        "threshold": threshold,
+        "n_tasks_scored": len(per_task),
+        "EOT": eot_total.as_dict(),
+        "Interruption": int_total.as_dict(),
+        "per_task": per_task,
     }
-    return {"summary": summary, "per_sample": per_sample}
+
+
+def parse_sweep(spec: str) -> list[float]:
+    a, b, c = (float(x) for x in spec.split(":"))
+    out = []
+    x = a
+    while x <= b + 1e-9:
+        out.append(round(x, 6))
+        x += c
+    return out
 
 
 def main() -> int:
-    if len(sys.argv) != 3:
-        print("usage: metrics.py <consensus_dir> <predictions_dir>", file=sys.stderr)
-        return 2
-    result = evaluate_baseline(Path(sys.argv[1]), Path(sys.argv[2]))
-    print(json.dumps(result["summary"], indent=2))
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--run-dir", required=True, type=Path,
+                    help="predictions/<run-name>/ directory")
+    ap.add_argument("--gold-dir", required=True, type=Path,
+                    help="stats_out/consensus/")
+    ap.add_argument("--threshold", type=float, default=0.5)
+    ap.add_argument("--sweep", default=None,
+                    help='Sweep thresholds, e.g. "0.1:0.9:0.1"')
+    ap.add_argument("--split-file", type=Path, default=None,
+                    help="Optional task_id list (one per line)")
+    args = ap.parse_args()
+
+    only = None
+    if args.split_file is not None:
+        only = {ln.strip() for ln in args.split_file.read_text().splitlines() if ln.strip()}
+
+    thresholds = parse_sweep(args.sweep) if args.sweep else [args.threshold]
+    summaries = []
+    for thr in thresholds:
+        r = score_run(args.run_dir, args.gold_dir, thr, only_task_ids=only)
+        del r["per_task"]
+        summaries.append(r)
+
+    # Pretty-print
+    print(f"\nRun: {summaries[0]['run']}  ({summaries[0]['n_tasks_scored']} tasks)")
+    header = f"{'thr':>5s}  {'EOT P':>7s} {'EOT R':>7s} {'EOT F1':>7s} {'EOT p50ms':>10s}   {'Int P':>7s} {'Int R':>7s} {'Int F1':>7s} {'Int p50ms':>10s}"
+    print(header)
+    print("-" * len(header))
+    for s in summaries:
+        e, i = s["EOT"], s["Interruption"]
+        print(f"{s['threshold']:>5.2f}  "
+              f"{e['precision']:>7.3f} {e['recall']:>7.3f} {e['f1']:>7.3f} "
+              f"{e['latency_p50_ms']:>10.1f}   "
+              f"{i['precision']:>7.3f} {i['recall']:>7.3f} {i['f1']:>7.3f} "
+              f"{i['latency_p50_ms']:>10.1f}")
+
+    print(json.dumps(summaries, indent=2)) if False else None
     return 0
 
 
