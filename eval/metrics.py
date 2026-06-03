@@ -243,6 +243,47 @@ def parse_sweep(spec: str) -> list[float]:
     return out
 
 
+def latency_at_fp_rate(
+    sweep: list[dict],
+    track: str,
+    target_fp_rate: float = 0.10,
+) -> dict:
+    """Find the threshold whose FP-per-positive rate is closest to
+    `target_fp_rate` (default 10%) and return the latency at that point.
+
+    FP rate is FP / (TP + FN) — false positives per gold positive event.
+    This is the paper's "interruption rate" definition for the EOT
+    operating point. Among thresholds whose FP rate is <= target, pick
+    the one with the lowest median latency; if none meets the target,
+    return the closest available.
+    """
+    pts = []
+    for s in sweep:
+        t = s[track]
+        positives = t["tp"] + t["fn"]
+        fp_rate = t["fp"] / positives if positives else float("inf")
+        pts.append({
+            "threshold": s["threshold"],
+            "fp_rate": fp_rate,
+            "tp": t["tp"], "fn": t["fn"], "fp": t["fp"],
+            "recall": t["recall"], "precision": t["precision"], "f1": t["f1"],
+            "latency_p50_ms": t["latency_p50_ms"],
+            "latency_p10_ms": t["latency_p10_ms"],
+            "latency_p90_ms": t["latency_p90_ms"],
+        })
+    # Operating points whose FP rate is at or below the target.
+    eligible = [p for p in pts if p["fp_rate"] <= target_fp_rate]
+    if eligible:
+        # Among eligible, pick the one whose latency is lowest (best operating point).
+        # Skip NaN latencies (no TPs).
+        usable = [p for p in eligible if not np.isnan(p["latency_p50_ms"])]
+        best = min(usable, key=lambda p: p["latency_p50_ms"]) if usable else eligible[0]
+        return {"target_fp_rate": target_fp_rate, "achieved": True, **best}
+    # No threshold meets the budget — return closest.
+    closest = min(pts, key=lambda p: abs(p["fp_rate"] - target_fp_rate))
+    return {"target_fp_rate": target_fp_rate, "achieved": False, **closest}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--run-dir", required=True, type=Path,
@@ -254,6 +295,9 @@ def main() -> int:
                     help='Sweep thresholds, e.g. "0.1:0.9:0.1"')
     ap.add_argument("--split-file", type=Path, default=None,
                     help="Optional task_id list (one per line)")
+    ap.add_argument("--fp-rate", type=float, default=None,
+                    help="If given, after the sweep, report latency at this "
+                         "FP-per-positive rate (e.g. 0.10 for 10%).")
     args = ap.parse_args()
 
     only = None
@@ -280,7 +324,18 @@ def main() -> int:
               f"{i['precision']:>7.3f} {i['recall']:>7.3f} {i['f1']:>7.3f} "
               f"{i['latency_p50_ms']:>10.1f}")
 
-    print(json.dumps(summaries, indent=2)) if False else None
+    if args.fp_rate is not None and len(summaries) > 1:
+        eot_op = latency_at_fp_rate(summaries, "EOT", target_fp_rate=args.fp_rate)
+        int_op = latency_at_fp_rate(summaries, "Interruption", target_fp_rate=args.fp_rate)
+        print()
+        print(f"Operating point at FP/positive = {args.fp_rate:.2%}")
+        for name, op in [("EOT", eot_op), ("Interruption", int_op)]:
+            mark = "" if op["achieved"] else "  (target NOT met; closest shown)"
+            print(f"  {name:>12s}  thr={op['threshold']:.2f}  "
+                  f"FP_rate={op['fp_rate']:.3f}  "
+                  f"P={op['precision']:.3f}  R={op['recall']:.3f}  "
+                  f"lat_p50={op['latency_p50_ms']:.1f}ms  "
+                  f"lat_p90={op['latency_p90_ms']:.1f}ms{mark}")
     return 0
 
 
