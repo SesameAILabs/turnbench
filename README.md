@@ -132,13 +132,13 @@ Each baseline lives in its own directory under `baselines/`. The minimum interfa
 | `sesame` | Internal CD model | Continuous per-frame heads @ 12.5 Hz | (internal) | predictions provided externally |
 | `gemini` | Full-duplex streaming dialogue | ASR/VAD-aligned timestamps over output audio | undisclosed | stub |
 | `moshi` | Audio (full-duplex, 12.5 Hz) | Per-frame voice-activity on system stream | ~7B | stub |
-| `espnet_turntaking` | Audio (frozen Whisper-medium) | 5-class @ 25 Hz (Continuation / Silence / Interruption / Backchannel / Turn-change) | ~307M | stub |
+| `espnet_turntaking` | Audio (frozen Whisper-medium, CMU) | 5-class @ 25 Hz (Continuation / Silence / Interruption / Backchannel / Turn-change), trained on Switchboard (Arora et al., ICLR 2025) | ~307M | stub |
 | `mimi_endpointer` | Audio (Mimi codec, 12.5 Hz) | 4-class per frame {user, user-end, system, system-end} | <50M | stub |
 | `kyutai_semantic_vad` | Audio + ASR (Kyutai DSM) | Binary EOT per frame (user-only) | >1B | stub |
 | `vap` | Audio (two-stream, 50 Hz) | Continuous voice-activity projection per speaker | >100M | stub |
 | `smart_turn_v3` | Audio (Whisper-Tiny + linear head) | Binary per 8 s chunk (turn-complete) | ~40M | stub |
-| `wavlm_base_causal` | Audio (frozen WavLM-Base-Plus, causal) | 5-class @ 25 Hz, fully causal single pass | ~98M (3.8M trainable) | stub |
-| `wavlm_large_anchor` | Audio (frozen WavLM-Large, 4 s windows) | 5-class @ 25 Hz, autoregressive decoder | ~628M (313M trainable) | stub |
+| `wavlm_base_causal` | Audio (frozen WavLM-Base-Plus, causal, CMU) | 5-class @ 25 Hz, fully causal single pass, trained on Switchboard | ~98M (3.8M trainable) | stub |
+| `wavlm_large_anchor` | Audio (frozen WavLM-Large, 4 s windows, CMU) | 5-class @ 25 Hz, autoregressive decoder, trained on Switchboard | ~628M (313M trainable) | stub |
 
 Stubs are intentional placeholders documenting the intended interface — community
 contributions implementing them are welcome. Only `oracle_annotator` runs out of
