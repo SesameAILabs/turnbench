@@ -43,30 +43,34 @@ from eval.consensus import (
 
 TIME_TOLERANCE_S = 0.2  # matches consensus.py
 OVERLAP_WINDOW_S = 0.5  # matches consensus.py
-TURN_LABEL = "Turn"  # the canonical bucket we consider as a "turn"
+# Both canonical buckets count as floor-holding for EOT purposes — a
+# trailing laughter at the end of a turn is still the speaker holding
+# the floor, so EOT fires at the laughter's end (not at the end of the
+# preceding turn-content). See eval/label_map.yaml.
+FLOOR_HOLDING_LABELS = {"Turn", "Laughter"}
 
 
 def annotator_eots(turns_by_speaker: dict[int, list[tuple[float, float, str]]]
                    ) -> list[tuple[float, int]]:
-    """For one annotator: from per-speaker canonical Turn events, derive a
-    list of (eot_time, speaker) where speaker just yielded the floor to the
-    OTHER speaker.
+    """For one annotator: from per-speaker canonical floor-holding events
+    (Turn ∪ Laughter), derive a list of (eot_time, speaker) where the
+    speaker just yielded the floor to the OTHER speaker.
 
-    Logic: merge both speakers' canonical Turn events; sort by start time.
-    For each turn i, if turn[i+1] is by the other speaker, emit EOT at
-    turn[i].end with speaker = turn[i].speaker.
+    Logic: merge both speakers' floor-holding events; sort by start time.
+    For each event i, if event[i+1] is by the other speaker, emit EOT at
+    event[i].end with speaker = event[i].speaker.
     """
     merged: list[tuple[float, float, int]] = []
     for sp, evs in turns_by_speaker.items():
         for s, e, lbl in evs:
-            if lbl != TURN_LABEL:
+            if lbl not in FLOOR_HOLDING_LABELS:
                 continue
             merged.append((s, e, sp))
     merged.sort(key=lambda x: x[0])
     out: list[tuple[float, int]] = []
     for i, (_, e_i, sp_i) in enumerate(merged):
         if i + 1 >= len(merged):
-            continue  # last turn — no following turn to check
+            continue  # last event — no following event to check
         if merged[i + 1][2] != sp_i:
             out.append((e_i, sp_i))
     return out

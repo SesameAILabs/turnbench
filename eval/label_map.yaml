@@ -3,20 +3,23 @@
 # collapse into it. Labels not listed here are ignored when building consensus.
 
 Turn:
-  # All speaker-content events that contribute to floor-holding. Includes
-  # the explicit turn variants, in-turn fillers, overlaps, awkward
-  # silences, and laughter — trailing laughter at the end of a turn is
-  # still floor-holding behavior (the speaker has not relinquished the
-  # floor yet), so EOT should fire at the end of the laughter, not at
-  # the end of the preceding speech.
+  # Speaker-content events that constitute the body of a turn. Laughter
+  # and Awkward Silence are split into their own canonical buckets below
+  # because the turn-region builder treats them specially (leading
+  # laughter doesn't claim the floor; awkward silence is a break, not a
+  # turn). EOT derivation still treats Turn ∪ Laughter as floor-holding.
   - Normal Turn
   - Regular Turn
   - Strong Floor Hold
   - Bounded Response
   - Filler
   - Overlap
-  - Awkward Silence
+
+Laughter:
   - Laughter
+
+AwkwardSilence:
+  - Awkward Silence
 
 Interruption:
   # Agent's perspective: any user vocalization treated as an interruption
