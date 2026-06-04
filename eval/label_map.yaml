@@ -4,9 +4,11 @@
 
 Turn:
   # All speaker-content events that contribute to floor-holding. Includes
-  # the explicit turn variants, in-turn fillers, overlaps, and awkward
-  # silences (which are still part of the speaking turn structure for
-  # EOT reconciliation purposes).
+  # the explicit turn variants, in-turn fillers, overlaps, awkward
+  # silences, and laughter — trailing laughter at the end of a turn is
+  # still floor-holding behavior (the speaker has not relinquished the
+  # floor yet), so EOT should fire at the end of the laughter, not at
+  # the end of the preceding speech.
   - Normal Turn
   - Regular Turn
   - Strong Floor Hold
@@ -14,6 +16,7 @@ Turn:
   - Filler
   - Overlap
   - Awkward Silence
+  - Laughter
 
 Interruption:
   # Agent's perspective: any user vocalization treated as an interruption
@@ -28,9 +31,6 @@ Backchannel:
   - Acknowledgement Backchannel
   - Continuer Backchannel
   - Reaction Backchannel
-
-Laughter:
-  - Laughter
 
 NonContent:
   - Non-Speech Noise
