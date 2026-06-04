@@ -179,12 +179,18 @@ def aggregate(run_dir: Path, eot_dir: Path, regions_dir: Path,
     out_rows = []
     for k, thr in enumerate(thresholds):
         lats = np.asarray(lat_g[k], dtype=np.float64) if lat_g[k] else np.array([])
-        recall = tp_g[k] / max(1, tp_g[k] + fn_g[k])
+        tp_k, fn_k = int(tp_g[k]), int(fn_g[k])
+        fp_k = int(pause_fp_g[k])  # Sesame F1 uses per-segment FP, not frame FPs
+        recall = tp_k / max(1, tp_k + fn_k)
+        precision = tp_k / max(1, tp_k + fp_k)
+        f1 = 2*precision*recall / (precision + recall) if (precision + recall) else 0.0
         fpr_seg = pause_fp_g[k] / max(1, pause_total_g)
         out_rows.append({
             "thr": round(float(thr), 4),
-            "tp": int(tp_g[k]), "fn": int(fn_g[k]),
+            "tp": tp_k, "fn": fn_k,
             "recall": round(float(recall), 4),
+            "precision": round(float(precision), 4),
+            "f1": round(float(f1), 4),
             "median_ms": round(float(np.median(lats)), 1) if lats.size else None,
             "p90_ms": round(float(np.percentile(lats, 90)), 1) if lats.size else None,
             "p95_ms": round(float(np.percentile(lats, 95)), 1) if lats.size else None,
@@ -251,19 +257,23 @@ def main() -> int:
     print(f"== {res['run']}  ({res['baseline']}, split={res['split']}, "
           f"n_tasks={res['n_tasks']}) ==")
     print()
-    print("Latency operating points (Sesame-aligned):")
-    print(f"{'target':>7} {'thr':>6} {'recall':>7} "
-          f"{'med_ms':>7} {'p90_ms':>7} {'p95_ms':>7} {'fpr_seg':>8} "
-          f"{'(FP/pause)':>14}")
+    # Headline columns match `compare_models.py` (lines 510-573): Speak F1,
+    # Speak median (ms), Speak p95 (ms). We add the latency target column,
+    # plus fpr_seg as an auxiliary column (the per-pause false-EOT rate)
+    # since that's the failure mode the benchmark is designed to expose.
+    print("EOT operating points (Sesame-aligned, compare_models.py format):")
+    print(f"{'target':>7} {'thr':>6} {'Speak F1':>9} "
+          f"{'Speak med':>10} {'Speak p95':>10}  "
+          f"{'recall':>7} {'fpr_seg':>8}")
     for op in res["operating_points"]:
         if "thr" not in op:
             print(f"{op['target_ms']:>7d} {'-':>6} (unreachable: no threshold "
                   f"achieves median latency <= {op['target_ms']}ms)")
             continue
-        print(f"{op['target_ms']:>7d} {op['thr']:>6.2f} {op['recall']:>7.3f} "
-              f"{op['median_ms']:>7.0f} {op['p90_ms']:>7.0f} {op['p95_ms']:>7.0f} "
-              f"{op['fpr_seg']:>8.3f} "
-              f"{op['pause_fp']:>5d}/{op['pause_total']:<8d}")
+        print(f"{op['target_ms']:>7d} {op['thr']:>6.2f} "
+              f"{op['f1']*100:>8.1f}% "
+              f"{op['median_ms']:>9.0f}ms {op['p95_ms']:>9.0f}ms  "
+              f"{op['recall']:>7.3f} {op['fpr_seg']:>8.3f}")
     return 0
 
 
