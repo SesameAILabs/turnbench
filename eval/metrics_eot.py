@@ -1,44 +1,28 @@
 #!/usr/bin/env python3
-"""Score EOT predictions against the new gold sets.
+"""Sesame-aligned EOT metric for the tt-benchmark gold.
 
-Gold sources (produced upstream by eval/consensus_eot.py and
-eval/turn_regions.py):
+Two numbers, one head (`agent_should_speak` -> `eot_score_speaker_K`):
 
-  Positives (events to detect):
-    stats_out/consensus_eot/<task>.jsonl
-      {"speaker": int, "time": float, "raw": {"a","b","c": float}}
-    -> 3-of-3 reconciled floor-handover times per speaker.
+  1. EOT latency at Sesame's 8 operating points.
+       For each target latency T in {80, 160, 240, 320, 400, 480, 560, 640} ms,
+       find the highest threshold whose aggregate median TP latency is <= T.
+       Report (target_ms, threshold, recall, actual median/p90/p95 latency).
+       TP definition matches Sesame: first crossing of pred > thr at
+       t >= t_gold within [t_gold, t_gold + 2.0s].
 
-  No-fire zones (regions where a model prediction is a false positive):
-    stats_out/turn_regions/<task>.jsonl
-      {"speaker": int, "region_start": float, "region_end": float, ...}
-    -> contiguous same-speaker turn regions.
+  2. False-EOT rate at the SAME operating points (Sesame `eot_fpr_seg`).
+       Within-turn pauses = gaps between consecutive events inside the
+       same reconciled turn region (same speaker, no floor change).
+       Per-pause binary trigger: any frame in [pause_start, pause_end]
+       with pred > thr -> 1 FP for that pause.
+       fpr_seg = #FP_pauses / #total_pauses.
 
-For each speaker channel of each task:
+Inputs (defaults):
+  --run-dir       predictions/<run>/   (manifest.json + traces/<task>.npz)
+  --eot-dir       stats_out/consensus_eot
+  --regions-dir   stats_out/turn_regions
 
-  TP    a threshold-crossing of `eot_score_speaker_K` lies inside any
-        EOT window [t_gold - TAU_PRE_S, t_gold + TAU_MAX_S]. Earliest
-        crossing per gold event; latency = (t_pred - t_gold)*1000.
-
-  FN    a gold EOT with no crossing inside its window.
-
-  FP-failed   a crossing inside a turn region (same speaker) but NOT
-              inside any EOT window. "Failed EOT" / hard false positive
-              — the model said the speaker ended their turn but they
-              didn't.
-
-  FP-noise    a crossing OUTSIDE any turn region (same speaker) and
-              not inside any EOT window. Softer false positive — fire
-              outside any in-progress turn.
-
-A 1 s refractory collapses consecutive above-threshold frames into one
-FP so a single sustained high segment counts once.
-
-Usage:
-    python -m eval.metrics_eot \
-        --run-dir   /path/to/predictions/<run>/ \
-        --threshold 0.5
-    python -m eval.metrics_eot --run-dir ... --sweep 0.05:0.95:0.05
+The score channel evaluated is `eot_score_speaker_K` for both speakers.
 """
 from __future__ import annotations
 
@@ -56,55 +40,13 @@ if str(_REPO) not in sys.path:
 from eval.submission_format import load_manifest, load_traces  # noqa: E402
 
 
-TAU_PRE_S = 0.25
-TAU_MAX_S = 2.00
-FP_REFRACTORY_S = 1.0
-
-
-@dataclass
-class EotScore:
-    tp: int = 0
-    fn: int = 0
-    fp_failed: int = 0   # crossings inside a turn region, outside EOT windows
-    fp_noise: int = 0    # crossings outside any region, outside EOT windows
-    latencies_ms: list[float] = field(default_factory=list)
-
-    @property
-    def fp_total(self) -> int:
-        return self.fp_failed + self.fp_noise
-
-    @property
-    def precision(self) -> float:
-        d = self.tp + self.fp_total
-        return self.tp / d if d else 0.0
-
-    @property
-    def recall(self) -> float:
-        d = self.tp + self.fn
-        return self.tp / d if d else 0.0
-
-    @property
-    def f1(self) -> float:
-        p, r = self.precision, self.recall
-        return 2 * p * r / (p + r) if (p + r) else 0.0
-
-    def as_dict(self) -> dict:
-        lat = np.asarray(self.latencies_ms or [np.nan])
-        return {
-            "tp": self.tp, "fn": self.fn,
-            "fp_failed": self.fp_failed, "fp_noise": self.fp_noise,
-            "precision": round(self.precision, 4),
-            "recall": round(self.recall, 4),
-            "f1": round(self.f1, 4),
-            "latency_p10_ms": round(float(np.nanpercentile(lat, 10)), 1),
-            "latency_p50_ms": round(float(np.nanpercentile(lat, 50)), 1),
-            "latency_p90_ms": round(float(np.nanpercentile(lat, 90)), 1),
-        }
+# Operating points from sesame/ml/core/evals/cd/threshold_analysis.py:38
+TARGET_LATENCIES_MS = (80, 160, 240, 320, 400, 480, 560, 640)
+TAU_MAX_S = 2.00  # rightmost edge of the TP search window past t_gold
 
 
 def load_gold_eots(eot_dir: Path, task_id: str
                    ) -> dict[int, list[float]]:
-    """{speaker: [t_eot, ...]}."""
     out: dict[int, list[float]] = {1: [], 2: []}
     p = eot_dir / f"{task_id}.jsonl"
     if not p.exists():
@@ -117,9 +59,12 @@ def load_gold_eots(eot_dir: Path, task_id: str
     return out
 
 
-def load_regions(regions_dir: Path, task_id: str
-                 ) -> dict[int, list[tuple[float, float]]]:
-    """{speaker: [(region_start, region_end), ...]}."""
+def load_within_turn_pauses(regions_dir: Path, task_id: str
+                             ) -> dict[int, list[tuple[float, float]]]:
+    """For each speaker, return the [(pause_start, pause_end)] inside each
+    reconciled turn region — i.e. the gaps between consecutive events of
+    that region's `events` list. These are the USER_PAUSE-equivalents:
+    silences mid-turn, no floor change."""
     out: dict[int, list[tuple[float, float]]] = {1: [], 2: []}
     p = regions_dir / f"{task_id}.jsonl"
     if not p.exists():
@@ -128,124 +73,150 @@ def load_regions(regions_dir: Path, task_id: str
         if not line.strip():
             continue
         r = json.loads(line)
-        out[r["speaker"]].append((float(r["region_start"]),
-                                   float(r["region_end"])))
+        sp = r["speaker"]
+        events = r.get("events", [])
+        for i in range(len(events) - 1):
+            a, b = events[i], events[i + 1]
+            ge, gs = float(a["end"]), float(b["start"])
+            if gs > ge + 1e-6:
+                out[sp].append((ge, gs))
     return out
 
 
-def _frames_to_mask(intervals: list[tuple[float, float]],
-                    n_frames: int, fps: float) -> np.ndarray:
-    m = np.zeros(n_frames, dtype=bool)
-    for s, e in intervals:
-        lo = max(0, int(np.floor(s * fps)))
-        hi = min(n_frames - 1, int(np.ceil(e * fps)))
-        if lo <= hi:
-            m[lo:hi + 1] = True
-    return m
+@dataclass
+class TaskAcc:
+    # accumulators are per-threshold; index = threshold position in sweep
+    tp_count: np.ndarray = field(default_factory=lambda: np.array([]))
+    fn_count: np.ndarray = field(default_factory=lambda: np.array([]))
+    # latencies_ms[k] is the list of TP latencies at threshold k across all tasks
+    latencies_ms: list[list[float]] = field(default_factory=list)
+    pause_fp_count: np.ndarray = field(default_factory=lambda: np.array([]))
+    pause_total: int = 0
 
 
 def score_task(
     gold_eots: dict[int, list[float]],
-    regions: dict[int, list[tuple[float, float]]],
+    pauses: dict[int, list[tuple[float, float]]],
     score_by_speaker: dict[int, np.ndarray],
     fps: float,
-    threshold: float,
-    *,
-    tau_pre_s: float = TAU_PRE_S,
-    tau_max_s: float = TAU_MAX_S,
-    fp_refractory_s: float = FP_REFRACTORY_S,
-) -> EotScore:
-    out = EotScore()
-    refr = max(1, int(round(fp_refractory_s * fps)))
+    thresholds: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, list[list[float]], np.ndarray, int]:
+    """Return (tp[T], fn[T], latencies[T][...], pause_fp[T], pause_total)."""
+    T = len(thresholds)
+    tp = np.zeros(T, dtype=np.int64)
+    fn = np.zeros(T, dtype=np.int64)
+    latencies: list[list[float]] = [[] for _ in range(T)]
+    pause_fp = np.zeros(T, dtype=np.int64)
+    pause_total = 0
 
     for sp in (1, 2):
         scores = score_by_speaker[sp]
         n = len(scores)
-        above = scores > threshold
-
-        # 1. Match each gold EOT to the earliest in-window crossing.
-        eot_windows: list[tuple[int, int]] = []
+        # Per gold EOT, find first frame >= t_gold in [t_gold, t_gold + TAU_MAX_S]
+        # where pred > thr (loop over thresholds).
         for t_gold in gold_eots[sp]:
-            lo = max(0, int(np.floor((t_gold - tau_pre_s) * fps)))
-            hi = min(n - 1, int(np.ceil((t_gold + tau_max_s) * fps)))
-            eot_windows.append((lo, hi))
+            lo = max(0, int(np.ceil(t_gold * fps)))
+            hi = min(n - 1, int(np.ceil((t_gold + TAU_MAX_S) * fps)))
             if lo > hi:
-                out.fn += 1
+                fn += 1
                 continue
-            crossing = np.where(above[lo:hi + 1])[0]
-            if len(crossing) == 0:
-                out.fn += 1
-            else:
-                fi = lo + int(crossing[0])
-                out.tp += 1
-                out.latencies_ms.append((fi / fps - t_gold) * 1000.0)
+            window = scores[lo:hi + 1]
+            for k, thr in enumerate(thresholds):
+                crossings = np.where(window > thr)[0]
+                if len(crossings) == 0:
+                    fn[k] += 1
+                else:
+                    fi = lo + int(crossings[0])
+                    tp[k] += 1
+                    latencies[k].append((fi / fps - t_gold) * 1000.0)
 
-        # 2. Count FPs as RISING EDGES (transitions from below to above
-        #    threshold), not refractory-spaced above-threshold samples.
-        #    Rationale: Sesame's agent_should_speak (and similar continuous
-        #    "user-has-stopped" heads) stay HIGH for the entire duration
-        #    the speaker is not in turn — e.g. across the other speaker's
-        #    turn. Counting one FP per refractory-second of sustained-high
-        #    signal inflates FP_noise by ~10x for a well-aligned model;
-        #    rising-edge counting penalizes each spurious DECISION instead.
-        in_eot = _frames_to_mask([(lo / fps, hi / fps)
-                                   for lo, hi in eot_windows], n, fps)
-        in_region = _frames_to_mask(regions[sp], n, fps)
-        rising = np.zeros(n, dtype=bool)
-        if n:
-            rising[0] = above[0]
-            rising[1:] = above[1:] & ~above[:-1]
-        # rising edges outside any EOT window
-        flags = rising & ~in_eot
-        out.fp_failed += int(np.sum(flags & in_region))
-        out.fp_noise += int(np.sum(flags & ~in_region))
-    return out
+        # Per within-turn pause, binary trigger across thresholds.
+        for ps, pe in pauses[sp]:
+            lo = max(0, int(np.ceil(ps * fps)))
+            hi = min(n - 1, int(np.floor(pe * fps)))
+            pause_total += 1
+            if lo > hi:
+                continue
+            window = scores[lo:hi + 1]
+            wmax = float(window.max())
+            for k, thr in enumerate(thresholds):
+                if wmax > thr:
+                    pause_fp[k] += 1
+    return tp, fn, latencies, pause_fp, pause_total
 
 
-def score_run(run_dir: Path, eot_dir: Path, regions_dir: Path,
-              threshold: float,
-              *, only_task_ids: set[str] | None = None) -> dict:
+def aggregate(run_dir: Path, eot_dir: Path, regions_dir: Path,
+              thresholds: np.ndarray, only: set[str] | None = None
+              ) -> dict:
     manifest = load_manifest(run_dir)
     fps = manifest.frame_rate_hz
-    total = EotScore()
-    per_task: dict[str, dict] = {}
+    T = len(thresholds)
+    tp_g = np.zeros(T, dtype=np.int64)
+    fn_g = np.zeros(T, dtype=np.int64)
+    pause_fp_g = np.zeros(T, dtype=np.int64)
+    pause_total_g = 0
+    lat_g: list[list[float]] = [[] for _ in range(T)]
 
-    task_ids = manifest.task_ids if only_task_ids is None else [
-        t for t in manifest.task_ids if t in only_task_ids]
+    task_ids = manifest.task_ids if only is None else [
+        t for t in manifest.task_ids if t in only]
+    n_tasks = 0
 
     for tid in task_ids:
         if not (eot_dir / f"{tid}.jsonl").exists():
             continue
         gold = load_gold_eots(eot_dir, tid)
-        regs = load_regions(regions_dir, tid)
+        pauses = load_within_turn_pauses(regions_dir, tid)
         traces = load_traces(run_dir, tid)
         scores = {1: traces["eot_score_speaker_1"],
                   2: traces["eot_score_speaker_2"]}
-        s = score_task(gold, regs, scores, fps, threshold)
-        per_task[tid] = s.as_dict()
-        total.tp += s.tp; total.fn += s.fn
-        total.fp_failed += s.fp_failed; total.fp_noise += s.fp_noise
-        total.latencies_ms.extend(s.latencies_ms)
+        tp, fn, lat, pfp, pt_total = score_task(gold, pauses, scores, fps, thresholds)
+        tp_g += tp; fn_g += fn; pause_fp_g += pfp; pause_total_g += pt_total
+        for k in range(T):
+            lat_g[k].extend(lat[k])
+        n_tasks += 1
+
+    # Per-threshold summary
+    out_rows = []
+    for k, thr in enumerate(thresholds):
+        lats = np.asarray(lat_g[k], dtype=np.float64) if lat_g[k] else np.array([])
+        recall = tp_g[k] / max(1, tp_g[k] + fn_g[k])
+        fpr_seg = pause_fp_g[k] / max(1, pause_total_g)
+        out_rows.append({
+            "thr": round(float(thr), 4),
+            "tp": int(tp_g[k]), "fn": int(fn_g[k]),
+            "recall": round(float(recall), 4),
+            "median_ms": round(float(np.median(lats)), 1) if lats.size else None,
+            "p90_ms": round(float(np.percentile(lats, 90)), 1) if lats.size else None,
+            "p95_ms": round(float(np.percentile(lats, 95)), 1) if lats.size else None,
+            "pause_fp": int(pause_fp_g[k]),
+            "pause_total": int(pause_total_g),
+            "fpr_seg": round(float(fpr_seg), 4),
+        })
+
+    # Operating points: highest threshold whose aggregate median latency <= target.
+    operating_points = []
+    for target in TARGET_LATENCIES_MS:
+        # eligible thresholds = those with a defined median <= target
+        eligible = [(k, r) for k, r in enumerate(out_rows)
+                    if r["median_ms"] is not None and r["median_ms"] <= target]
+        if not eligible:
+            operating_points.append({
+                "target_ms": target, "threshold": None, "note": "unreachable"})
+            continue
+        # pick the highest threshold (tightest)
+        k, r = max(eligible, key=lambda kr: kr[1]["thr"])
+        operating_points.append({
+            "target_ms": target, **r,
+        })
 
     return {
         "run": manifest.run_name,
         "baseline": manifest.baseline,
-        "checkpoint": manifest.checkpoint,
         "split": manifest.split,
-        "threshold": threshold,
-        "n_tasks_scored": len(per_task),
-        "EOT": total.as_dict(),
-        "per_task": per_task,
+        "n_tasks": n_tasks,
+        "operating_points": operating_points,
+        "sweep": out_rows,
     }
-
-
-def parse_sweep(spec: str) -> list[float]:
-    a, b, c = (float(x) for x in spec.split(":"))
-    out, x = [], a
-    while x <= b + 1e-9:
-        out.append(round(x, 6))
-        x += c
-    return out
 
 
 def main() -> int:
@@ -255,11 +226,10 @@ def main() -> int:
                     default=Path("stats_out/consensus_eot"))
     ap.add_argument("--regions-dir", type=Path,
                     default=Path("stats_out/turn_regions"))
-    ap.add_argument("--threshold", type=float, default=0.5)
-    ap.add_argument("--sweep", type=str, default=None,
-                    help="lo:hi:step, e.g. 0.05:0.95:0.05")
     ap.add_argument("--split-file", type=Path, default=None,
                     help="Restrict to task_ids listed here (one per line).")
+    ap.add_argument("--json", action="store_true",
+                    help="Emit machine-readable JSON.")
     args = ap.parse_args()
 
     only = None
@@ -267,34 +237,33 @@ def main() -> int:
         only = {ln.strip() for ln in args.split_file.read_text().splitlines()
                 if ln.strip() and not ln.startswith("#")}
 
-    if args.sweep:
-        rows = []
-        for thr in parse_sweep(args.sweep):
-            r = score_run(args.run_dir, args.eot_dir, args.regions_dir, thr,
-                          only_task_ids=only)
-            rows.append({"threshold": thr,
-                         "p": r["EOT"]["precision"], "r": r["EOT"]["recall"],
-                         "f1": r["EOT"]["f1"], "tp": r["EOT"]["tp"],
-                         "fn": r["EOT"]["fn"],
-                         "fp_failed": r["EOT"]["fp_failed"],
-                         "fp_noise": r["EOT"]["fp_noise"],
-                         "lat_p50_ms": r["EOT"]["latency_p50_ms"],
-                         "lat_p90_ms": r["EOT"]["latency_p90_ms"]})
-        print(f"{'thr':>5} {'P':>6} {'R':>6} {'F1':>6} "
-              f"{'TP':>5} {'FN':>5} {'FPf':>5} {'FPn':>5} "
-              f"{'L50':>6} {'L90':>6}")
-        best = max(rows, key=lambda r: r["f1"])
-        for r in rows:
-            mark = "  *" if r is best else ""
-            print(f"{r['threshold']:>5.2f} {r['p']:>6.3f} {r['r']:>6.3f} "
-                  f"{r['f1']:>6.3f} {r['tp']:>5d} {r['fn']:>5d} "
-                  f"{r['fp_failed']:>5d} {r['fp_noise']:>5d} "
-                  f"{r['lat_p50_ms']:>6.0f} {r['lat_p90_ms']:>6.0f}{mark}")
-    else:
-        r = score_run(args.run_dir, args.eot_dir, args.regions_dir,
-                      args.threshold, only_task_ids=only)
-        print(json.dumps({k: v for k, v in r.items() if k != "per_task"},
-                         indent=2))
+    # Sesame's default sweep — matches DEFAULT_SWEEP_THRESHOLDS in
+    # threshold_analysis.py:36 (0.01, 0.05 step from 0.05 to 0.95, 0.99).
+    thresholds = np.array([0.01] + [round(0.05 * i, 2) for i in range(1, 20)] + [0.99],
+                          dtype=np.float64)
+
+    res = aggregate(args.run_dir, args.eot_dir, args.regions_dir,
+                    thresholds, only=only)
+    if args.json:
+        print(json.dumps(res, indent=2))
+        return 0
+
+    print(f"== {res['run']}  ({res['baseline']}, split={res['split']}, "
+          f"n_tasks={res['n_tasks']}) ==")
+    print()
+    print("Latency operating points (Sesame-aligned):")
+    print(f"{'target':>7} {'thr':>6} {'recall':>7} "
+          f"{'med_ms':>7} {'p90_ms':>7} {'p95_ms':>7} {'fpr_seg':>8} "
+          f"{'(FP/pause)':>14}")
+    for op in res["operating_points"]:
+        if "thr" not in op:
+            print(f"{op['target_ms']:>7d} {'-':>6} (unreachable: no threshold "
+                  f"achieves median latency <= {op['target_ms']}ms)")
+            continue
+        print(f"{op['target_ms']:>7d} {op['thr']:>6.2f} {op['recall']:>7.3f} "
+              f"{op['median_ms']:>7.0f} {op['p90_ms']:>7.0f} {op['p95_ms']:>7.0f} "
+              f"{op['fpr_seg']:>8.3f} "
+              f"{op['pause_fp']:>5d}/{op['pause_total']:<8d}")
     return 0
 
 
