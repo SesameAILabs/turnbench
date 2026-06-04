@@ -1,27 +1,25 @@
 #!/usr/bin/env python3
-"""WavLM-Large ANCHOR Judge.
+"""WavLM-Large ANCHOR Judge (CMU).
 
-A general-purpose speech quality and turn-taking model based on the
-ANCHOR framework, adapted for turn-taking prediction on Switchboard.
-Frozen WavLM-Large frontend (~315M parameters), a 4-layer Transformer
-audio encoder, and a 12-layer autoregressive Transformer decoder
-that predicts the turn-taking class via token generation. Total
-~628M params (313M trainable). Inference uses 4 s sliding windows at
-40 ms stride; within each window attention is bidirectional, but
-because windows are independent and each ends at the current time,
-no future audio is observed. Declared lookahead: 0 ms.
+Description: A general-purpose speech quality and turn-taking model
+based on the ANCHOR framework, adapted for turn-taking prediction on
+Switchboard. The model uses a frozen WavLM-Large frontend
+(~315M parameters) with a 4-layer Transformer audio encoder and a
+12-layer autoregressive Transformer decoder that predicts turn-taking
+class via token generation. Total parameters: 628M (313M trainable).
+Inference uses 4-second sliding windows at 40 ms stride; each window
+is processed independently through the full encode/decode pipeline.
+Within each window, attention is bidirectional, but because windows
+are independent and each ends at the current time, no future audio is
+ever observed. Input: single-channel audio at 16 kHz, 4 s context.
+Output label space: same 5-class distribution as the causal predictor,
+emitted every 40 ms (25 Hz). Declared lookahead: 0 ms.
 
-Input: single-channel 16 kHz audio, 4 s context per window.
-Output: same 5-class distribution as the causal predictor, emitted
-every 40 ms (25 Hz).
-
-Eval mapping into unified submission format:
-  EOT (eot_score_speaker_K)
-      Process speaker K's channel; fire when
-      P(Silence) + P(Turn-change) crosses threshold.
-  Interruption (interruption_score_speaker_K)
-      Process the interrupted speaker's channel; fire when
-      P(Continuation) drops below threshold.
+How to eval:
+  EOT: process the current speaker's channel; fire when
+       P(Silence) + P(Turn-change) crosses threshold.
+  Interruption: process the interrupted speaker's channel; fire when
+       P(Continuation) drops below threshold.
 
 Reads the dataset root from `TT_BENCHMARK_DATA` (see .env.example).
 Emits predictions to `predictions/wavlm_large_anchor/traces/<task_id>.npz`
