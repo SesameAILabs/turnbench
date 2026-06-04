@@ -180,25 +180,25 @@ def score_task(
                 out.tp += 1
                 out.latencies_ms.append((fi / fps - t_gold) * 1000.0)
 
-        # 2. Classify every above-threshold frame (modulo refractory) as
-        #    TP-window / FP-failed / FP-noise.
+        # 2. Count FPs as RISING EDGES (transitions from below to above
+        #    threshold), not refractory-spaced above-threshold samples.
+        #    Rationale: Sesame's agent_should_speak (and similar continuous
+        #    "user-has-stopped" heads) stay HIGH for the entire duration
+        #    the speaker is not in turn — e.g. across the other speaker's
+        #    turn. Counting one FP per refractory-second of sustained-high
+        #    signal inflates FP_noise by ~10x for a well-aligned model;
+        #    rising-edge counting penalizes each spurious DECISION instead.
         in_eot = _frames_to_mask([(lo / fps, hi / fps)
                                    for lo, hi in eot_windows], n, fps)
         in_region = _frames_to_mask(regions[sp], n, fps)
-        i = 0
-        while i < n:
-            if not above[i]:
-                i += 1
-                continue
-            if in_eot[i]:
-                # counted as TP already (or its window is empty); skip past refractory
-                i += refr
-                continue
-            if in_region[i]:
-                out.fp_failed += 1
-            else:
-                out.fp_noise += 1
-            i += refr
+        rising = np.zeros(n, dtype=bool)
+        if n:
+            rising[0] = above[0]
+            rising[1:] = above[1:] & ~above[:-1]
+        # rising edges outside any EOT window
+        flags = rising & ~in_eot
+        out.fp_failed += int(np.sum(flags & in_region))
+        out.fp_noise += int(np.sum(flags & ~in_region))
     return out
 
 
