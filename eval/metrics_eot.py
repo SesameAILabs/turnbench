@@ -257,23 +257,24 @@ def main() -> int:
     print(f"== {res['run']}  ({res['baseline']}, split={res['split']}, "
           f"n_tasks={res['n_tasks']}) ==")
     print()
-    # Headline columns match `compare_models.py` (lines 510-573): Speak F1,
-    # Speak median (ms), Speak p95 (ms). We add the latency target column,
-    # plus fpr_seg as an auxiliary column (the per-pause false-EOT rate)
-    # since that's the failure mode the benchmark is designed to expose.
-    print("EOT operating points (Sesame-aligned, compare_models.py format):")
-    print(f"{'target':>7} {'thr':>6} {'Speak F1':>9} "
+    # We drop F1 from the headline: `agent_should_speak` is a continuous
+    # "is user silent" signal — recall is structurally ~1.0 inside the EOT
+    # window for any reasonable threshold, so F1 just tracks FP count.
+    # `fpr_seg` measures the same thing more cleanly (per-pause binary
+    # trigger rate). Latency + fpr_seg are the two numbers that matter.
+    print("EOT operating points (Sesame-aligned):")
+    print(f"{'target':>7} {'thr':>6} "
           f"{'Speak med':>10} {'Speak p95':>10}  "
-          f"{'recall':>7} {'fpr_seg':>8}")
+          f"{'recall':>7} {'fpr_seg':>8} {'(FP/pause)':>14}")
     for op in res["operating_points"]:
         if "thr" not in op:
             print(f"{op['target_ms']:>7d} {'-':>6} (unreachable: no threshold "
                   f"achieves median latency <= {op['target_ms']}ms)")
             continue
         print(f"{op['target_ms']:>7d} {op['thr']:>6.2f} "
-              f"{op['f1']*100:>8.1f}% "
               f"{op['median_ms']:>9.0f}ms {op['p95_ms']:>9.0f}ms  "
-              f"{op['recall']:>7.3f} {op['fpr_seg']:>8.3f}")
+              f"{op['recall']:>7.3f} {op['fpr_seg']:>8.3f} "
+              f"{op['pause_fp']:>5d}/{op['pause_total']:<8d}")
     return 0
 
 
