@@ -37,7 +37,18 @@ IDX_USER_END    = 2
 IDX_SYSTEM      = 3
 IDX_USER        = 4
 
-CHECKPOINT = Path(__file__).resolve().parent / "checkpoint.pt"
+HF_REPO = "viks66/mimi-endpointer"
+_LOCAL_CHECKPOINT = Path(__file__).resolve().parent / "checkpoint.pt"
+
+
+def _resolve_checkpoint() -> str:
+    if _LOCAL_CHECKPOINT.exists():
+        return str(_LOCAL_CHECKPOINT)
+    from huggingface_hub import hf_hub_download
+    return hf_hub_download(HF_REPO, "checkpoint.pt")
+
+
+CHECKPOINT = _resolve_checkpoint()
 
 _model: MimiLSTM | None = None
 _extractor: AudioFeatureExtractor | None = None
