@@ -5,10 +5,10 @@ Two-stream LSTM over Mimi embeddings, trained on SpokenWOZ.
 5-class output: [silence, system, system_end, user, user_end]
 
 Score mapping to unified benchmark format:
-  eot_score_speaker_1          <- P(user_end)
-  eot_score_speaker_2          <- P(system_end)
-  interruption_score_speaker_1 <- P(user)      [proxy: speaker 1 starts while sys active]
-  interruption_score_speaker_2 <- P(system)    [proxy: speaker 2 starts while usr active]
+  eot_score_speaker_1          <- 1 - P(user)
+  eot_score_speaker_2          <- 1 - P(system)
+  interruption_score_speaker_1 <- P(user)
+  interruption_score_speaker_2 <- P(system)
 """
 from __future__ import annotations
 
@@ -104,11 +104,11 @@ def predict_scores(sample_dir: Path) -> dict:
     print(f"{sample_dir.name}: {duration:.1f}s audio → {elapsed:.1f}s inference ({duration/elapsed:.1f}x RT)", flush=True)
 
     return {
-        "frame_rate_hz":               AUDIO_DEFAULTS["frame_rate_hz"],
-        "eot_score_speaker_1":         probs[:, IDX_USER_END],
-        "eot_score_speaker_2":         probs[:, IDX_SYSTEM_END],
-        "interruption_score_speaker_1": probs[:, IDX_USER],
-        "interruption_score_speaker_2": probs[:, IDX_SYSTEM],
+        "frame_rate_hz":                AUDIO_DEFAULTS["frame_rate_hz"],
+        "eot_score_speaker_1":          (1.0 - probs[:, IDX_USER]).astype(np.float32),
+        "eot_score_speaker_2":          (1.0 - probs[:, IDX_SYSTEM]).astype(np.float32),
+        "interruption_score_speaker_1": probs[:, IDX_USER].astype(np.float32),
+        "interruption_score_speaker_2": probs[:, IDX_SYSTEM].astype(np.float32),
     }
 
 
