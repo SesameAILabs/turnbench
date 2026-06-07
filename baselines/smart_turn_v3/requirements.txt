@@ -1,0 +1,7 @@
+torch==2.7.0
+torchaudio==2.7.0
+onnxruntime-gpu==1.23.2
+transformers==4.53.3
+soundfile==0.12.1
+numpy==1.26.4
+huggingface_hub

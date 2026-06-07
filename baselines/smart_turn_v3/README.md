@@ -5,10 +5,11 @@ Pipecat Smart Turn v3 — Whisper Tiny encoder + linear classifier for semantic 
 **Model:** ONNX (~8M params). Accepts up to 8s of 16kHz mono audio, returns sigmoid probability of turn completion.
 
 **Inference:** Simulates the real-time pipeline from `smart_turn/record_and_predict.py`:
-1. Silero VAD (ONNX, stateful) on 512-sample chunks
-2. Speech accumulated with 200ms pre-buffer (max 8s)
-3. Smart Turn fires on 1s silence or 8s cap
-4. Scores forward-filled at 12.5Hz
+1. Silero VAD (ONNX, stateful) on 512-sample chunks (32ms each)
+2. Speech accumulated with 200ms pre-buffer; no hard segment cap
+3. Smart Turn fires on 1s trailing silence, then re-runs every chunk for a 2s settling window — P(complete) can rise as silence accumulates
+4. If speech resumes during settling, score resets and a new segment begins
+5. Scores forward-filled at 12.5Hz until next speech onset
 
 ## Setup
 
@@ -37,7 +38,11 @@ python3 baselines/smart_turn_v3/predict.py --split eval/splits/dev.txt --run-nam
 
 | Benchmark array | Model output |
 |---|---|
-| `eot_score_speaker_1` | Smart Turn prob, speaker 1 |
-| `eot_score_speaker_2` | Smart Turn prob, speaker 2 |
-| `interruption_score_speaker_1` | same (no interruption head) |
-| `interruption_score_speaker_2` | same (no interruption head) |
+| `eot_score_speaker_1` | P(turn complete) for speaker 1 |
+| `eot_score_speaker_2` | P(turn complete) for speaker 2 |
+| `interruption_score_speaker_1` | `1 - P(turn complete)` for speaker 1 (proxy) |
+| `interruption_score_speaker_2` | `1 - P(turn complete)` for speaker 2 (proxy) |
+
+Note: the model outputs P(turn complete) — label 1 = complete, 0 = incomplete (`endpoint_bool` in training data).
+There is no explicit interruption head; `1 - P(turn complete)` ("speaker is mid-utterance") is used as a
+directionally-correct proxy for barge-in.
