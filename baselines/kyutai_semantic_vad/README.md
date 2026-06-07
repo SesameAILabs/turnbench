@@ -2,7 +2,7 @@
 
 Kyutai STT-1B semantic VAD for end-of-turn detection.
 
-**Model:** Kyutai STT-1B (`kyutai/stt-1b-en_fr`) — streaming ASR with a VAD head (`vad_heads[2]`) that produces continuous EOT probabilities at 12.5Hz. Each speaker channel is processed independently as the "user" stream.
+**Model:** Kyutai STT-1B (`kyutai/stt-1b-en_fr-candle`) — streaming ASR with a VAD head (`vad_heads[2]`) that produces continuous EOT probabilities at 12.5Hz. Both speaker channels are batched together (batch_size=2) through a single streaming pass.
 
 **Inference:** Streaming — Mimi encodes audio chunk-by-chunk (1920 samples, 80ms), LM steps autoregressively with KV cache via `lm_gen.step_with_extra_heads`.
 
@@ -12,7 +12,7 @@ Kyutai STT-1B semantic VAD for end-of-turn detection.
 pip install moshi==0.2.11 julius sphn
 ```
 
-Model is loaded from `kyutai/stt-1b-en_fr` (cached in `$HF_HOME`). Set `TT_BENCHMARK_DATA` in the repo's `.env`.
+Model is loaded from `kyutai/stt-1b-en_fr-candle` (cached in `$HF_HOME`). Set `TT_BENCHMARK_DATA` in the repo's `.env`.
 
 ## Run
 
@@ -41,9 +41,13 @@ Mimi decoder (~40M) is not used. The full LM runs to maintain KV cache state —
 |---|---|
 | `eot_score_speaker_1` | VAD prob for speaker 1 channel |
 | `eot_score_speaker_2` | VAD prob for speaker 2 channel |
-| `interruption_score_speaker_1` | VAD prob for speaker 1 (proxy) |
-| `interruption_score_speaker_2` | VAD prob for speaker 2 (proxy) |
+| `interruption_score_speaker_1` | `1 - VAD prob` for speaker 1 (proxy) |
+| `interruption_score_speaker_2` | `1 - VAD prob` for speaker 2 (proxy) |
 
-Note: this model has no explicit interruption head — VAD probability is used as a proxy for both EOT and interruption scores.
+Note: this model is single-channel and only exposes one documented head (`vad_heads[2]`,
+EOT probability) — there's no cross-speaker overlap signal. `1 - vad_K` ("speaker K is
+actively speaking, i.e. not about to end their turn") is used as a directionally-correct
+single-channel proxy for "speaker K is barging in," but it is not a true overlap/barge-in
+detector.
 This is based on https://github.com/kyutai-labs/delayed-streams-modeling/blob/main/scripts/stt_from_file_pytorch.py
 
