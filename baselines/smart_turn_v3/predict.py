@@ -1,34 +1,18 @@
 #!/usr/bin/env python3
 """Smart Turn v3 — Whisper-Tiny + linear classifier for end-of-turn detection.
 
-Replicates the VAD+accumulate+predict pipeline from smart_turn/record_and_predict.py,
-adapted for offline evaluation of pre-recorded dual-channel audio.
+Adapts the VAD+accumulate+predict pipeline from smart_turn/record_and_predict.py
+for offline multi-turn evaluation of dual-channel audio.
 
-Design (from pipecat-ai/smart-turn):
-  Smart Turn is designed to run in conjunction with a lightweight VAD model (Silero).
-  Silero gates the pipeline: Smart Turn only runs when silence is detected, not per
-  audio frame. This keeps inference overhead low (~10–100ms per segment on CPU,
-  ~65ms on GPU per the upstream benchmarks).
+Pipeline (per channel, both processed simultaneously):
+  1. Silero VAD (ONNX, stateful): 512-sample chunks at 16kHz (32ms)
+  2. Speech accumulated in a rolling 8s buffer (oldest chunks dropped when full)
+  3. On 1s trailing silence: classify, then enter a 2s settling window where the
+     classifier re-runs each chunk — P(complete) can rise as silence grows
+  4. Speech during settling resets score and starts a new segment
+  5. Scores forward-filled at 12.5Hz
 
-Pipeline per channel (both channels processed simultaneously, chunk by chunk):
-  1. Silero VAD (ONNX, stateful): 512-sample chunks at 16kHz (32ms) → speech/silence
-  2. Pre-speech buffer: 200ms of audio kept before speech onset
-  3. Accumulate speech chunks; no hard segment cap — predict_endpoint truncates to last 8s internally
-  4. Trigger: on 1s trailing silence, Smart Turn fires once and enters a 2s settling window
-  5. Settling window: Smart Turn re-runs on every chunk for 2s so P(complete) can rise as silence grows;
-     speech resumption during settling resets the score and starts a new segment
-  6. Smart Turn (Whisper-Tiny encoder + linear head): takes up to 8s of 16kHz mono PCM,
-     returns sigmoid probability of turn completion
-  7. Score forward-filled at 12.5Hz until next speech onset
-
-Latency model:
-  Minimum latency to first prediction = speech duration + 1s silence.
-  Between segment boundaries the score is stale (forward-filled). This is intentional
-  per upstream design: "We recommend providing the full audio of the user's current
-  turn" — the model is not designed for sub-chunk streaming.
-
-Model: pipecat-ai/smart-turn-v3 (~8M params, ONNX fp32 GPU variant)
-Frame rate: 12.5Hz (forward-filled)
+Model: pipecat-ai/smart-turn-v3 (~8M params, ONNX fp32 GPU)
 
 Setup:
     git submodule update --init baselines/smart_turn_v3/smart_turn
@@ -87,10 +71,11 @@ STOP_MS    = 1000
 
 _silero_model_path: str | None = None
 
-_CHUNK_MS     = CHUNK / SR * 1000.0
-_PRE_CHUNKS   = math.ceil(PRE_SPEECH_MS / _CHUNK_MS)
-_STOP_CHUNKS  = math.ceil(STOP_MS / _CHUNK_MS)
-_SETTLE_CHUNKS = math.ceil(2000.0 / _CHUNK_MS)  # 2s settling window after 1s silence
+_CHUNK_MS      = CHUNK / SR * 1000.0
+_PRE_CHUNKS    = math.ceil(PRE_SPEECH_MS / _CHUNK_MS)
+_STOP_CHUNKS   = math.ceil(STOP_MS / _CHUNK_MS)
+_SETTLE_CHUNKS = math.ceil(2000.0 / _CHUNK_MS)   # 2s settling window after 1s silence
+_MAX_CHUNKS    = math.ceil(8000.0 / _CHUNK_MS)    # rolling 8s cap on seg during accumulation
 
 
 def _load_models():
@@ -150,6 +135,8 @@ def _vad_and_predict_joint(
                 active1 = True; sil1 = 0; extra1 = 0
         elif extra1 == 0:                         # active, accumulating
             seg1.append(c1)
+            if len(seg1) > _MAX_CHUNKS:           # rolling 8s window — drop oldest
+                seg1.pop(0)
             sil1 = 0 if sp1 else sil1 + 1
             if sil1 >= _STOP_CHUNKS:
                 extra1 = 1
@@ -178,6 +165,8 @@ def _vad_and_predict_joint(
                 active2 = True; sil2 = 0; extra2 = 0
         elif extra2 == 0:                         # active, accumulating
             seg2.append(c2)
+            if len(seg2) > _MAX_CHUNKS:           # rolling 8s window — drop oldest
+                seg2.pop(0)
             sil2 = 0 if sp2 else sil2 + 1
             if sil2 >= _STOP_CHUNKS:
                 extra2 = 1
