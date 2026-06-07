@@ -1,3 +1,6 @@
 [submodule "baselines/smart_turn_v3/smart_turn"]
 	path = baselines/smart_turn_v3/smart_turn
 	url = https://github.com/pipecat-ai/smart-turn
+[submodule "baselines/vap/VoiceActivityProjection"]
+	path = baselines/vap/VoiceActivityProjection
+	url = https://github.com/ErikEkstedt/VoiceActivityProjection
