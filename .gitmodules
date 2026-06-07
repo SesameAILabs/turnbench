@@ -4,3 +4,6 @@
 [submodule "baselines/vap/VoiceActivityProjection"]
 	path = baselines/vap/VoiceActivityProjection
 	url = https://github.com/ErikEkstedt/VoiceActivityProjection
+[submodule "baselines/dualturn/dualturn"]
+	path = baselines/dualturn/dualturn
+	url = https://github.com/anyreachai/dualturn.git
