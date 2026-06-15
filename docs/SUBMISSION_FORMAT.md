@@ -87,11 +87,10 @@ same scorer runs server-side against the private test set, whose annotations
 are never published — a file that validates and scores here will validate
 and score there.
 
-Two reference baselines emit valid predictions files:
+A reference baseline emits a valid predictions file:
 
 ```bash
-uv run python -m eval.baselines.vad > vad_predictions.json
-uv run python -m eval.baselines.no_events > no_events_predictions.json
+uv run python -m baselines.rms_vad.predict --out rms_vad_predictions.json
 ```
 
 ## Sweeping in memory (no JSON files)

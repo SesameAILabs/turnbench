@@ -61,9 +61,9 @@ eval/                — gold construction + evaluation
   score.py               scores a discrete predictions.json (recall / FP-rate / latency)
   submission.py          submission schema + validators (the discrete format)
   data.py                resolves the dataset (HF dev set, or --dataset override)
-  baselines/             degenerate reference baselines (vad, no_events)
   label_map.yaml         fine Mundo labels -> canonical taxonomy (reference)
 baselines/           — model baselines (one folder per baseline)
+  rms_vad/               energy-VAD reference baseline (the simplest, runnable today)
   sesame/                Sesame internal turn-taking system (predictions generated externally)
   gemini/                Gemini full-duplex streaming dialogue (Google) — ASR/VAD-aligned
   moshi/                 Kyutai Moshi — full-duplex spoken-language model
@@ -121,13 +121,14 @@ The 25% dev / 75% test target is roughly preserved per conversation type:
 
 ## Baselines
 
-Each baseline lives in its own directory under `baselines/` and is a standalone predictor: it runs its model over the dataset and emits a discrete `predictions.json` (see `docs/SUBMISSION_FORMAT.md`), which `eval/score.py` scores. A baseline owns the whole path, including its **own continuous→discrete step** (thresholding its model's scores to committed event times, at whatever operating point it picks); the benchmark only ever sees committed events. `eval/baselines/vad.py` is the minimal reference: read audio, derive a signal, threshold to events, emit. There is no shared trace format and no central runner.
+Each baseline lives in its own directory under `baselines/` and is a standalone predictor: it runs its model over the dataset and emits a discrete `predictions.json` (see `docs/SUBMISSION_FORMAT.md`), which `eval/score.py` scores. A baseline owns the whole path, including its **own continuous→discrete step** (thresholding its model's scores to committed event times, at whatever operating point it picks); the benchmark only ever sees committed events. `baselines/rms_vad/` is the minimal reference: read audio, derive a signal, threshold to events, emit. There is no shared trace format and no central runner.
 
 > **Migration note.** The model baselines below were written against the old continuous-trace pipeline (per-frame scores persisted as NPZ, swept centrally). That pipeline has been removed. Each baseline's `predict.py` needs its author to update it to emit a `predictions.json` directly. Until then they will not run.
 
 | Baseline | Modality | Output | Params | Status |
 | --- | --- | --- | --- | --- |
-| `oracle_annotator` | Sanity check | Replays one annotator's labels | n/a | implemented |
+| `rms_vad` | Energy VAD | Speech on/off edges → discrete events | n/a | implemented (runs on dev today) |
+| `oracle_annotator` | Sanity check | Replays the gold events | n/a | implemented |
 | `sesame` | Internal CD model | Continuous per-frame heads @ 12.5 Hz | (internal) | predictions provided externally |
 | `gemini` | Full-duplex streaming dialogue | ASR/VAD-aligned timestamps over output audio | undisclosed | stub |
 | `moshi` | Audio (full-duplex, 12.5 Hz) | Per-frame voice-activity on system stream | ~7B | stub |
@@ -139,7 +140,7 @@ Each baseline lives in its own directory under `baselines/` and is a standalone 
 | `wavlm_base_causal` | Audio (frozen WavLM-Base-Plus, causal, CMU) | 5-class @ 25 Hz, fully causal single pass, trained on Switchboard | ~98M (3.8M trainable) | stub |
 | `wavlm_large_anchor` | Audio (frozen WavLM-Large, 4 s windows, CMU) | 5-class @ 25 Hz, autoregressive decoder, trained on Switchboard | ~628M (313M trainable) | stub |
 
-Stubs are intentional placeholders documenting the intended interface — community
-contributions implementing them are welcome. Only `oracle_annotator` runs out of
-the box today; `sesame` predictions are produced by a partner pipeline and
-dropped into `predictions/sesame_*/` for evaluation.
+`rms_vad` and `oracle_annotator` run out of the box today and are the reference
+shape for the discrete contract. The model baselines need migration (see the
+note above); their intended interfaces are documented in each module's
+docstring, and community contributions implementing them are welcome.

@@ -164,18 +164,18 @@ exactly once, fixed keys only, event lists strictly increasing, finite, and
 inside the conversation's audio. A submission that scores locally will score
 server-side.
 
-`eval/baselines/` holds the degenerate baselines that bound the
-latency-vs-FP tradeoff, as predictions emitters: `vad` (energy VAD; fires on
-every silence — low latency, high FP) and `no_events` (never fires —
-`fp_rate` 0, recall 0, infinite latency; also the smallest valid submission).
+`baselines/rms_vad/` is the degenerate energy-VAD baseline (fires on every
+silence — low latency, high FP), the high-FP corner of the latency-vs-FP
+tradeoff. The opposite corner is a model that never fires: `fp_rate` 0,
+recall 0, infinite latency.
 
 ```bash
 # install eval + dev deps (once)
 uv sync --extra eval --extra dev
 
 # emit + score a baseline on dev (the dataset is fetched from HF and cached automatically)
-uv run python -m eval.baselines.vad > vad_predictions.json
-uv run python -m eval.score vad_predictions.json
+uv run python -m baselines.rms_vad.predict --out rms_vad_predictions.json
+uv run python -m eval.score rms_vad_predictions.json
 
 # validate floor construction / scorer
 uv run python -m eval.gold stats

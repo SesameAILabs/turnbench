@@ -48,23 +48,27 @@ from eval.submission import (  # noqa: E402
 
 def gold_submission(data_dir: Path) -> Submission:
     """Build the perfect submission: every gold positive, as committed events."""
+
+    def times(anchors, speaker: int, duration: float) -> list[float]:
+        # A gold median can round a few ms past the audio end; a real model
+        # could never emit past the audio it heard, so clamp into bounds.
+        return sorted(min(a.time_s, duration) for a in anchors if a.speaker == speaker)
+
     predictions = []
     for task_id in conversation_ids(data_dir):
         events = events_for_conversation(data_dir / task_id)
-        # A gold median can round a few ms past the audio end; a real model
-        # could never emit past the audio it heard, so clamp into bounds.
         duration = conversation_duration_s(data_dir / task_id)
-        eot = {1: [], 2: []}
-        for anchor in events.eot_positive_events:
-            eot[anchor.speaker].append(min(anchor.time_s, duration))
-        interruption = {1: [], 2: []}
-        for anchor in events.int_positive_events:
-            interruption[anchor.speaker].append(min(anchor.time_s, duration))
         predictions.append(
             ConversationPrediction(
                 conversation_id=task_id,
-                speaker_1=SpeakerEvents(eot=sorted(eot[1]), interruption=sorted(interruption[1])),
-                speaker_2=SpeakerEvents(eot=sorted(eot[2]), interruption=sorted(interruption[2])),
+                speaker_1=SpeakerEvents(
+                    eot=times(events.eot_positive_events, 1, duration),
+                    interruption=times(events.int_positive_events, 1, duration),
+                ),
+                speaker_2=SpeakerEvents(
+                    eot=times(events.eot_positive_events, 2, duration),
+                    interruption=times(events.int_positive_events, 2, duration),
+                ),
             )
         )
     return Submission(schema_version=SCHEMA_VERSION, predictions=predictions)
