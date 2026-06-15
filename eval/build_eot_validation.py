@@ -39,7 +39,17 @@ import numpy as np
 import soundfile as sf
 from scipy.signal import resample_poly
 
-from eval.consensus import load_env
+
+def load_env(p: Path) -> dict[str, str]:
+    env: dict[str, str] = {}
+    if not p.exists():
+        return env
+    for line in p.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, v = line.split("=", 1)
+            env[k.strip()] = v.strip()
+    return env
 
 
 TARGET_SR = 24_000

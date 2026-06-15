@@ -1,96 +1,93 @@
 #!/usr/bin/env python3
-"""Oracle baseline: pretend annotator X (a/b/c) is the model.
+"""Oracle baseline + reference for the in-memory scoring interface.
 
-Used as a sanity check on the eval pipeline. Scores should be near-perfect
-(but not perfect, because gold is the median of all three annotators).
+Emits the gold events themselves as the prediction, then scores them with
+`eval.score.score_submission`. By construction this is a perfect submission
+(recall 1.0, fp_rate 0.0) — so it doubles as an end-to-end sanity check on the
+scorer, and as the worked example of how a model author scores discrete events
+without writing a predictions JSON to disk.
+
+The pattern a real submitter follows is the same, except they build the
+`SpeakerEvents` lists from their own model's committed event times (thresholding
+their continuous scores however they like — that step is theirs, not ours):
+
+    for threshold in my_thresholds:
+        submission = Submission(
+            schema_version=SCHEMA_VERSION,
+            predictions=[my_discrete_events(conversation, threshold) for ...],
+        )
+        scores = score_submission(submission, data_dir)   # discrete events -> scores
 
 Usage:
-    python3 baselines/oracle_annotator/predict.py --annotator a
+    python -m baselines.oracle_annotator.predict [--dataset <hf repo|local dir>]
 """
 from __future__ import annotations
 
 import argparse
-import json
-import re
 import sys
 from pathlib import Path
 
-import yaml
+# eval/ is two levels up (baselines/oracle_annotator/predict.py).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+from eval.data import (  # noqa: E402
+    DEV_DATASET,
+    conversation_duration_s,
+    conversation_ids,
+    resolve_dataset,
+)
+from eval.gold import events_for_conversation  # noqa: E402
+from eval.score import score_submission, task_cells  # noqa: E402
+from eval.submission import (  # noqa: E402
+    SCHEMA_VERSION,
+    ConversationPrediction,
+    SpeakerEvents,
+    Submission,
+)
 
 
-SRT_TIME = re.compile(r"(\d+):(\d{2}):(\d{2}),(\d{3})")
-LABEL = re.compile(r"\[([^\]]+)\]")
+def gold_submission(data_dir: Path) -> Submission:
+    """Build the perfect submission: every gold positive, as committed events."""
 
+    def times(anchors, speaker: int, duration: float) -> list[float]:
+        # A gold median can round a few ms past the audio end; a real model
+        # could never emit past the audio it heard, so clamp into bounds.
+        return sorted(min(a.time_s, duration) for a in anchors if a.speaker == speaker)
 
-def load_env(p: Path) -> dict[str, str]:
-    env = {}
-    for line in p.read_text().splitlines():
-        line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            k, v = line.split("=", 1)
-            env[k.strip()] = v.strip()
-    return env
-
-
-def srt_seconds(ts: str) -> float:
-    h, m, s, ms = SRT_TIME.match(ts).groups()
-    return int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 1000
-
-
-def parse_srt(path: Path) -> list[tuple[float, float, str]]:
-    out = []
-    for block in re.split(r"\n\s*\n", path.read_text(encoding="utf-8").strip()):
-        lines = [ln for ln in block.splitlines() if ln.strip()]
-        if len(lines) < 2:
-            continue
-        idx = 1 if lines[0].strip().isdigit() else 0
-        if idx >= len(lines) or "-->" not in lines[idx]:
-            continue
-        a, b = [t.strip() for t in lines[idx].split("-->")]
-        body = " ".join(lines[idx + 1:]).strip()
-        m = LABEL.match(body)
-        if m:
-            out.append((srt_seconds(a), srt_seconds(b), m.group(1)))
-    return out
+    predictions = []
+    for task_id in conversation_ids(data_dir):
+        events = events_for_conversation(data_dir / task_id)
+        duration = conversation_duration_s(data_dir / task_id)
+        predictions.append(
+            ConversationPrediction(
+                conversation_id=task_id,
+                speaker_1=SpeakerEvents(
+                    eot=times(events.eot_positive_events, 1, duration),
+                    interruption=times(events.int_positive_events, 1, duration),
+                ),
+                speaker_2=SpeakerEvents(
+                    eot=times(events.eot_positive_events, 2, duration),
+                    interruption=times(events.int_positive_events, 2, duration),
+                ),
+            )
+        )
+    return Submission(schema_version=SCHEMA_VERSION, predictions=predictions)
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--annotator", choices=("a", "b", "c"), default="a")
-    args = ap.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--dataset",
+        default=DEV_DATASET,
+        help="HF dataset repo id, or a local directory of conversation dirs",
+    )
+    args = parser.parse_args()
 
-    repo = Path(__file__).resolve().parent.parent.parent
-    env = load_env(repo / ".env")
-    root = (Path(env["TT_BENCHMARK_DATA"]) if env.get("TT_BENCHMARK_DATA") else Path(env["DATA_ROOT"]) / env["BATCH"])
-    out_dir = repo / "predictions" / f"oracle_annotator_{args.annotator}"
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    canonical = {}
-    for canon, fine_list in yaml.safe_load((repo / "eval" / "label_map.yaml").read_text()).items():
-        for f in fine_list:
-            canonical[f] = canon
-
-    sample_dirs = sorted([p for p in root.iterdir() if p.is_dir()],
-                         key=lambda p: int(p.name) if p.name.isdigit() else p.name)
-    total = 0
-    for d in sample_dirs:
-        preds = []
-        for sp in (1, 2):
-            srt = d / f"speaker_{sp}_annotation_{args.annotator}.srt"
-            for s, e, lbl in parse_srt(srt):
-                canon = canonical.get(lbl)
-                if canon == "Turn":
-                    preds.append({"speaker": sp, "time": round(e, 4), "label": "EOT"})
-                elif canon == "Interruption":
-                    preds.append({"speaker": sp, "time": round(s, 4), "label": "Interruption"})
-                elif canon in ("Backchannel", "Overlap", "Laughter", "NonContent"):
-                    preds.append({"speaker": sp, "time": round(s, 4), "label": canon})
-        with (out_dir / f"{d.name}.jsonl").open("w") as f:
-            for p in preds:
-                f.write(json.dumps(p) + "\n")
-        total += len(preds)
-    print(f"Wrote {total} predictions for annotator {args.annotator} to {out_dir}",
-          file=sys.stderr)
+    data_dir = resolve_dataset(source=args.dataset)
+    scores = score_submission(gold_submission(data_dir), data_dir)
+    for task_name, score in (("EOT", scores.task_eot), ("INT", scores.task_int)):
+        recall, fp_rate, latency = task_cells(score)
+        print(f"{task_name}: recall={recall} fp_rate={fp_rate} latency={latency}")
     return 0
 
 
