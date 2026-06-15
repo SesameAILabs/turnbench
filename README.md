@@ -39,6 +39,16 @@ STATS_DIR=/abs/path/to/tt-benchmark/stats_out   # defaults to ./stats_out
 
 Required Python packages: `numpy`, `soundfile`, `matplotlib`, `pyyaml`.
 
+The discrete scorer is packaged separately (`pyproject.toml`) and resolves the
+dataset itself (the public dev set on HuggingFace by default, no `.env`
+needed):
+
+```
+uv sync --extra eval --extra dev
+uv run python -m eval.score predictions.json        # score a submission on dev
+uv run pytest                                        # scorer tests
+```
+
 ## Layout
 
 ```
@@ -47,9 +57,12 @@ data_analysis/       — corpus & per-conversation statistics + figures
   per_conversation.py    20 metrics per conversation, aggregated by type
   plot_per_type.py       z-score heatmap + small-multiples figures
 eval/                — gold construction + evaluation
-  label_map.yaml         fine Mundo labels -> canonical taxonomy (6 classes)
-  consensus.py           builds per-sample consensus events from annotators a/b/c
-  metrics.py             EOT + Interruption latency / FP-rates / confusion vs gold
+  gold.py                builds gold event sets on the fly from annotators a/b/c
+  score.py               scores a discrete predictions.json (recall / FP-rate / latency)
+  submission.py          submission schema + validators (the discrete format)
+  data.py                resolves the dataset (HF dev set, or --dataset override)
+  baselines/             degenerate reference baselines (vad, no_events)
+  label_map.yaml         fine Mundo labels -> canonical taxonomy (reference)
 baselines/           — model baselines (one folder per baseline)
   sesame/                Sesame internal turn-taking system (predictions generated externally)
   gemini/                Gemini full-duplex streaming dialogue (Google) — ASR/VAD-aligned
@@ -73,29 +86,15 @@ python3 data_analysis/plot_per_type.py      # writes stats_out/figures/{heatmap_
 
 ## Evaluation
 
-**Gold construction (`eval/consensus.py`).** For each sample, the three annotators' fine labels are mapped to the canonical taxonomy (`eval/label_map.yaml`). An event is kept iff all three annotators emit the same canonical label and their start/end times agree within ±200 ms; gold start/end is the median of the three. Any annotator event that does NOT reach 3-way agreement contributes its time span to the `excluded_intervals` list — predictions falling inside these intervals are dropped before scoring (they neither help nor hurt the model).
+**Gold construction (`eval/gold.py`).** Gold is built on the fly from the three annotators' SRTs, with no stored artifact. Fine labels map to the canonical taxonomy; an event is kept iff all three annotators agree on the canonical label and their endpoints agree within ±200 ms, with the median as the gold boundary. Spans without 3-way agreement become excluded intervals: predictions inside them are neither rewarded nor penalised. EOT positives are the turn-ends where the floor actually passes to the other speaker; INT positives are floor-taking interruption onsets. See the `eval/gold.py` module docstring for the full floor-construction rule.
 
-**Canonical taxonomy:** `Turn`, `Interruption`, `Backchannel`, `Overlap`, `Laughter`, `NonContent`. `EOT` is derived from `Turn` event end-times — not a separate label.
-
-**Unified prediction format.** Every baseline writes to the same on-disk layout via `eval/submission_format.py`:
+**Submission + scoring (discrete).** A submission is a single `predictions.json` of committed **event times** per speaker (`eot`, `interruption`), scored by `eval/score.py`:
 
 ```
-predictions/<run-name>/
-├── manifest.json            # baseline, checkpoint, frame_rate_hz, split, task_ids, lookahead_ms
-└── traces/
-    └── <task_id>.npz         # four float32 arrays:
-                              #   eot_score_speaker_1
-                              #   eot_score_speaker_2
-                              #   interruption_score_speaker_1
-                              #   interruption_score_speaker_2
+uv run python -m eval.score predictions.json
 ```
 
-Scores are continuous (probabilities or logits) sampled at `frame_rate_hz`. Each array has a precise per-channel semantics:
-
-- `eot_score_speaker_K` — at each frame, *"Is speaker K finishing their turn?"*
-- `interruption_score_speaker_K` — at each frame, *"Is speaker K barging in on the other speaker?"*
-
-`speaker_1` and `speaker_2` mirror the dataset (`speaker_1_audio.wav` / `speaker_2_audio.wav`); do not remap by who the "agent" is — that's the eval code's job. Storing continuous scores rather than thresholded events lets `eval/metrics.py` sweep the detection threshold for the latency-vs-interruption-rate curve. Per-baseline native outputs (VAP's voice-activity projection, ESPnet's 5-class probabilities, Mimi-endpointer's 4-class states, etc.) are converted to the four canonical arrays inside each baseline's `predict_scores` adapter. Full specification and code examples in [`docs/SUBMISSION_FORMAT.md`](docs/SUBMISSION_FORMAT.md).
+There are no continuous scores or thresholds in a submission: emit an event at the time your system commits to acting on it. Turning a model's continuous scores into committed event times (thresholding, sweeping) is the submitter's responsibility; the scorer exposes an in-memory `score_submission` entry point so you can sweep without writing a file per operating point. Full spec, the causality rule, and the self-sweep pattern: [`docs/SUBMISSION_FORMAT.md`](docs/SUBMISSION_FORMAT.md). `baselines/oracle_annotator/predict.py` is the runnable reference.
 
 ## Splits
 
@@ -122,9 +121,9 @@ The 25% dev / 75% test target is roughly preserved per conversation type:
 
 ## Baselines
 
-Each baseline lives in its own directory under `baselines/`. The minimum interface is `predict(sample_dir) -> {speaker_id: [(start_s, end_s, label)]}` so evaluation is uniform across models; per-baseline output spaces (continuous probabilities, discrete classes) are documented in each module's docstring along with how EOT and interruption are derived for evaluation.
+Each baseline lives in its own directory under `baselines/` and is a standalone predictor: it runs its model over the dataset and emits a discrete `predictions.json` (see `docs/SUBMISSION_FORMAT.md`), which `eval/score.py` scores. A baseline owns the whole path, including its **own continuous→discrete step** (thresholding its model's scores to committed event times, at whatever operating point it picks); the benchmark only ever sees committed events. `eval/baselines/vad.py` is the minimal reference: read audio, derive a signal, threshold to events, emit. There is no shared trace format and no central runner.
 
-**Bidirectional evaluation.** Every conversation is two-channel. Each baseline must run **twice per dialogue** — once treating speaker 1 as the agent (with speaker 2 as the human user) and once treating speaker 2 as the agent. The predicted events for both directions are written into the same JSONL with the appropriate `speaker` field; the eval module scores each direction independently and aggregates. Concretely, a baseline's `predict(sample_dir)` should return predictions for *both* speakers — see the baseline stubs for the boilerplate that reads `TT_BENCHMARK_DATA` and iterates over both directions.
+> **Migration note.** The model baselines below were written against the old continuous-trace pipeline (per-frame scores persisted as NPZ, swept centrally). That pipeline has been removed. Each baseline's `predict.py` needs its author to update it to emit a `predictions.json` directly. Until then they will not run.
 
 | Baseline | Modality | Output | Params | Status |
 | --- | --- | --- | --- | --- |
