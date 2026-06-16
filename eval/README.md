@@ -27,11 +27,12 @@ source of truth for the gold** — no consensus artifact is published, so the
 gold at a given commit is fully determined by this repo, and scores are only
 comparable across runs of the same scorer version.
 
-Each annotated segment maps to an expected floor state. We keep only segments
-with **3/3 inter-annotator agreement** (endpoints within ±0.2 s; the gold
-time is the median across annotators). Annotated spans that do not reach 3/3
-agreement become **excluded intervals** — predicted events falling inside
-them are neither rewarded nor penalised.
+Each annotated segment maps to an expected floor state. We keep segments with
+**majority (2 of 3) inter-annotator agreement** (endpoints within ±0.2 s; the
+gold time is the median across the agreeing annotators). A dissenting annotator
+the majority outvotes is settled by the majority, not treated as uncertain —
+so only spans where **no majority forms at all** become **excluded intervals**
+(predicted events falling inside them are neither rewarded nor penalised).
 
 Agreement is judged **at the granularity each task needs**, because the
 taxonomy is hierarchical — "Turn" is the coarser level above the
@@ -39,8 +40,8 @@ interruption labels:
 
 - The **turn view** asks "does this span *claim the floor*?" Turn-family
   labels, `Overlap`, and *Floor-taking* Interruptions are one class there, so
-  a span labelled Normal Turn / Floor-taking Interruption / Overlap is 3/3
-  unanimous. This view defines turns, and therefore EOT.
+  a span labelled Normal Turn / Floor-taking Interruption / Overlap reaches a
+  floor-claiming majority. This view defines turns, and therefore EOT.
 - The **label view** keeps the canonical labels apart and drives the INT task,
   where turn-vs-interruption is the very distinction being tested.
 
@@ -76,8 +77,8 @@ Interruption events define the INT sets. An interruption means the other
 speaker was actually *interrupted* — the floor changes hands — so only
 floor-taking events are scored:
 
-- **INT positive** — a consensus *floor-taking* `Interruption` onset (3/3 on
-  floor-taking, on the interrupter's channel). An anchor time.
+- **INT positive** — a consensus *floor-taking* `Interruption` onset (majority
+  on floor-taking, on the interrupter's channel). An anchor time.
 - **INT negative** — a `Backchannel` or channel-bleed (`NonContent`) event's
   own extent: the other speaker made a sound but did **not** take the floor.
   (Annotator-level `Overlap` collapses into `Turn` — overlapping speech is
@@ -87,12 +88,12 @@ floor-taking events are scored:
   from a real interruption, so firing on one is neither rewarded nor
   penalised.
 
-On the 38-conversation dev split the turn view yields 2664 turn segments,
-classified as **1318 EOT-pos / 971 EOT-neg** with 375 contaminated pauses
-dropped (`python -m eval.gold stats`); after truncation every kept pause is a believable
-hold (median 0.41 s, max 3.2 s). The INT task is deliberately
-high-precision: **119 INT-pos / 2946 INT-neg**, with 119 unanimous
-non-floor-taking attempts and 86 subtype-disputed events excluded.
+On the 38-conversation dev split, majority consensus yields **1904 EOT-pos /
+1063 EOT-neg** and **347 INT-pos / 3733 INT-neg** (`python -m eval.gold stats`),
+with 1447 excluded intervals across the two views (545 EOT, 902 INT). The INT
+task stays high-precision: only majority floor-taking interruptions are
+positives, while non-floor-taking attempts and genuine no-majority regions are
+excluded.
 
 ## Scoring (`score.py`)
 
@@ -193,9 +194,9 @@ uv run pytest
   environment, so the commit-time rule (../docs/SUBMISSION_FORMAT.md) is a
   term of submission rather than a property the runner guarantees. Scores are
   only as causal as the pipeline that produced the file.
-- **Strict gold can empty a conversation**: under 3/3 consensus, some
-  conversations have *zero* `Turn` events survive (e.g. dev convo 158), so
-  they contribute no EOT events. This is a data property, not a bug.
+- **Consensus can empty a conversation**: where annotators rarely reach a
+  majority, a conversation can have *zero* `Turn` events survive and contribute
+  no EOT events. This is a data property, not a bug.
 - **Dev set on HF**: `freeman-sesame/turn-benchmark-dev` — audio + raw SRTs +
   metadata per conversation, fetched automatically into the HF cache
   (`eval/data.py`). **Test labels stay private**; the same scorer runs on the

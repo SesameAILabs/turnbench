@@ -7,10 +7,11 @@ published. The dataset ships only raw annotations
 builds the gold from them at scoring time, so the gold at a given commit is
 fully determined by this file.
 
-Stage 1 — consensus. An event is consensus iff all three annotators (a, b, c)
-emit the same canonical label and their (start, end) intervals agree within
-TIME_TOLERANCE_S on both endpoints; the gold boundary is the median across
-annotators (algorithm ported from `cmu-sesame/tt-benchmark` `eval/consensus.py`
+Stage 1 — consensus. An event is consensus iff at least MIN_AGREEMENT of the
+three annotators (a, b, c) emit the same canonical label with (start, end)
+intervals agreeing within TIME_TOLERANCE_S on both endpoints; the gold boundary
+is the median across the agreeing annotators (MIN_AGREEMENT = 2, a majority;
+matching algorithm ported from `cmu-sesame/tt-benchmark` `eval/consensus.py`
 + `eval/label_map.yaml`, tolerances kept identical). Agreement is judged at
 the granularity each task needs — the taxonomy is hierarchical, "Turn" being
 the coarser level above the interruption labels:
@@ -21,9 +22,11 @@ the coarser level above the interruption labels:
     label view — agreement on the canonical label. Drives the INT task
                  (Interruption onsets; Backchannel/NonContent extents).
 
-Spans that do not reach 3/3 agreement in a view become that view's *excluded*
-intervals: the scorer masks predictions inside them, and pauses stop at them
-(disputed is unknown, not silent).
+Spans where no majority forms in a view become that view's *excluded*
+intervals — a dissenting annotator whom the majority outvoted is settled, not
+excluded, so only genuine no-majority regions are masked: the scorer ignores
+predictions inside them, and pauses stop at them (disputed is unknown, not
+silent).
 
 Stage 2 — floor construction. Positives are anchor *times* (a window around
 them is searched for a predicted event). Negatives are *spans* — stretches
@@ -58,6 +61,7 @@ import json
 import re
 import subprocess
 from dataclasses import asdict, dataclass
+from itertools import combinations
 from pathlib import Path
 from statistics import median
 
@@ -121,8 +125,8 @@ CANONICAL = {
 # The taxonomy is hierarchical for floor purposes: "Turn" is the coarser
 # level, and floor-taking interruptions are turns at that level. The *turn
 # view* asks the coarser question — "does this span CLAIM the floor?" — so a
-# span labelled Normal Turn / Floor-taking Interruption / Overlap is 3/3
-# unanimous there even though the label view sees disagreement. The label view
+# span labelled Normal Turn / Floor-taking Interruption / Overlap reaches a
+# floor-claiming majority there even though the label view sees disagreement. The label view
 # (CANONICAL) still serves the INT task, where that distinction is the point.
 TURN_LABELS = LABEL_MAP["Turn"] + LABEL_MAP["Interruption"]
 TURN_CANONICAL = {fine: "Turn" for fine in TURN_LABELS}
@@ -136,6 +140,7 @@ SRT_TIME = re.compile(r"(\d+):(\d{2}):(\d{2}),(\d{3})")
 LABEL = re.compile(r"\[([^\]]+)\]")
 ANNOTATORS = ("a", "b", "c")
 SPEAKERS = (1, 2)
+MIN_AGREEMENT = 2  # of 3 annotators an event needs (3 = unanimous, 2 = majority)
 TIME_TOLERANCE_S = 0.2  # max disagreement on start OR end across annotators
 OVERLAP_WINDOW_S = 0.5  # max start-time gap to match events across annotators
 
@@ -151,7 +156,7 @@ REPO_DIR = Path(__file__).parent.parent
 
 @dataclass(frozen=True)
 class ConsensusEvent:
-    """One 3/3-agreed annotated segment."""
+    """One majority-agreed annotated segment."""
 
     speaker: int
     start: float
@@ -178,9 +183,9 @@ class Interval:
 class ConsensusViews:
     """The two consensus granularities."""
 
-    turn_events: list[ConsensusEvent]  # 3/3 floor-claiming spans (label "Turn")
+    turn_events: list[ConsensusEvent]  # majority floor-claiming spans (label "Turn")
     turn_excluded: list[Interval]  # no floor-level agreement
-    events: list[ConsensusEvent]  # 3/3 canonical-label events (label view)
+    events: list[ConsensusEvent]  # majority canonical-label events (label view)
     excluded: list[Interval]  # no fine-level agreement
 
 
@@ -261,67 +266,86 @@ def merge_intervals(
 def find_consensus(
     per_annotator: dict[str, list[tuple[float, float, str]]], speaker: int
 ) -> tuple[list[ConsensusEvent], list[Interval]]:
-    """3/3 consensus over one speaker's canonical events from annotators a/b/c.
+    """MIN_AGREEMENT-of-3 consensus over one speaker's canonical events.
 
-    Algorithm (anchor on 'a'): for each event in 'a', find the temporally
-    closest unused same-label event in 'b' and 'c' within OVERLAP_WINDOW_S of
-    its start. If both exist and all endpoints lie within TIME_TOLERANCE_S,
-    accept with median start/end. Every annotated span that is not part of an
-    accepted event becomes an excluded interval (merged where overlapping).
+    Anchor on each annotator's events in turn: gather the nearest unused
+    same-label event from each *later* annotator (within OVERLAP_WINDOW_S of the
+    anchor's start), then accept the largest group including the anchor whose
+    starts and ends each span at most TIME_TOLERANCE_S, provided it reaches
+    MIN_AGREEMENT members. The gold boundary is the median across the group.
+
+    A dissenting annotator's event is settled by the majority, so an unmatched
+    event becomes an excluded interval ONLY where it overlaps no accepted
+    consensus event — a genuine no-majority region. Disagreement the majority
+    already resolved is not re-introduced as uncertainty; otherwise it would
+    mask the very event it dissents from.
     """
-    a_events = per_annotator["a"]
-    b_events = per_annotator["b"]
-    c_events = per_annotator["c"]
-    used_a: set[int] = set()
-    used_b: set[int] = set()
-    used_c: set[int] = set()
+    events = {annotator: per_annotator[annotator] for annotator in ANNOTATORS}
+    used: dict[str, set[int]] = {annotator: set() for annotator in ANNOTATORS}
     consensus: list[ConsensusEvent] = []
 
-    def nearest(
-        target_start: float,
-        target_label: str,
-        events: list[tuple[float, float, str]],
-        used: set[int],
-    ) -> int | None:
+    def nearest(target_start: float, label: str, annotator: str) -> int | None:
         best_index, best_distance = None, float("inf")
-        for index, (start, _, label) in enumerate(events):
-            if index in used or label != target_label:
+        for index, (start, _, candidate_label) in enumerate(events[annotator]):
+            if index in used[annotator] or candidate_label != label:
                 continue
             distance = abs(start - target_start)
             if distance < best_distance and distance <= OVERLAP_WINDOW_S:
                 best_distance, best_index = distance, index
         return best_index
 
-    for a_index, (start_a, end_a, label) in enumerate(a_events):
-        b_index = nearest(start_a, label, b_events, used_b)
-        if b_index is None:
-            continue
-        c_index = nearest(start_a, label, c_events, used_c)
-        if c_index is None:
-            continue
-        start_b, end_b, _ = b_events[b_index]
-        start_c, end_c, _ = c_events[c_index]
-        starts = [start_a, start_b, start_c]
-        ends = [end_a, end_b, end_c]
-        if (
-            max(starts) - min(starts) > TIME_TOLERANCE_S
-            or max(ends) - min(ends) > TIME_TOLERANCE_S
-        ):
-            continue
-        used_a.add(a_index)
-        used_b.add(b_index)
-        used_c.add(c_index)
-        consensus.append(
-            ConsensusEvent(
-                speaker, round(median(starts), 4), round(median(ends), 4), label
-            )
-        )
+    def largest_agreeing(
+        group: dict[str, tuple[int, float, float]], anchor: str
+    ) -> tuple[str, ...]:
+        """The biggest subset of `group` that includes `anchor` and whose
+        starts and ends each span at most TIME_TOLERANCE_S."""
+        members = list(group)
+        for size in range(len(members), 0, -1):
+            for subset in combinations(members, size):
+                if anchor not in subset:
+                    continue
+                starts = [group[annotator][1] for annotator in subset]
+                ends = [group[annotator][2] for annotator in subset]
+                if (
+                    max(starts) - min(starts) <= TIME_TOLERANCE_S
+                    and max(ends) - min(ends) <= TIME_TOLERANCE_S
+                ):
+                    return subset
+        return ()
 
+    for anchor_position, anchor in enumerate(ANNOTATORS):
+        for anchor_index, (start, end, label) in enumerate(events[anchor]):
+            if anchor_index in used[anchor]:
+                continue
+            group = {anchor: (anchor_index, start, end)}
+            for other in ANNOTATORS[anchor_position + 1 :]:
+                match_index = nearest(start, label, other)
+                if match_index is not None:
+                    match_start, match_end, _ = events[other][match_index]
+                    group[other] = (match_index, match_start, match_end)
+            agreeing = largest_agreeing(group, anchor)
+            if len(agreeing) < MIN_AGREEMENT:
+                continue
+            starts = [group[annotator][1] for annotator in agreeing]
+            ends = [group[annotator][2] for annotator in agreeing]
+            consensus.append(
+                ConsensusEvent(
+                    speaker, round(median(starts), 4), round(median(ends), 4), label
+                )
+            )
+            for annotator in agreeing:
+                used[annotator].add(group[annotator][0])
+
+    consensus_spans = [(event.start, event.end) for event in consensus]
     unmatched = [
         (start, end)
-        for events, used in ((a_events, used_a), (b_events, used_b), (c_events, used_c))
-        for index, (start, end, _) in enumerate(events)
-        if index not in used
+        for annotator in ANNOTATORS
+        for index, (start, end, _) in enumerate(events[annotator])
+        if index not in used[annotator]
+        and not any(
+            span_start < end and start < span_end
+            for span_start, span_end in consensus_spans
+        )
     ]
     excluded = [
         Interval(speaker, round(start, 4), round(end, 4))

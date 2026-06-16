@@ -86,7 +86,7 @@ python3 data_analysis/plot_per_type.py      # writes stats_out/figures/{heatmap_
 
 ## Evaluation
 
-**Gold construction (`eval/gold.py`).** Gold is built on the fly from the three annotators' SRTs, with no stored artifact. Fine labels map to the canonical taxonomy; an event is kept iff all three annotators agree on the canonical label and their endpoints agree within ±200 ms, with the median as the gold boundary. Spans without 3-way agreement become excluded intervals: predictions inside them are neither rewarded nor penalised. EOT positives are the turn-ends where the floor actually passes to the other speaker; INT positives are floor-taking interruption onsets. See the `eval/gold.py` module docstring for the full floor-construction rule.
+**Gold construction (`eval/gold.py`).** Gold is built on the fly from the three annotators' SRTs, with no stored artifact. Fine labels map to the canonical taxonomy; an event is kept iff a majority (2 of 3) of annotators agree on the canonical label and their endpoints agree within ±200 ms, with the median as the gold boundary. A dissenting annotator the majority outvotes is settled by the majority, so only spans with no majority at all become excluded intervals: predictions inside them are neither rewarded nor penalised. EOT positives are the turn-ends where the floor actually passes to the other speaker; INT positives are floor-taking interruption onsets. See the `eval/gold.py` module docstring for the full floor-construction rule.
 
 **Submission + scoring (discrete).** A submission is a single `predictions.json` of committed **event times** per speaker (`eot`, `interruption`), scored by `eval/score.py`:
 
