@@ -8,7 +8,7 @@ plus a CSV row asking the annotator a single yes/no question:
     "Is this a real end-of-turn for speaker {speaker}?"
 
 This is the cheap validation pass — annotators do NOT re-label, they just
-confirm that the 3-of-3-derived EOTs are real turn-ends. Aggregating the
+confirm that the majority-derived EOTs are real turn-ends. Aggregating the
 binary answers gives you an empirical confirmation rate that you can
 quote in the paper as evidence that the derivation rule produces valid
 EOTs.
@@ -194,7 +194,7 @@ def main() -> int:
 
     (out_dir / "README.md").write_text(
         "# EOT Validation Labeling\n\n"
-        f"{len(rows)} stereo audio clips, each centered on a 3-of-3-derived "
+        f"{len(rows)} stereo audio clips, each centered on a majority-derived "
         "end-of-turn moment from `stats_out/consensus_eot/`.\n\n"
         f"Each clip is {CLIP_BEFORE_S:.0f} s before + {CLIP_AFTER_S:.0f} s "
         "after the EOT, mixed as L=speaker_1 / R=speaker_2, "

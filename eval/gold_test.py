@@ -1,4 +1,4 @@
-"""Gold construction tests: consensus (SRTs -> 3/3-agreed events) and floor
+"""Gold construction tests: consensus (SRTs -> majority-agreed events) and floor
 construction (consensus views -> scored event sets).
 Run: uv run pytest eval/gold_test.py"""
 
@@ -44,7 +44,7 @@ def write_conversation(
     return directory
 
 
-# ---- consensus: SRTs -> 3/3-agreed events ------------------------------------
+# ---- consensus: SRTs -> 2/3-majority-agreed events ---------------------------
 
 
 def test_parse_srt_reads_times_and_fine_label(tmp_path):
@@ -71,8 +71,10 @@ def test_unanimous_event_becomes_consensus_with_median_endpoints(tmp_path):
     assert excluded == []
 
 
-def test_endpoint_spread_beyond_tolerance_is_excluded(tmp_path):
-    # Starts agree but ends spread > 0.2 s -> no consensus; spans are excluded.
+def test_two_of_three_endpoint_agreement_forms_consensus(tmp_path):
+    # a and c agree (ends within 0.2 s); b's end is 0.5 s off. The majority
+    # forms a consensus on the median, and b's dissenting span — overlapping
+    # the accepted event — is resolved, not excluded.
     conversation = write_conversation(
         tmp_path,
         {
@@ -84,13 +86,33 @@ def test_endpoint_spread_beyond_tolerance_is_excluded(tmp_path):
 
     events, excluded = consensus_for_conversation(conversation)
 
+    assert events == [ConsensusEvent(1, 1.0, 2.0, "Turn")]
+    assert excluded == []
+
+
+def test_no_majority_endpoint_agreement_is_excluded(tmp_path):
+    # No two annotators agree on the end within 0.2 s -> no majority at all,
+    # so the merged span is genuinely uncertain and excluded.
+    conversation = write_conversation(
+        tmp_path,
+        {
+            "a": srt((1.0, 2.0, "Normal Turn")),
+            "b": srt((1.0, 2.5, "Normal Turn")),
+            "c": srt((1.0, 3.0, "Normal Turn")),
+        },
+    )
+
+    events, excluded = consensus_for_conversation(conversation)
+
     assert events == []
     assert len(excluded) == 1  # the three spans merge into one interval
-    assert (excluded[0].start, excluded[0].end) == (1.0, 2.5)
+    assert (excluded[0].start, excluded[0].end) == (1.0, 3.0)
 
 
-def test_label_disagreement_is_excluded(tmp_path):
-    # Two annotators say Backchannel, one says Interruption -> not 3/3.
+def test_label_majority_forms_consensus(tmp_path):
+    # Two annotators say Backchannel (different fine labels, same canonical),
+    # one says Interruption: the majority label wins, and the dissenter — over
+    # the same span — is resolved rather than excluded.
     conversation = write_conversation(
         tmp_path,
         {
@@ -102,14 +124,32 @@ def test_label_disagreement_is_excluded(tmp_path):
 
     events, excluded = consensus_for_conversation(conversation)
 
+    assert events == [ConsensusEvent(1, 1.0, 1.5, "Backchannel")]
+    assert excluded == []
+
+
+def test_no_label_majority_is_excluded(tmp_path):
+    # Three different canonical labels -> no majority on any -> excluded.
+    conversation = write_conversation(
+        tmp_path,
+        {
+            "a": srt((1.0, 1.5, "Acknowledgement Backchannel")),
+            "b": srt((1.0, 1.5, "Floor-taking Competitive Interruption")),
+            "c": srt((1.0, 1.5, "Non-Speech Noise")),
+        },
+    )
+
+    events, excluded = consensus_for_conversation(conversation)
+
     assert events == []
     assert len(excluded) == 1
 
 
 def test_turn_view_unifies_turn_and_floor_taking_labels(tmp_path):
     # Identical extents, labels split across Normal Turn / Floor-taking
-    # Interruption / Overlap: the label view disagrees (Turn vs Interruption),
-    # but all three labels claim the floor — the turn view is unanimous.
+    # Interruption / Overlap. In the label view, Normal Turn and Overlap both
+    # map to Turn, so they are a 2/3 majority (Interruption dissents). The turn
+    # view folds the floor-taking interruption in too, so it is unanimous.
     conversation = write_conversation(
         tmp_path,
         {
@@ -124,14 +164,15 @@ def test_turn_view_unifies_turn_and_floor_taking_labels(tmp_path):
         conversation, canonical=TURN_CANONICAL
     )
 
-    assert label_events == [] and len(label_excluded) == 1
+    assert label_events == [ConsensusEvent(1, 1.0, 5.0, "Turn")]
+    assert label_excluded == []
     assert turn_events == [ConsensusEvent(1, 1.0, 5.0, "Turn")]
     assert turn_excluded == []
 
 
-def test_turn_view_rejects_non_floor_taking_dispute(tmp_path):
-    # "Non-floor Taking" is a genuine disagreement about the floor itself:
-    # no consensus in either view.
+def test_turn_view_majority_overrides_non_floor_dispute(tmp_path):
+    # Two annotators call it a normal turn; the third's non-floor-taking
+    # reading is the minority and is overridden — the turn view mints a Turn.
     conversation = write_conversation(
         tmp_path,
         {
@@ -145,14 +186,15 @@ def test_turn_view_rejects_non_floor_taking_dispute(tmp_path):
         conversation, canonical=TURN_CANONICAL
     )
 
-    assert turn_events == []
-    assert len(turn_excluded) == 1
+    assert turn_events == [ConsensusEvent(1, 1.0, 5.0, "Turn")]
+    assert turn_excluded == []
 
 
-def test_interruption_consensus_requires_floor_taking_agreement(tmp_path):
+def test_interruption_consensus_by_floor_taking_majority(tmp_path):
     # Interruption is floor-taking by definition ("interrupted" means the
-    # other speaker stops). 3/3 floor-taking -> a consensus Interruption;
-    # 3/3 non-floor-taking -> its own class; subtype dispute -> excluded.
+    # other speaker stops). Majority floor-taking -> a consensus Interruption;
+    # majority non-floor-taking -> its own class; a 2-vs-1 subtype split is
+    # resolved by the majority.
     for name in ("ft", "nft", "mixed"):
         (tmp_path / name).mkdir()
     floor_taking = write_conversation(
@@ -186,7 +228,9 @@ def test_interruption_consensus_requires_floor_taking_agreement(tmp_path):
 
     assert ft_events == [ConsensusEvent(1, 1.0, 2.0, "Interruption")]
     assert nft_events == [ConsensusEvent(1, 1.0, 2.0, "NonFloorTakingInterruption")]
-    assert mixed_events == [] and len(mixed_excluded) == 1
+    # 2 floor-taking vs 1 non-floor-taking -> the floor-taking majority wins.
+    assert mixed_events == [ConsensusEvent(1, 1.0, 2.0, "Interruption")]
+    assert mixed_excluded == []
 
 
 def test_unmapped_labels_are_ignored(tmp_path):
@@ -333,10 +377,11 @@ def test_label_disputed_handover_is_an_eot_positive(tmp_path):
                    for span in conversation_events.eot_negative_spans)
 
 
-def test_non_floor_taking_dispute_stays_unscored(tmp_path):
-    # The conversation-41 4:35 case: one annotator says NON-floor-taking — a
-    # genuine disagreement about the floor itself. No turn is minted, and no
-    # pause is scored over the disputed stretch either.
+def test_non_floor_taking_dispute_resolved_by_majority(tmp_path):
+    # The conversation-41 4:35 case: two annotators call speaker 2's region a
+    # normal turn, one says NON-floor-taking. Under majority, the two mint
+    # speaker 2's turn, so the floor leaves speaker 1 — speaker 1's preceding
+    # turn ends (EOT), overruling the third's non-floor-taking reading.
     write_conversation(
         tmp_path,
         {annotator: srt((0.0, 2.0, "Normal Turn"), (8.0, 9.0, "Normal Turn"))
@@ -350,7 +395,7 @@ def test_non_floor_taking_dispute_stays_unscored(tmp_path):
 
     conversation_events = events_for_conversation(tmp_path)
 
-    assert AnchorEvent(1, 2.0) not in conversation_events.eot_positive_events
+    assert AnchorEvent(1, 2.0) in conversation_events.eot_positive_events
     assert not any(span.speaker == 1 and span.start == 2.0
                    for span in conversation_events.eot_negative_spans)
 
@@ -443,7 +488,7 @@ def test_segment_end_inside_own_floor_segment_is_not_classified():
 
 
 def test_int_positive_requires_floor_taking_consensus():
-    # A 3/3 floor-taking Interruption is an INT positive; a 3/3
+    # A majority floor-taking Interruption is an INT positive; a majority
     # NON-floor-taking one is neither a positive nor a negative — its extent
     # is excluded for the INT task (high-precision gold: only events where
     # the other speaker was actually interrupted are scored).
