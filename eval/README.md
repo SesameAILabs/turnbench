@@ -192,7 +192,7 @@ uv run pytest
   `fp_rate` is not a per-hour false-alarm rate.
 - **Causality is affirmed, not enforced**: models run in the submitter's own
   environment, so the commit-time rule (../docs/SUBMISSION_FORMAT.md) is a
-  term of submission rather than a property the runner guarantees. Scores are
+  term of submission rather than a property the scorer enforces. Scores are
   only as causal as the pipeline that produced the file.
 - **Consensus can empty a conversation**: where annotators rarely reach a
   majority, a conversation can have *zero* `Turn` events survive and contribute
