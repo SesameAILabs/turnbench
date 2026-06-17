@@ -23,7 +23,7 @@ from typing import Annotated
 
 import typer
 
-from eval.data import conversation_ids, resolve_dataset
+from eval.data import Dataset, conversation, conversation_ids, resolve_dataset
 from eval.score import ConversationScores, TaskScore, merge, score_conversation
 from eval.submission import (
     SCHEMA_VERSION,
@@ -51,13 +51,13 @@ def task_dict(score: TaskScore) -> dict:
     }
 
 
-def expected_scores(predictions_path: Path, data_dir: Path) -> dict:
+def expected_scores(predictions_path: Path, dataset: Dataset) -> dict:
     """Score a predictions file with this scorer, in the parity wire format."""
     by_conversation = load_submission(predictions_path).by_conversation()
     totals = ConversationScores(TaskScore(), TaskScore())
     conversations = {}
-    for task_id in conversation_ids(data_dir):
-        scores = score_conversation(by_conversation[task_id], data_dir / task_id)
+    for task_id in conversation_ids(dataset):
+        scores = score_conversation(by_conversation[task_id], conversation(dataset, task_id))
         merge(totals.task_eot, scores.task_eot)
         merge(totals.task_int, scores.task_int)
         conversations[task_id] = {
@@ -73,13 +73,13 @@ def expected_scores(predictions_path: Path, data_dir: Path) -> dict:
     }
 
 
-def write_no_events_predictions(path: Path, data_dir: Path) -> None:
+def write_no_events_predictions(path: Path, dataset: Dataset) -> None:
     empty = SpeakerEvents(eot=[], interruption=[])
     submission = Submission(
         schema_version=SCHEMA_VERSION,
         predictions=[
             ConversationPrediction(conversation_id=task_id, speaker_1=empty, speaker_2=empty)
-            for task_id in conversation_ids(data_dir)
+            for task_id in conversation_ids(dataset)
         ],
     )
     path.write_text(submission.model_dump_json(indent=2), encoding="utf-8")
@@ -100,14 +100,14 @@ def export(
 ) -> None:
     """Write dev-gold.json + the parity test vectors to OUT_DIR."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    data_dir = resolve_dataset()
+    dataset = resolve_dataset()
 
     (out_dir / "dev-gold.json").write_text(run_module("eval.gold", "export"), encoding="utf-8")
     run_module("baselines.rms_vad.predict", "--out", str(out_dir / "vad_predictions.json"))
-    write_no_events_predictions(out_dir / "no_events_predictions.json", data_dir)
+    write_no_events_predictions(out_dir / "no_events_predictions.json", dataset)
 
     for name in ("vad", "no_events"):
-        expected = expected_scores(out_dir / f"{name}_predictions.json", data_dir)
+        expected = expected_scores(out_dir / f"{name}_predictions.json", dataset)
         (out_dir / f"{name}_expected.json").write_text(json.dumps(expected), encoding="utf-8")
 
     print(f"wrote parity bundle to {out_dir}/", file=sys.stderr)

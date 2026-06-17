@@ -35,9 +35,9 @@ model detects EOTs and interruptions:
 - `schema_version` — always `1`.
 - `predictions` — exactly one entry per conversation in the dataset. If your
   model detected nothing in a conversation, include it with empty lists.
-- `conversation_id` — the conversation's directory name in the dataset.
+- `conversation_id` — the conversation's id in the dataset (its `conversation_id`).
 - `speaker_1` / `speaker_2` — correspond to the conversation's
-  `speaker_1_audio.flac` / `speaker_2_audio.flac`.
+  `speaker_1_audio` / `speaker_2_audio` channels.
 - `eot` — times at which this speaker's turn ends.
 - `interruption` — times at which this speaker takes the floor while the
   other speaker holds it.
@@ -106,14 +106,14 @@ from eval.data import resolve_dataset
 from eval.score import score_submission
 from eval.submission import SCHEMA_VERSION, ConversationPrediction, SpeakerEvents, Submission
 
-data_dir = resolve_dataset()  # public dev set; or resolve_dataset("<hf repo|local dir>")
+dataset = resolve_dataset()  # public dev set; or resolve_dataset("<hf repo|local dir>")
 
 for threshold in my_thresholds:
     submission = Submission(
         schema_version=SCHEMA_VERSION,
         predictions=[my_discrete_events(conversation_id, threshold) for conversation_id in ...],
     )
-    scores = score_submission(submission, data_dir)  # discrete events -> aggregate scores
+    scores = score_submission(submission, dataset)  # discrete events -> aggregate scores
     print(threshold, scores.task_eot.recall, scores.task_eot.fp_rate)
 ```
 

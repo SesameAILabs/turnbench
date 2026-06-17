@@ -24,12 +24,17 @@ import sys
 from pathlib import Path
 
 import numpy as np
-import soundfile as sf
 
 # eval/ is two levels up (baselines/rms_vad/predict.py).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from eval.data import DEV_DATASET, conversation_ids, resolve_dataset  # noqa: E402
+from eval.data import (  # noqa: E402
+    DEV_DATASET,
+    Conversation,
+    conversation,
+    conversation_ids,
+    resolve_dataset,
+)
 from eval.score import score_submission, task_cells  # noqa: E402
 from eval.submission import (  # noqa: E402
     SCHEMA_VERSION,
@@ -53,9 +58,8 @@ def is_speaking_per_window(audio: np.ndarray, sample_rate: int) -> np.ndarray:
     return rms_per_window > RMS_THRESHOLD
 
 
-def predict_speaker(audio_path: Path) -> SpeakerEvents:
+def predict_speaker(audio: np.ndarray, sample_rate: int) -> SpeakerEvents:
     """Energy-VAD events for one channel: speech offsets -> EOT, onsets -> interruption."""
-    audio, sample_rate = sf.read(audio_path, dtype="float32", always_2d=False)
     speaking = is_speaking_per_window(audio, sample_rate)
 
     eot: list[float] = []
@@ -73,12 +77,12 @@ def predict_speaker(audio_path: Path) -> SpeakerEvents:
     return SpeakerEvents(eot=eot, interruption=interruption)
 
 
-def predict(sample_dir: Path) -> ConversationPrediction:
+def predict(conv: Conversation) -> ConversationPrediction:
     """Energy-VAD events for both channels of one conversation."""
     return ConversationPrediction(
-        conversation_id=sample_dir.name,
-        speaker_1=predict_speaker(sample_dir / "speaker_1_audio.flac"),
-        speaker_2=predict_speaker(sample_dir / "speaker_2_audio.flac"),
+        conversation_id=conv.conversation_id,
+        speaker_1=predict_speaker(*conv.audio(1)),
+        speaker_2=predict_speaker(*conv.audio(2)),
     )
 
 
@@ -87,17 +91,20 @@ def main() -> int:
     parser.add_argument(
         "--dataset",
         default=DEV_DATASET,
-        help="HF dataset repo id, or a local directory of conversation dirs",
+        help="HF dataset repo id, or a local directory of parquet shards",
     )
     parser.add_argument(
         "--out", default=None, help="write a predictions JSON here instead of scoring"
     )
     args = parser.parse_args()
 
-    data_dir = resolve_dataset(source=args.dataset)
+    dataset = resolve_dataset(source=args.dataset)
     submission = Submission(
         schema_version=SCHEMA_VERSION,
-        predictions=[predict(data_dir / task_id) for task_id in conversation_ids(data_dir)],
+        predictions=[
+            predict(conversation(dataset, task_id))
+            for task_id in conversation_ids(dataset)
+        ],
     )
 
     if args.out is not None:
@@ -105,7 +112,7 @@ def main() -> int:
         print(f"Wrote {len(submission.predictions)} predictions to {args.out}", file=sys.stderr)
         return 0
 
-    scores = score_submission(submission, data_dir)
+    scores = score_submission(submission, dataset)
     print(f"rms_vad — {len(submission.predictions)} conversations")
     for task_name, score in (("EOT", scores.task_eot), ("INT", scores.task_int)):
         recall, fp_rate, latency = task_cells(score)

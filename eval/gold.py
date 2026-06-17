@@ -2,10 +2,10 @@
 sets the scorer anchors its eval windows on (eval/score.py).
 
 This code is the source of truth for the gold — no consensus artifact is
-published. The dataset ships only raw annotations
-(`speaker_{1,2}_annotation_{a,b,c}.srt` next to the audio) and the scorer
-builds the gold from them at scoring time, so the gold at a given commit is
-fully determined by this file.
+published. The dataset ships only raw annotations (the
+`speaker_{1,2}_annotation_{a,b,c}` event-list columns alongside the audio) and
+the scorer builds the gold from them at scoring time, so the gold at a given
+commit is fully determined by this file.
 
 Stage 1 — consensus. An event is consensus iff at least MIN_AGREEMENT of the
 three annotators (a, b, c) emit the same canonical label with (start, end)
@@ -58,7 +58,6 @@ CLI:
 
 import bisect
 import json
-import re
 import subprocess
 from dataclasses import asdict, dataclass
 from itertools import combinations
@@ -68,10 +67,13 @@ from statistics import median
 import typer
 
 from eval.data import (
+    ANNOTATORS,
     DEV_REVISION,
-    conversation_duration_s,
+    SPEAKERS,
+    Conversation,
+    conversation,
     conversation_ids,
-    dataset_dir,
+    resolve_dataset,
 )
 
 # Maps the fine-grained annotator labels to the canonical event taxonomy used
@@ -136,10 +138,6 @@ INT_NEGATIVE_LABELS = ("Backchannel", "NonContent")
 # Both interruption classes mark a barge-in when truncating pauses.
 INTERRUPTION_LABELS = ("Interruption", "NonFloorTakingInterruption")
 
-SRT_TIME = re.compile(r"(\d+):(\d{2}):(\d{2}),(\d{3})")
-LABEL = re.compile(r"\[([^\]]+)\]")
-ANNOTATORS = ("a", "b", "c")
-SPEAKERS = (1, 2)
 MIN_AGREEMENT = 2  # of 3 annotators an event needs (3 = unanimous, 2 = majority)
 TIME_TOLERANCE_S = 0.2  # max disagreement on start OR end across annotators
 OVERLAP_WINDOW_S = 0.5  # max start-time gap to match events across annotators
@@ -199,39 +197,7 @@ class ConversationEvents:
     int_excluded: list[Interval]  # label-view disputes; INT predictions masked
 
 
-# ---- stage 1: SRTs -> consensus events --------------------------------------
-
-
-def srt_seconds(timestamp: str) -> float:
-    """Parse an SRT timestamp ('HH:MM:SS,mmm') into seconds (float)."""
-    hours, minutes, seconds, millis = SRT_TIME.match(timestamp).groups()
-    return int(hours) * 3600 + int(minutes) * 60 + int(seconds) + int(millis) / 1000
-
-
-def parse_srt(path: Path) -> list[tuple[float, float, str]]:
-    """Parse one annotator SRT into (start_s, end_s, fine_label) tuples.
-
-    The fine label is the leading '[...]' tag of each subtitle body. Malformed
-    blocks fail outright — annotation files are data, and irregular data must
-    crash the run, not be skipped into a slightly different gold.
-    """
-    text = path.read_text(encoding="utf-8").strip()
-    if not text:  # an empty file is valid: zero annotated events on this channel
-        return []
-    events = []
-    for block in re.split(r"\n\s*\n", text):
-        lines = [line for line in block.splitlines() if line.strip()]
-        assert len(lines) >= 2, f"malformed SRT block in {path}: {block!r}"
-        time_index = 1 if lines[0].strip().isdigit() else 0
-        assert "-->" in lines[time_index], (
-            f"SRT block without a timing line in {path}: {block!r}"
-        )
-        start, end = [part.strip() for part in lines[time_index].split("-->")]
-        body = " ".join(lines[time_index + 1 :]).strip()
-        match = LABEL.match(body)
-        assert match, f"SRT entry without a [label] tag in {path}: {body!r}"
-        events.append((srt_seconds(start), srt_seconds(end), match.group(1)))
-    return events
+# ---- stage 1: annotation tracks -> consensus events -------------------------
 
 
 def map_events(
@@ -355,26 +321,21 @@ def find_consensus(
 
 
 def consensus_for_conversation(
-    conversation_dir: Path,
+    conv: Conversation,
     canonical: dict[str, str] = CANONICAL,
 ) -> tuple[list[ConsensusEvent], list[Interval]]:
     """Build the consensus events + excluded intervals for one conversation,
     judged at the granularity of `canonical` (the label view by default, the
     coarser turn view with TURN_CANONICAL).
 
-    `conversation_dir` must contain `speaker_{1,2}_annotation_{a,b,c}.srt`.
+    Reads the three annotator tracks per speaker from `conv.annotations`.
     Returns (consensus events across both speakers, excluded intervals).
     """
     events: list[ConsensusEvent] = []
     excluded: list[Interval] = []
     for speaker in SPEAKERS:
         per_annotator = {
-            annotator: map_events(
-                parse_srt(
-                    conversation_dir / f"speaker_{speaker}_annotation_{annotator}.srt"
-                ),
-                canonical,
-            )
+            annotator: map_events(conv.annotations[(speaker, annotator)], canonical)
             for annotator in ANNOTATORS
         }
         speaker_events, speaker_excluded = find_consensus(per_annotator, speaker)
@@ -515,16 +476,16 @@ def build_conversation_events(views: ConsensusViews) -> ConversationEvents:
     )
 
 
-def events_for_conversation(conversation_dir: Path) -> ConversationEvents:
-    """SRTs in `conversation_dir` -> the scored EOT / INT event sets.
+def events_for_conversation(conv: Conversation) -> ConversationEvents:
+    """One conversation's annotation tracks -> the scored EOT / INT event sets.
 
     Consensus is built twice, at the granularity each task needs: the turn
     view (floor-claiming vs not) drives turns and EOT; the label view drives
     the INT task.
     """
-    events, excluded = consensus_for_conversation(conversation_dir)
+    events, excluded = consensus_for_conversation(conv)
     turn_events, turn_excluded = consensus_for_conversation(
-        conversation_dir, canonical=TURN_CANONICAL
+        conv, canonical=TURN_CANONICAL
     )
     return build_conversation_events(
         ConsensusViews(turn_events, turn_excluded, events, excluded)
@@ -541,15 +502,15 @@ def stats() -> None:
     """Sanity-check the gold: per-conversation and aggregate event-set counts.
     Mid-turn-pause negatives should vastly outnumber real EOTs; both INT sets
     should be populated."""
-    data_dir = dataset_dir()
-    task_ids = conversation_ids(data_dir)
+    dataset = resolve_dataset()
+    task_ids = conversation_ids(dataset)
 
     print(
         f"{'task':>6s} {'eot+':>5s} {'eot-':>5s} {'int+':>5s} {'int-':>5s} {'excl':>5s}"
     )
     totals = [0, 0, 0, 0, 0]
     for task_id in task_ids:
-        conversation_events = events_for_conversation(data_dir / task_id)
+        conversation_events = events_for_conversation(conversation(dataset, task_id))
         counts = [
             len(conversation_events.eot_positive_events),
             len(conversation_events.eot_negative_spans),
@@ -587,19 +548,20 @@ def export() -> None:
     the scorer commit and dataset revision that fully determine it, so
     consumers never read audio, SRTs, or this repo's constants.
     """
-    data_dir = dataset_dir()
+    dataset = resolve_dataset()
+    conversations = {}
+    for task_id in conversation_ids(dataset):
+        conv = conversation(dataset, task_id)
+        conversations[task_id] = {
+            "duration_s": conv.duration_s,
+            **asdict(events_for_conversation(conv)),
+        }
     artifact = {
         "scorer_sha": scorer_sha(),
         "dataset_revision": DEV_REVISION,
         "tau_pre_s": TAU_PRE_S,
         "tau_max_s": TAU_MAX_S,
-        "conversations": {
-            task_id: {
-                "duration_s": conversation_duration_s(data_dir / task_id),
-                **asdict(events_for_conversation(data_dir / task_id)),
-            }
-            for task_id in conversation_ids(data_dir)
-        },
+        "conversations": conversations,
     }
     print(json.dumps(artifact))
 

@@ -21,8 +21,9 @@ once.
 
 ## Gold (`gold.py`)
 
-The dataset publishes only the **raw 3-annotator SRTs** (colocated with the
-audio); the scorer builds the gold from them at scoring time. **Code is the
+The dataset publishes the **raw 3-annotator tracks** (the per-speaker
+annotation columns, parsed losslessly from the source SRTs); the scorer builds
+the gold from them at scoring time. **Code is the
 source of truth for the gold** — no consensus artifact is published, so the
 gold at a given commit is fully determined by this repo, and scores are only
 comparable across runs of the same scorer version.
@@ -150,8 +151,8 @@ tradeoff, not a detection problem — a model that never fires has
 
 ```
 [eval.score — identical for dev and test]
-SRTs ──gold.py (consensus + floor)──▶ event sets ─┐
-                                                   ▼
+annotation tracks ──gold.py (consensus + floor)──▶ event sets ─┐
+                                                               ▼
 predictions.json ─submission.py (validate)─▶ event times ─▶ score.py ─▶ scores
 ```
 
@@ -197,7 +198,8 @@ uv run pytest
 - **Consensus can empty a conversation**: where annotators rarely reach a
   majority, a conversation can have *zero* `Turn` events survive and contribute
   no EOT events. This is a data property, not a bug.
-- **Dev set on HF**: `freeman-sesame/turn-benchmark-dev` — audio + raw SRTs +
-  metadata per conversation, fetched automatically into the HF cache
-  (`eval/data.py`). **Test labels stay private**; the same scorer runs on the
-  private test set (`--dataset <private repo>`).
+- **Dev set on HF**: `mundo-ai/turn-benchmark-dev` — audio + raw annotator
+  tracks + metadata, one parquet row per conversation, fetched automatically
+  into the HF cache (`eval/data.py`). **Test labels stay private**; the same
+  scorer runs on the private test set (`mundo-ai/turn-benchmark-test`, or
+  `--dataset <private repo>`).

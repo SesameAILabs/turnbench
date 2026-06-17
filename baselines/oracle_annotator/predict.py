@@ -32,7 +32,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from eval.data import (  # noqa: E402
     DEV_DATASET,
-    conversation_duration_s,
+    Dataset,
+    conversation,
     conversation_ids,
     resolve_dataset,
 )
@@ -46,7 +47,7 @@ from eval.submission import (  # noqa: E402
 )
 
 
-def gold_submission(data_dir: Path) -> Submission:
+def gold_submission(dataset: Dataset) -> Submission:
     """Build the perfect submission: every gold positive, as committed events."""
 
     def times(anchors, speaker: int, duration: float) -> list[float]:
@@ -55,9 +56,10 @@ def gold_submission(data_dir: Path) -> Submission:
         return sorted(min(a.time_s, duration) for a in anchors if a.speaker == speaker)
 
     predictions = []
-    for task_id in conversation_ids(data_dir):
-        events = events_for_conversation(data_dir / task_id)
-        duration = conversation_duration_s(data_dir / task_id)
+    for task_id in conversation_ids(dataset):
+        conv = conversation(dataset, task_id)
+        events = events_for_conversation(conv)
+        duration = conv.duration_s
         predictions.append(
             ConversationPrediction(
                 conversation_id=task_id,
@@ -79,12 +81,12 @@ def main() -> int:
     parser.add_argument(
         "--dataset",
         default=DEV_DATASET,
-        help="HF dataset repo id, or a local directory of conversation dirs",
+        help="HF dataset repo id, or a local directory of parquet shards",
     )
     args = parser.parse_args()
 
-    data_dir = resolve_dataset(source=args.dataset)
-    scores = score_submission(gold_submission(data_dir), data_dir)
+    dataset = resolve_dataset(source=args.dataset)
+    scores = score_submission(gold_submission(dataset), dataset)
     for task_name, score in (("EOT", scores.task_eot), ("INT", scores.task_int)):
         recall, fp_rate, latency = task_cells(score)
         print(f"{task_name}: recall={recall} fp_rate={fp_rate} latency={latency}")
