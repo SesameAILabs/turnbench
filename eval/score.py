@@ -32,10 +32,10 @@ Ranking: keep models with fp_rate <= budget AND recall >= floor, rank by latency
 Usage:
     python -m eval.score predictions.json
 
-Gold is built on the fly from the raw annotator SRTs colocated with the audio
+Gold is built on the fly from the raw annotator tracks alongside the audio
 (eval/gold.py) — that code is the source of truth for the gold. Data comes
 straight from HuggingFace (cached locally; see eval/data.py); the eval server
-points the same scorer at the private test set via $TURN_BENCH_DATA_DIR.
+points the same scorer at the private test set with `--dataset <private repo>`.
 """
 
 import bisect
@@ -60,7 +60,9 @@ from rich.table import Table
 
 from eval.data import (
     DEV_DATASET,
-    conversation_duration_s,
+    Conversation,
+    Dataset,
+    conversation,
     conversation_ids,
     resolve_dataset,
 )
@@ -243,10 +245,10 @@ def rank_key(score: TaskScore) -> float:
 
 
 def score_conversation(
-    prediction: ConversationPrediction, conversation_dir: Path
+    prediction: ConversationPrediction, conv: Conversation
 ) -> ConversationScores:
-    validate_event_times(prediction, conversation_duration_s(conversation_dir))
-    conversation_events = events_for_conversation(conversation_dir)
+    validate_event_times(prediction, conv.duration_s)
+    conversation_events = events_for_conversation(conv)
     return ConversationScores(
         task_eot=score_task(
             conversation_events.eot_positive_events,
@@ -264,27 +266,29 @@ def score_conversation(
 
 
 def iter_conversation_scores(
-    submission: Submission, data_dir: Path
+    submission: Submission, dataset: Dataset
 ) -> Iterator[tuple[str, ConversationScores]]:
-    """Score each conversation in `data_dir`, yielding (task_id, scores) in order.
+    """Score each conversation in `dataset`, yielding (task_id, scores) in order.
 
     Validates coverage first (every conversation present exactly once). The
     shared scoring loop behind both the CLI and `score_submission`."""
-    task_ids = conversation_ids(data_dir)
+    task_ids = conversation_ids(dataset)
     validate_coverage(submission, task_ids)
     by_conversation = submission.by_conversation()
     for task_id in task_ids:
-        yield task_id, score_conversation(by_conversation[task_id], data_dir / task_id)
+        yield task_id, score_conversation(
+            by_conversation[task_id], conversation(dataset, task_id)
+        )
 
 
-def score_submission(submission: Submission, data_dir: Path) -> ConversationScores:
+def score_submission(submission: Submission, dataset: Dataset) -> ConversationScores:
     """Aggregate EOT/INT scores for an in-memory submission of discrete events.
 
     The programmatic entry point: build a Submission of committed event times and
     get back the aggregate scores, no JSON file involved. Submitters call this in
     their own threshold loop to score each operating point they want to try."""
     totals = ConversationScores(TaskScore(), TaskScore())
-    for _task_id, scores in iter_conversation_scores(submission, data_dir):
+    for _task_id, scores in iter_conversation_scores(submission, dataset):
         merge(totals.task_eot, scores.task_eot)
         merge(totals.task_int, scores.task_int)
     return totals
@@ -309,9 +313,9 @@ def main(
     predictions: Annotated[
         Path, typer.Argument(help="predictions JSON (see README.md)")
     ],
-    dataset: Annotated[
+    source: Annotated[
         str,
-        typer.Option(help="HF dataset repo id, or a local directory of conversation dirs"),
+        typer.Option("--dataset", help="HF dataset repo id, or a local directory of parquet shards"),
     ] = DEV_DATASET,
     revision: Annotated[
         str | None,
@@ -319,8 +323,8 @@ def main(
     ] = None,
 ) -> None:
     submission = load_submission(predictions)
-    data_dir = resolve_dataset(source=dataset, revision=revision)
-    task_ids = conversation_ids(data_dir)
+    dataset = resolve_dataset(source=source, revision=revision)
+    task_ids = conversation_ids(dataset)
 
     console = Console()
     progress = Table(title=f"{predictions} — per conversation", title_justify="left")
@@ -342,7 +346,7 @@ def main(
 
     totals = ConversationScores(TaskScore(), TaskScore())
     with Live(Group(progress, spinner), console=console) as live:
-        for task_id, conversation_scores in iter_conversation_scores(submission, data_dir):
+        for task_id, conversation_scores in iter_conversation_scores(submission, dataset):
             spinner.update(job, description=f"scoring convo {task_id}")
             merge(totals.task_eot, conversation_scores.task_eot)
             merge(totals.task_int, conversation_scores.task_int)

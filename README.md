@@ -35,7 +35,7 @@ threshold to events, emit the JSON.
 
 ## Gold (`eval/gold.py`)
 
-Gold is built on the fly from the three annotators' SRTs (no stored artifact),
+Gold is built on the fly from the three annotator tracks (no stored artifact),
 by **2/3 majority**: an event is kept iff a majority agree on the canonical
 label with endpoints within ±200 ms, and the gold boundary is their median. A
 dissenting annotator the majority outvotes is settled by the majority, not
@@ -48,11 +48,13 @@ the floor-construction rule, and caveats: [`eval/README.md`](eval/README.md).
 ## Dataset
 
 The scorer pulls the **public dev set** from HuggingFace
-(`freeman-sesame/turn-benchmark-dev`, revision-pinned, cache-first), so scoring
-needs no local data. Each conversation directory holds
-`speaker_{1,2}_audio.flac` and the raw three-annotator SRTs
-(`speaker_{1,2}_annotation_{a,b,c}.srt`). The held-out test set is the same
-format, kept private and scored server-side.
+(`mundo-ai/turn-benchmark-dev`, revision-pinned, cache-first), so scoring needs
+no local data. It is one parquet row per conversation: the two time-aligned
+`speaker_{1,2}_audio` channels and the three independent annotator tracks per
+speaker (`speaker_{1,2}_annotation_{a,b,c}`, each a `list` of
+`{start_s, end_s, label, text}` events parsed losslessly from the source SRTs).
+The held-out test set (`mundo-ai/turn-benchmark-test`) is the same schema with
+the annotation columns blanked, kept private and scored server-side.
 
 The raw corpus delivery (source of truth) is the gated GCS bucket
 `gs://sesame-cmu-tt-benchmark-dev/full_delivery_with_metadata/` — per-`task_id`

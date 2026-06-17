@@ -1,19 +1,16 @@
 """Scorer tests: the event-matching rules for EOT and INT, plus end-to-end —
-a synthetic conversation dir (3/3-unanimous SRTs + audio) scored against
+a synthetic conversation (3/3-unanimous annotator tracks) scored against
 predictions derived from the gold itself, which must be perfect (recall 1,
 fp_rate 0, latency 0) even with a pause directly adjacent to a real EOT.
 Run: uv run pytest eval/score_test.py
 """
 
-from pathlib import Path
-
-import numpy as np
 import pytest
-import soundfile as sf
 from pytest import approx
 
+from eval.data import ANNOTATORS, Annotation, Conversation
 from eval.gold import AnchorEvent, Interval
-from eval.gold_test import srt, write_conversation
+from eval.gold_test import conv
 from eval.score import (
     TaskScore,
     qualifies,
@@ -234,19 +231,18 @@ def test_rank_key_prefers_lower_median_latency():
     assert rank_key(fast) < rank_key(slow)
 
 
-# ---- end-to-end: synthetic conversation dir -> scores ------------------------
+# ---- end-to-end: synthetic conversation -> scores ---------------------------
 
-SAMPLE_RATE = 48_000
 DURATION_S = 10.0
 
 
-def unanimous(*entries: tuple[float, float, str]) -> dict[str, str]:
+def unanimous(*entries: Annotation) -> dict[str, list[Annotation]]:
     """All three annotators agree exactly on the given events."""
-    return {annotator: srt(*entries) for annotator in ("a", "b", "c")}
+    return {annotator: list(entries) for annotator in ANNOTATORS}
 
 
 @pytest.fixture
-def conversation_dir(tmp_path: Path) -> Path:
+def conversation() -> Conversation:
     """A synthetic conversation with the scoring regions deliberately adjacent.
 
     Speaker 1: Turn [1.0–2.0] + [2.3–3.0] — a mid-turn pause spanning
@@ -254,8 +250,7 @@ def conversation_dir(tmp_path: Path) -> Path:
     Speaker 2: Backchannel [1.5–1.7] (INT negative), Interruption [4.5–4.8]
     (INT positive), Turn [3.5–5.0] whose end is a real EOT (nobody speaks again).
     """
-    write_conversation(
-        tmp_path,
+    return conv(
         unanimous(
             (1.0, 2.0, "Normal Turn"),
             (2.3, 3.0, "Normal Turn"),
@@ -265,11 +260,8 @@ def conversation_dir(tmp_path: Path) -> Path:
             (4.5, 4.8, "Floor-taking Competitive Interruption"),
             (3.5, 5.0, "Normal Turn"),
         ),
+        duration_s=DURATION_S,
     )
-    silence = np.zeros(int(DURATION_S * SAMPLE_RATE), dtype=np.float32)
-    for speaker in (1, 2):
-        sf.write(tmp_path / f"speaker_{speaker}_audio.flac", silence, SAMPLE_RATE)
-    return tmp_path
 
 
 def prediction(
@@ -285,13 +277,13 @@ def prediction(
     )
 
 
-def test_gold_derived_predictions_score_perfectly(conversation_dir: Path):
+def test_gold_derived_predictions_score_perfectly(conversation: Conversation):
     scores = score_conversation(
         prediction(
             speaker_1=SpeakerEvents(eot=[3.0], interruption=[]),
             speaker_2=SpeakerEvents(eot=[5.0], interruption=[4.5]),
         ),
-        conversation_dir,
+        conversation,
     )
 
     assert (scores.task_eot.tp, scores.task_eot.fn) == (2, 0)
@@ -302,26 +294,26 @@ def test_gold_derived_predictions_score_perfectly(conversation_dir: Path):
     assert scores.task_int.latencies_ms == [0.0]
 
 
-def test_firing_in_the_pause_is_an_fp(conversation_dir: Path):
+def test_firing_in_the_pause_is_an_fp(conversation: Conversation):
     scores = score_conversation(
         prediction(speaker_1=SpeakerEvents(eot=[2.1, 3.0], interruption=[])),
-        conversation_dir,
+        conversation,
     )
 
     assert scores.task_eot.tp == 1  # the real EOT at 3.0 still counts
     assert scores.task_eot.fp == 1  # 2.1 is inside the pause [2.0, 2.3]
 
 
-def test_no_events_misses_everything_cleanly(conversation_dir: Path):
-    scores = score_conversation(prediction(), conversation_dir)
+def test_no_events_misses_everything_cleanly(conversation: Conversation):
+    scores = score_conversation(prediction(), conversation)
 
     assert (scores.task_eot.tp, scores.task_eot.fn, scores.task_eot.fp) == (0, 2, 0)
     assert (scores.task_int.tp, scores.task_int.fn, scores.task_int.fp) == (0, 1, 0)
 
 
-def test_event_past_the_audio_is_rejected(conversation_dir: Path):
+def test_event_past_the_audio_is_rejected(conversation: Conversation):
     with pytest.raises(ValueError, match="past the end"):
         score_conversation(
             prediction(speaker_1=SpeakerEvents(eot=[100.0], interruption=[])),
-            conversation_dir,
+            conversation,
         )

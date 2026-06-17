@@ -1,9 +1,8 @@
-"""Gold construction tests: consensus (SRTs -> majority-agreed events) and floor
-construction (consensus views -> scored event sets).
+"""Gold construction tests: consensus (annotator tracks -> majority-agreed
+events) and floor construction (consensus views -> scored event sets).
 Run: uv run pytest eval/gold_test.py"""
 
-from pathlib import Path
-
+from eval.data import ANNOTATORS, SPEAKERS, Annotation, Conversation
 from eval.gold import (
     TURN_CANONICAL,
     AnchorEvent,
@@ -13,56 +12,41 @@ from eval.gold import (
     build_conversation_events,
     consensus_for_conversation,
     events_for_conversation,
-    parse_srt,
 )
 
+# annotator -> that track's (start_s, end_s, fine_label) segments
+Track = dict[str, list[Annotation]]
 
-def srt(*entries: tuple[float, float, str]) -> str:
-    """Render (start_s, end_s, fine_label) entries as SRT text."""
 
-    def timestamp(seconds: float) -> str:
-        millis = round(seconds * 1000)
-        return (
-            f"{millis // 3_600_000:02d}:{millis // 60_000 % 60:02d}:"
-            f"{millis // 1000 % 60:02d},{millis % 1000:03d}"
-        )
-
-    return "\n\n".join(
-        f"{i}\n{timestamp(start)} --> {timestamp(end)}\n[{label}] ..."
-        for i, (start, end, label) in enumerate(entries, 1)
+def conv(speaker1: Track, speaker2: Track | None = None, duration_s: float = 0.0) -> Conversation:
+    """Build a Conversation from per-annotator segment lists (the parquet
+    annotation-column shape); missing annotator tracks are empty. Audio is unused
+    by gold construction, so it is left empty."""
+    tracks = {1: speaker1, 2: speaker2 or {}}
+    annotations = {
+        (speaker, annotator): tracks[speaker].get(annotator, [])
+        for speaker in SPEAKERS
+        for annotator in ANNOTATORS
+    }
+    return Conversation(
+        conversation_id="test",
+        duration_s=duration_s,
+        annotations=annotations,
+        audio_bytes={},
     )
 
 
-def write_conversation(
-    directory: Path, speaker1: dict[str, str], speaker2: dict[str, str] | None = None
-) -> Path:
-    """Write per-annotator SRT texts for both speakers; missing ones are empty."""
-    for speaker, annotations in ((1, speaker1), (2, speaker2 or {})):
-        for annotator in ("a", "b", "c"):
-            path = directory / f"speaker_{speaker}_annotation_{annotator}.srt"
-            path.write_text(annotations.get(annotator, ""))
-    return directory
+# ---- consensus: annotator tracks -> 2/3-majority-agreed events ---------------
 
 
-# ---- consensus: SRTs -> 2/3-majority-agreed events ---------------------------
-
-
-def test_parse_srt_reads_times_and_fine_label(tmp_path):
-    path = tmp_path / "x.srt"
-    path.write_text("1\n00:01:02,500 --> 00:01:03,250\n[Normal Turn] hello\n")
-
-    assert parse_srt(path) == [(62.5, 63.25, "Normal Turn")]
-
-
-def test_unanimous_event_becomes_consensus_with_median_endpoints(tmp_path):
+def test_unanimous_event_becomes_consensus_with_median_endpoints():
     # Same canonical label, endpoints within tolerance -> median gold boundary.
-    conversation = write_conversation(
-        tmp_path,
+    conversation = conv(
         {
-            "a": srt((1.00, 2.00, "Normal Turn")),
-            "b": srt((1.10, 2.10, "Regular Turn")),
-            "c": srt((1.05, 2.05, "Strong Floor Hold")),
-        },
+            "a": [(1.00, 2.00, "Normal Turn")],
+            "b": [(1.10, 2.10, "Regular Turn")],
+            "c": [(1.05, 2.05, "Strong Floor Hold")],
+        }
     )
 
     events, excluded = consensus_for_conversation(conversation)
@@ -71,17 +55,16 @@ def test_unanimous_event_becomes_consensus_with_median_endpoints(tmp_path):
     assert excluded == []
 
 
-def test_two_of_three_endpoint_agreement_forms_consensus(tmp_path):
+def test_two_of_three_endpoint_agreement_forms_consensus():
     # a and c agree (ends within 0.2 s); b's end is 0.5 s off. The majority
     # forms a consensus on the median, and b's dissenting span — overlapping
     # the accepted event — is resolved, not excluded.
-    conversation = write_conversation(
-        tmp_path,
+    conversation = conv(
         {
-            "a": srt((1.0, 2.0, "Normal Turn")),
-            "b": srt((1.0, 2.5, "Normal Turn")),
-            "c": srt((1.0, 2.0, "Normal Turn")),
-        },
+            "a": [(1.0, 2.0, "Normal Turn")],
+            "b": [(1.0, 2.5, "Normal Turn")],
+            "c": [(1.0, 2.0, "Normal Turn")],
+        }
     )
 
     events, excluded = consensus_for_conversation(conversation)
@@ -90,16 +73,15 @@ def test_two_of_three_endpoint_agreement_forms_consensus(tmp_path):
     assert excluded == []
 
 
-def test_no_majority_endpoint_agreement_is_excluded(tmp_path):
+def test_no_majority_endpoint_agreement_is_excluded():
     # No two annotators agree on the end within 0.2 s -> no majority at all,
     # so the merged span is genuinely uncertain and excluded.
-    conversation = write_conversation(
-        tmp_path,
+    conversation = conv(
         {
-            "a": srt((1.0, 2.0, "Normal Turn")),
-            "b": srt((1.0, 2.5, "Normal Turn")),
-            "c": srt((1.0, 3.0, "Normal Turn")),
-        },
+            "a": [(1.0, 2.0, "Normal Turn")],
+            "b": [(1.0, 2.5, "Normal Turn")],
+            "c": [(1.0, 3.0, "Normal Turn")],
+        }
     )
 
     events, excluded = consensus_for_conversation(conversation)
@@ -109,17 +91,16 @@ def test_no_majority_endpoint_agreement_is_excluded(tmp_path):
     assert (excluded[0].start, excluded[0].end) == (1.0, 3.0)
 
 
-def test_label_majority_forms_consensus(tmp_path):
+def test_label_majority_forms_consensus():
     # Two annotators say Backchannel (different fine labels, same canonical),
     # one says Interruption: the majority label wins, and the dissenter — over
     # the same span — is resolved rather than excluded.
-    conversation = write_conversation(
-        tmp_path,
+    conversation = conv(
         {
-            "a": srt((1.0, 1.5, "Acknowledgement Backchannel")),
-            "b": srt((1.0, 1.5, "Continuer Backchannel")),
-            "c": srt((1.0, 1.5, "Floor-taking Competitive Interruption")),
-        },
+            "a": [(1.0, 1.5, "Acknowledgement Backchannel")],
+            "b": [(1.0, 1.5, "Continuer Backchannel")],
+            "c": [(1.0, 1.5, "Floor-taking Competitive Interruption")],
+        }
     )
 
     events, excluded = consensus_for_conversation(conversation)
@@ -128,15 +109,14 @@ def test_label_majority_forms_consensus(tmp_path):
     assert excluded == []
 
 
-def test_no_label_majority_is_excluded(tmp_path):
+def test_no_label_majority_is_excluded():
     # Three different canonical labels -> no majority on any -> excluded.
-    conversation = write_conversation(
-        tmp_path,
+    conversation = conv(
         {
-            "a": srt((1.0, 1.5, "Acknowledgement Backchannel")),
-            "b": srt((1.0, 1.5, "Floor-taking Competitive Interruption")),
-            "c": srt((1.0, 1.5, "Non-Speech Noise")),
-        },
+            "a": [(1.0, 1.5, "Acknowledgement Backchannel")],
+            "b": [(1.0, 1.5, "Floor-taking Competitive Interruption")],
+            "c": [(1.0, 1.5, "Non-Speech Noise")],
+        }
     )
 
     events, excluded = consensus_for_conversation(conversation)
@@ -145,18 +125,17 @@ def test_no_label_majority_is_excluded(tmp_path):
     assert len(excluded) == 1
 
 
-def test_turn_view_unifies_turn_and_floor_taking_labels(tmp_path):
+def test_turn_view_unifies_turn_and_floor_taking_labels():
     # Identical extents, labels split across Normal Turn / Floor-taking
     # Interruption / Overlap. In the label view, Normal Turn and Overlap both
     # map to Turn, so they are a 2/3 majority (Interruption dissents). The turn
     # view folds the floor-taking interruption in too, so it is unanimous.
-    conversation = write_conversation(
-        tmp_path,
+    conversation = conv(
         {
-            "a": srt((1.0, 5.0, "Normal Turn")),
-            "b": srt((1.0, 5.0, "Floor-taking Cooperative Interruption")),
-            "c": srt((1.0, 5.0, "Overlap")),
-        },
+            "a": [(1.0, 5.0, "Normal Turn")],
+            "b": [(1.0, 5.0, "Floor-taking Cooperative Interruption")],
+            "c": [(1.0, 5.0, "Overlap")],
+        }
     )
 
     label_events, label_excluded = consensus_for_conversation(conversation)
@@ -170,16 +149,15 @@ def test_turn_view_unifies_turn_and_floor_taking_labels(tmp_path):
     assert turn_excluded == []
 
 
-def test_turn_view_majority_overrides_non_floor_dispute(tmp_path):
+def test_turn_view_majority_overrides_non_floor_dispute():
     # Two annotators call it a normal turn; the third's non-floor-taking
     # reading is the minority and is overridden — the turn view mints a Turn.
-    conversation = write_conversation(
-        tmp_path,
+    conversation = conv(
         {
-            "a": srt((1.0, 5.0, "Normal Turn")),
-            "b": srt((1.0, 5.0, "Normal Turn")),
-            "c": srt((1.0, 5.0, "Non-floor Taking Cooperative Interruption")),
-        },
+            "a": [(1.0, 5.0, "Normal Turn")],
+            "b": [(1.0, 5.0, "Normal Turn")],
+            "c": [(1.0, 5.0, "Non-floor Taking Cooperative Interruption")],
+        }
     )
 
     turn_events, turn_excluded = consensus_for_conversation(
@@ -190,36 +168,31 @@ def test_turn_view_majority_overrides_non_floor_dispute(tmp_path):
     assert turn_excluded == []
 
 
-def test_interruption_consensus_by_floor_taking_majority(tmp_path):
+def test_interruption_consensus_by_floor_taking_majority():
     # Interruption is floor-taking by definition ("interrupted" means the
     # other speaker stops). Majority floor-taking -> a consensus Interruption;
     # majority non-floor-taking -> its own class; a 2-vs-1 subtype split is
     # resolved by the majority.
-    for name in ("ft", "nft", "mixed"):
-        (tmp_path / name).mkdir()
-    floor_taking = write_conversation(
-        tmp_path / "ft",
+    floor_taking = conv(
         {
-            "a": srt((1.0, 2.0, "Floor-taking Competitive Interruption")),
-            "b": srt((1.0, 2.0, "Floor-taking Cooperative Interruption")),
-            "c": srt((1.0, 2.0, "Floor-taking Competitive Interruption")),
-        },
+            "a": [(1.0, 2.0, "Floor-taking Competitive Interruption")],
+            "b": [(1.0, 2.0, "Floor-taking Cooperative Interruption")],
+            "c": [(1.0, 2.0, "Floor-taking Competitive Interruption")],
+        }
     )
-    non_floor_taking = write_conversation(
-        tmp_path / "nft",
+    non_floor_taking = conv(
         {
-            "a": srt((1.0, 2.0, "Non-floor Taking Competitive Interruption")),
-            "b": srt((1.0, 2.0, "Non-floor Taking Cooperative Interruption")),
-            "c": srt((1.0, 2.0, "Non-floor Taking Competitive Interruption")),
-        },
+            "a": [(1.0, 2.0, "Non-floor Taking Competitive Interruption")],
+            "b": [(1.0, 2.0, "Non-floor Taking Cooperative Interruption")],
+            "c": [(1.0, 2.0, "Non-floor Taking Competitive Interruption")],
+        }
     )
-    disputed = write_conversation(
-        tmp_path / "mixed",
+    disputed = conv(
         {
-            "a": srt((1.0, 2.0, "Floor-taking Competitive Interruption")),
-            "b": srt((1.0, 2.0, "Non-floor Taking Competitive Interruption")),
-            "c": srt((1.0, 2.0, "Floor-taking Competitive Interruption")),
-        },
+            "a": [(1.0, 2.0, "Floor-taking Competitive Interruption")],
+            "b": [(1.0, 2.0, "Non-floor Taking Competitive Interruption")],
+            "c": [(1.0, 2.0, "Floor-taking Competitive Interruption")],
+        }
     )
 
     ft_events, ft_excluded = consensus_for_conversation(floor_taking)
@@ -233,15 +206,14 @@ def test_interruption_consensus_by_floor_taking_majority(tmp_path):
     assert mixed_excluded == []
 
 
-def test_unmapped_labels_are_ignored(tmp_path):
+def test_unmapped_labels_are_ignored():
     # A fine label outside LABEL_MAP contributes nothing — not even exclusion.
-    conversation = write_conversation(
-        tmp_path,
+    conversation = conv(
         {
-            "a": srt((1.0, 2.0, "Some Unknown Label")),
-            "b": srt((1.0, 2.0, "Some Unknown Label")),
-            "c": srt((1.0, 2.0, "Some Unknown Label")),
-        },
+            "a": [(1.0, 2.0, "Some Unknown Label")],
+            "b": [(1.0, 2.0, "Some Unknown Label")],
+            "c": [(1.0, 2.0, "Some Unknown Label")],
+        }
     )
 
     events, excluded = consensus_for_conversation(conversation)
@@ -353,47 +325,45 @@ def test_int_negative_is_the_event_extent():
 # ---- the problems found by inspection (conversation 41 and friends) --------
 
 
-def test_label_disputed_handover_is_an_eot_positive(tmp_path):
+def test_label_disputed_handover_is_an_eot_positive():
     # The conversation-41 10:03 case: speaker 2 takes over while speaker 1
     # finishes; all three annotators agree on the extent but split the label
     # across Normal Turn / Floor-taking Interruption / Overlap. At the floor
     # level that is unanimous "speaker 2 claims the floor" — speaker 1's
     # segment end must be an EOT positive, not the start of a phantom pause.
-    write_conversation(
-        tmp_path,
-        {annotator: srt((0.0, 2.0, "Normal Turn"), (8.0, 9.0, "Normal Turn"))
-         for annotator in ("a", "b", "c")},
+    conversation = conv(
+        {annotator: [(0.0, 2.0, "Normal Turn"), (8.0, 9.0, "Normal Turn")]
+         for annotator in ANNOTATORS},
         {
-            "a": srt((1.7, 6.0, "Normal Turn")),
-            "b": srt((1.7, 6.0, "Floor-taking Cooperative Interruption")),
-            "c": srt((1.7, 6.0, "Overlap")),
+            "a": [(1.7, 6.0, "Normal Turn")],
+            "b": [(1.7, 6.0, "Floor-taking Cooperative Interruption")],
+            "c": [(1.7, 6.0, "Overlap")],
         },
     )
 
-    conversation_events = events_for_conversation(tmp_path)
+    conversation_events = events_for_conversation(conversation)
 
     assert AnchorEvent(1, 2.0) in conversation_events.eot_positive_events
     assert not any(span.speaker == 1 and span.start == 2.0
                    for span in conversation_events.eot_negative_spans)
 
 
-def test_non_floor_taking_dispute_resolved_by_majority(tmp_path):
+def test_non_floor_taking_dispute_resolved_by_majority():
     # The conversation-41 4:35 case: two annotators call speaker 2's region a
     # normal turn, one says NON-floor-taking. Under majority, the two mint
     # speaker 2's turn, so the floor leaves speaker 1 — speaker 1's preceding
     # turn ends (EOT), overruling the third's non-floor-taking reading.
-    write_conversation(
-        tmp_path,
-        {annotator: srt((0.0, 2.0, "Normal Turn"), (8.0, 9.0, "Normal Turn"))
-         for annotator in ("a", "b", "c")},
+    conversation = conv(
+        {annotator: [(0.0, 2.0, "Normal Turn"), (8.0, 9.0, "Normal Turn")]
+         for annotator in ANNOTATORS},
         {
-            "a": srt((1.7, 6.0, "Normal Turn")),
-            "b": srt((1.7, 6.0, "Normal Turn")),
-            "c": srt((1.7, 6.0, "Non-floor Taking Cooperative Interruption")),
+            "a": [(1.7, 6.0, "Normal Turn")],
+            "b": [(1.7, 6.0, "Normal Turn")],
+            "c": [(1.7, 6.0, "Non-floor Taking Cooperative Interruption")],
         },
     )
 
-    conversation_events = events_for_conversation(tmp_path)
+    conversation_events = events_for_conversation(conversation)
 
     assert AnchorEvent(1, 2.0) in conversation_events.eot_positive_events
     assert not any(span.speaker == 1 and span.start == 2.0
