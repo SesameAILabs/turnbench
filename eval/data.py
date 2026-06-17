@@ -7,7 +7,7 @@ channels and the raw three-annotator tracks per speaker. `--dataset` accepts any
 HF dataset repo id, or a local directory of parquet shards. The private test set
 is just a private HF repo, scored by the same code server-side. Authentication
 uses ambient HF credentials (HF_TOKEN / `huggingface-cli login`); the public sets
-are gated with auto-approval.
+are gated, so callers must have been granted access to the repo.
 """
 
 import io

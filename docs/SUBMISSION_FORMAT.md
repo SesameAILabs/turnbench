@@ -82,10 +82,12 @@ uv sync --extra eval --extra dev
 uv run python -m eval.score predictions.json
 ```
 
-The dev set (audio + annotations) downloads automatically on first run. The
-same scorer runs server-side against the private test set, whose annotations
-are never published — a file that validates and scores here will validate
-and score there.
+The dev set ([`mundo-ai/turn-benchmark-dev`](https://huggingface.co/datasets/mundo-ai/turn-benchmark-dev),
+audio + annotations) downloads automatically on first run — it is **gated**, so
+request access on the dataset page and run `huggingface-cli login` first. The
+same scorer runs server-side against a separate private labeled test set, whose
+annotations are never published — a file that validates and scores here will
+validate and score there.
 
 A reference baseline emits a valid predictions file:
 

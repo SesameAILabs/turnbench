@@ -198,8 +198,10 @@ uv run pytest
 - **Consensus can empty a conversation**: where annotators rarely reach a
   majority, a conversation can have *zero* `Turn` events survive and contribute
   no EOT events. This is a data property, not a bug.
-- **Dev set on HF**: `mundo-ai/turn-benchmark-dev` — audio + raw annotator
+- **Dev set on HF**: [`mundo-ai/turn-benchmark-dev`](https://huggingface.co/datasets/mundo-ai/turn-benchmark-dev) — audio + raw annotator
   tracks + metadata, one parquet row per conversation, fetched automatically
-  into the HF cache (`eval/data.py`). **Test labels stay private**; the same
-  scorer runs on the private test set (`mundo-ai/turn-benchmark-test`, or
-  `--dataset <private repo>`).
+  into the HF cache (`eval/data.py`). The **public test set**
+  ([`mundo-ai/turn-benchmark-test`](https://huggingface.co/datasets/mundo-ai/turn-benchmark-test))
+  ships audio only — its annotation columns are blanked. **Test labels are never
+  published**: scoring runs internally against a separate private labeled set
+  (`--dataset <private repo>`).
