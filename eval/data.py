@@ -19,7 +19,7 @@ import soundfile as sf
 from datasets import Audio, Dataset as HFDataset, load_dataset
 
 DEV_DATASET = "mundo-ai/turn-benchmark-dev"
-DEV_REVISION = "8f8e17dc8dbbcc3edce78f1b49c04a8a0311442a"
+DEV_REVISION = "8fa18a24be51528a45397b35cbcaecd84202062b"
 
 # Pinned revisions for reproducibility; sources not listed float to latest.
 PINNED_REVISIONS = {DEV_DATASET: DEV_REVISION}
@@ -83,6 +83,11 @@ def resolve_dataset(source: str = DEV_DATASET, revision: str | None = None) -> D
             revision = PINNED_REVISIONS.get(source)
         splits = load_dataset(source, revision=revision)
         (rows,) = splits.values()  # one config, one split
+    # The dataset also carries Opus `_preview` columns for the web viewer; the
+    # scorer doesn't use them and must not try to decode them, so drop them.
+    rows = rows.select_columns(
+        [name for name in rows.column_names if not name.endswith("_preview")]
+    )
     for speaker in SPEAKERS:
         rows = rows.cast_column(f"speaker_{speaker}_audio", Audio(decode=False))
     index = {row_id: i for i, row_id in enumerate(rows["conversation_id"])}
