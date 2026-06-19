@@ -1,6 +1,6 @@
 # Gemini baseline
 
-**Google Gemini Live** (`gemini-3.1-flash-live-preview`) as a
+**Google Gemini 3.1 Live** (`gemini-3.1-flash-live-preview`) as a
 representative commercial full-duplex streaming voice agent, evaluated
 with the generative-model protocol: the model converses with each dataset
 speaker, and its turn-taking decisions are read out of the audio it
