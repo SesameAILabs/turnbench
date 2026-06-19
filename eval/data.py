@@ -85,8 +85,8 @@ def resolve_dataset(source: str = DEV_DATASET, revision: str | None = None) -> D
         (rows,) = splits.values()  # one config, one split
     # The dataset also carries Opus `_preview` columns for the web viewer; the
     # scorer doesn't use them and must not try to decode them, so drop them.
-    rows = rows.select_columns(
-        [name for name in rows.column_names if not name.endswith("_preview")]
+    rows = rows.remove_columns(
+        [name for name in rows.column_names if name.endswith("_preview")]
     )
     for speaker in SPEAKERS:
         rows = rows.cast_column(f"speaker_{speaker}_audio", Audio(decode=False))
