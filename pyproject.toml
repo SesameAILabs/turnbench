@@ -10,6 +10,7 @@ dependencies = [
 eval = [
     "datasets==5.0.0",
     "huggingface-hub==1.17.0",
+    "pyarrow==24.0.0",
     "pydantic==2.13.4",
     "rich==15.0.0",
     "soundfile==0.13.1",
