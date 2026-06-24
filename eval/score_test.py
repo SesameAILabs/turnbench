@@ -58,9 +58,9 @@ def test_true_positive_and_latency():
 
 
 def test_miss_when_prediction_arrives_too_late():
-    # Gold: turn ends at 2.0s (window closes at 2.0 + τ_max = 4.0s)
-    # Model: predicts at 5.0s — outside the window
-    result = score(positive_events=[anchor_event(1, 2.0)], speaker_1_times=[5.0])
+    # Gold: turn ends at 2.0s (window closes at 2.0 + τ_max = 5.0s)
+    # Model: predicts at 6.0s — outside the window
+    result = score(positive_events=[anchor_event(1, 2.0)], speaker_1_times=[6.0])
 
     assert result.tp == 0
     assert result.fn == 1
@@ -124,6 +124,37 @@ def test_one_prediction_cannot_satisfy_two_positives():
 
     assert result.tp == 1
     assert result.fn == 1
+
+
+def test_window_is_capped_at_the_next_same_speaker_event():
+    # Two EOTs 1s apart on the same speaker; both predictions are clustered just
+    # after the second event. Without the cap, the first event would reach
+    # forward (its 3s deadline) and claim 3.1 — a fire 1.1s late that plainly
+    # belongs to the 3.0s event 0.1s away — inflating the count to 2 TPs. The
+    # cap stops the first event's window at 3.0, so it claims nothing (a real
+    # miss) and only the second event is detected.
+    result = score(
+        positive_events=[anchor_event(1, 2.0), anchor_event(1, 3.0)],
+        speaker_1_times=[3.1, 3.7],
+    )
+
+    assert result.tp == 1
+    assert result.fn == 1
+    assert result.latencies_ms == approx([100.0])  # 3.0s event claims 3.1s
+
+
+def test_window_keeps_full_deadline_when_next_event_is_far():
+    # The cap only binds at the *next* same-speaker event. When that event is
+    # beyond the τ_max deadline, the window keeps its full reach — a 2.5s-late
+    # prediction still counts.
+    result = score(
+        positive_events=[anchor_event(1, 2.0), anchor_event(1, 10.0)],
+        speaker_1_times=[4.5],
+    )
+
+    assert result.tp == 1
+    assert result.fn == 1
+    assert result.latencies_ms == approx([2500.0])
 
 
 def test_burst_in_one_positive_window_is_one_tp_and_no_fp():

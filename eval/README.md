@@ -102,12 +102,16 @@ Scoring is **event-anchored**: per speaker and task, the timeline divides
 into scored regions, and predictions are only ever read inside them.
 
 **Positive windows.** For each gold event at time `t`, we search
-`[t − τ_pre, t + τ_max]` (`τ_pre = 0.25 s`, `τ_max = 2.0 s`) in the relevant
-list — the speaker's `eot` times for EOT, the interrupter's `interruption`
-times for INT. `τ_max` is the latency deadline; a correct event after it is a
-miss. `τ_pre` is a **matching tolerance**: the gold boundary is only
-annotation-exact (annotators agree within ±0.2 s), so a slightly-early
-prediction still counts, with negative latency.
+`[t − τ_pre, min(t + τ_max, next)]` (`τ_pre = 0.25 s`, `τ_max = 3.0 s`) in the
+relevant list — the speaker's `eot` times for EOT, the interrupter's
+`interruption` times for INT. `τ_max` is the latency deadline; a correct event
+after it is a miss. The window's upper end is also clamped to `next`, **this
+speaker's next event of the same task**: past it, a fire belongs to that event,
+not this one, so the window must not reach in and claim it (each speaker is
+scored on their own channel, so only same-speaker anchors bound the window).
+`τ_pre` is a **matching tolerance**: the gold boundary is only annotation-exact
+(annotators agree within ±0.2 s), so a slightly-early prediction still counts,
+with negative latency.
 
 **Negative spans.** Firing inside a mid-turn pause or a backchannel extent is
 a false positive — at most **one per span**, however many predictions land in
