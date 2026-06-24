@@ -61,9 +61,11 @@ follows this rule.
 
 Full methodology: [eval/README.md](../eval/README.md). In brief:
 
-- For each gold event at time `t`, the window `[t − 0.25 s, t + 2.0 s]` is
-  searched for one of your events: found → true positive with latency
-  `t_pred − t`; not found → miss. Matching is one-to-one.
+- For each gold event at time `t`, the window `[t − 0.25 s, min(t + 3.0 s,
+  next)]` is searched for one of your events: found → true positive with
+  latency `t_pred − t`; not found → miss. Matching is one-to-one. `next` is
+  this speaker's next event of the same task — the window never reaches past it
+  to claim a fire that belongs to the next event.
 - Firing during a mid-turn pause or a backchannel is a false positive — at
   most one per pause/backchannel.
 - Regions where the annotators disagreed are excluded from scoring.

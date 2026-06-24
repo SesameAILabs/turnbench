@@ -7,12 +7,15 @@ which all audio the decision depended on has been heard. Predictions are read
 only inside the scored regions from eval/gold.py; everywhere else they are
 invisible (neither rewarded nor penalised).
 
-Positive events at time t are searched in [t - TAU_PRE_S, t + TAU_MAX_S].
-TAU_PRE_S is a matching tolerance (the gold boundary is only annotation-exact),
-TAU_MAX_S the latency deadline. Matching is one-to-one: positives are processed
-in time order and each claims the earliest unclaimed prediction in its window,
-so one prediction can never satisfy two events (TP, latency = t_pred - t) and
-a burst in one window is one detection.
+Positive events at time t are searched in [t - TAU_PRE_S, t + TAU_MAX_S], with
+the upper end clamped to this speaker's next event of the same task (a fire
+past that point belongs to the next event, not this one, so the window must not
+reach in and claim it). TAU_PRE_S is a matching tolerance (the gold boundary is
+only annotation-exact), TAU_MAX_S the latency deadline. Each speaker is scored
+on their own channel, so only same-speaker anchors bound the window. Matching is
+one-to-one: positives are processed in time order and each claims the earliest
+unclaimed prediction in its window, so one prediction can never satisfy two
+events (TP, latency = t_pred - t) and a burst in one window is one detection.
 
 Negative spans (mid-turn pauses, backchannels) are charged the same tolerance:
 a prediction in [start - TAU_PRE_S, end] is a false positive — at most one per
@@ -202,12 +205,32 @@ def score_task(
             )
         return predictions_by_speaker[speaker]
 
+    # The latency deadline is capped at this speaker's *next* event of the same
+    # task: past it, a prediction belongs to that event, not this one, so the
+    # window must not reach into it and claim it. Each speaker's channel is
+    # scored independently, so only same-speaker anchors bound the window — the
+    # other speaker's turns never shrink it. (Capping the window this way leaves
+    # the FP-exemption union unchanged, so FP/TN are identical to an uncapped
+    # window; only TP/FN attribution between adjacent same-speaker events moves.)
+    next_event_by_speaker: dict[int, list[float]] = {}
+    for event in positive_events:
+        next_event_by_speaker.setdefault(event.speaker, []).append(event.time_s)
+    for times in next_event_by_speaker.values():
+        times.sort()
+
+    def next_event_after(speaker: int, time_s: float) -> float:
+        anchors = next_event_by_speaker[speaker]
+        index = bisect.bisect_right(anchors, time_s)
+        return anchors[index] if index < len(anchors) else float("inf")
+
     scores = TaskScore()
     # Positives first, in time order: each claims the earliest unclaimed
     # prediction in its window, and its window exempts predictions from FP.
     for event in sorted(positive_events, key=lambda event: event.time_s):
         window_start_s = event.time_s - tau_pre_s
-        window_end_s = event.time_s + tau_max_s
+        window_end_s = min(
+            event.time_s + tau_max_s, next_event_after(event.speaker, event.time_s)
+        )
         predictions = predictions_for(event.speaker)
         predictions.positive_windows.append((window_start_s, window_end_s))
         matching_time = predictions.claim_first_in(window_start_s, window_end_s)

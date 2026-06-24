@@ -147,7 +147,7 @@ OVERLAP_WINDOW_S = 0.5  # max start-time gap to match events across annotators
 # is a matching tolerance — the gold boundary is only annotation-exact — and
 # TAU_MAX_S the latency deadline.
 TAU_PRE_S = 0.25
-TAU_MAX_S = 2.00
+TAU_MAX_S = 3.00
 
 REPO_DIR = Path(__file__).parent.parent
 
