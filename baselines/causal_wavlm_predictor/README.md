@@ -101,4 +101,8 @@ online hysteresis detector, identical to the per-channel baseline.
   EOT tau=0.20, INT tau=0.15).
 - `predictions-dev-large.json` — dev predictions (WavLM-Large, frozen,
   EOT tau=0.20, INT tau=0.15).
+- `predictions-test-base.json` — test predictions (WavLM-Base-Plus, frozen).
+- `predictions-test-large.json` — test predictions (WavLM-Large, frozen).
+- `extract_test_audio.py` — extract and resample audio from HF test dataset.
+- `run_test.sbatch` — SLURM job: extract audio, run inference, build submission JSON.
 - `README.md` — this file.
