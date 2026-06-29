@@ -1,0 +1,8 @@
+<blank>
+<unk>
+C
+NA
+I
+BC
+T
+<sos/eos>

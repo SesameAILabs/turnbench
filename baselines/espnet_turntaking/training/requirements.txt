@@ -1,0 +1,12 @@
+# Training-side dependencies. The training ENGINE is ESPnet (espnet2) — see
+# README for the pinned commit + install. These are the extra deps the data-prep
+# and training need on top of an ESPnet install.
+numpy
+soundfile
+librosa
+torch>=2.3
+# for downloading the TURN dataset from the HuggingFace Hub:
+huggingface-hub
+datasets
+# the training engine (pin the commit from the README):
+espnet

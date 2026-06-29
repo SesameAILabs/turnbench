@@ -1,0 +1,67 @@
+# Turn-taking training config for the ESPnet SLU task (espnet2.bin.slu_train).
+# Frozen Whisper-medium encoder + a small 5-class head, trained with
+# cross-entropy on the last encoder frame of a 30 s window (superb_setup +
+# use_only_last_correct). This is the config that produced the TURN model.
+#
+# batch_size / valid_batch_size / ngpu interact with GPU memory:
+#   * batch_size is the GLOBAL (folded) batch, split across ngpu GPUs.
+#   * On a 95 GB GH200, batch_size 1500 fits at ngpu=2 (per-GPU ~750). On a
+#     single GPU use batch_size 750 (same per-GPU). batch_size 4000 (the original
+#     8-GPU setup) OOMs on <=2 GPUs.
+#   * valid_batch_size caps the validation batch (validation groups long
+#     segments together and otherwise OOMs); 64 is safe and fast.
+
+optim: adam
+optim_conf:
+    lr: 0.0005
+scheduler: warmuplr
+scheduler_conf:
+    warmup_steps: 500
+max_epoch: 32
+num_iters_per_epoch: 750
+batch_size: 1500
+valid_batch_size: 64
+
+encoder: whisper
+encoder_conf:
+    whisper_model: medium
+    dropout_rate: 0.0
+    use_specaug: false
+    specaug_conf:
+        apply_time_warp: true
+        time_warp_window: 5
+        time_warp_mode: bicubic
+        apply_freq_mask: true
+        freq_mask_width_range:
+        - 0
+        - 40
+        num_freq_mask: 2
+        apply_time_mask: true
+        time_mask_width_ratio_range:
+        - 0.
+        - 0.12
+        num_time_mask: 5
+
+freeze_param: [
+"encoder"
+]
+normalize: null
+frontend: null
+input_size: 1                   # to prevent build_model() from complaining
+
+model_conf:
+    ctc_weight: 0.0
+    lsm_weight: 0.1
+    length_normalized_loss: false
+    superb_setup: true
+    num_class: 5
+    ssl_input_size: 1024
+    extract_feats_in_collect_stats: false
+    use_only_last_correct: true
+unused_parameters: true
+
+best_model_criterion:
+-   - valid
+    - loss
+    - min
+keep_nbest_models: 10
