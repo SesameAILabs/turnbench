@@ -83,10 +83,20 @@ def main() -> int:
         default=DEV_DATASET,
         help="HF dataset repo id, or a local directory of parquet shards",
     )
+    parser.add_argument(
+        "--out", default=None, help="write a predictions JSON here instead of scoring"
+    )
     args = parser.parse_args()
 
     dataset = resolve_dataset(source=args.dataset)
-    scores = score_submission(gold_submission(dataset), dataset)
+    submission = gold_submission(dataset)
+
+    if args.out is not None:
+        Path(args.out).write_text(submission.model_dump_json(indent=2), encoding="utf-8")
+        print(f"Wrote {len(submission.predictions)} predictions to {args.out}", file=sys.stderr)
+        return 0
+
+    scores = score_submission(submission, dataset)
     for task_name, score in (("EOT", scores.task_eot), ("INT", scores.task_int)):
         recall, fp_rate, latency = task_cells(score)
         print(f"{task_name}: recall={recall} fp_rate={fp_rate} latency={latency}")
