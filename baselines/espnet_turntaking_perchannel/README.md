@@ -25,36 +25,53 @@ Per-frame scores are committed to event times with an online hysteresis +
 refractory detector (`_commit`); each time depends only on audio up to that
 frame.
 
-## Results (dev, official `eval.score`) — head-to-head vs. the mix baseline
+## Results (dev, official `eval.score`, 3 s scoring window) — head-to-head vs. the mix baseline
 
 Same model, same dev set; only the inference strategy differs.
 
 | Track | Strategy | recall | fp_rate | latency p10/p50/p90 (ms) |
 | --- | --- | --- | --- | --- |
-| **EOT** | mix + attribution (`espnet_turntaking`) | 0.372 | 0.183 | −187 / −14 / 1585 |
-| **EOT** | **individual-channel (this)** | **0.666** | 0.210 | −47 / 428 / 1367 |
-| **INT** | mix + attribution (`espnet_turntaking`) | **0.755** | 0.159 | 74 / 197 / 1017 |
-| **INT** | **individual-channel (this)** | 0.695 | 0.217 | 65 / 527 / 1600 |
+| **EOT** | mix + attribution (`espnet_turntaking`) | 0.461 | 0.183 | −160 / 52 / 2391 |
+| **EOT** | **individual-channel (this)** | **0.733** | 0.208 | −32 / 499 / 1911 |
+| **INT** | mix + attribution (`espnet_turntaking`) | 0.772 | **0.159** | 74 / 200 / 1197 |
+| **INT** | **individual-channel (this)** | **0.795** | 0.217 | 69 / 756 / 2150 |
 
 Operating point: EOT `tau_high=0.20`, INT `tau_high=0.15`, refractory 2.0 s
 (tuned on dev with `--sweep`; override via `PC_*` env vars).
 
 ### Observations
 
-1. **End-of-turn: individual-channel is much better** (recall 0.67 vs 0.37). EOT
+1. **End-of-turn: individual-channel is much better** (recall 0.73 vs 0.46). EOT
    is largely a *single-speaker* event ("this speaker stopped"), which an
    isolated channel captures cleanly.
-2. **Interruption: the mix wins** (recall 0.76 vs 0.70 at lower fp). Interruption
-   is genuinely *relational* — it needs the other speaker present — and the model
-   was trained on the mix, so an isolated channel defines it less well.
-3. **Costs:** ~2× higher latency (p50 428 ms vs −14 ms; the mix fires
+2. **Interruption: the mix is preferable** (fp 0.16 vs 0.22 and far lower
+   latency; recall is close, 0.77 vs 0.80). Interruption is genuinely
+   *relational* — it needs the other speaker present — and the model was trained
+   on the mix, so an isolated channel defines it less cleanly (more false
+   positives, later commits).
+3. **Costs:** much higher latency (EOT p50 499 ms vs 52 ms; the mix fires
    early/speculatively) and 2× the inference compute (two passes per
    conversation).
 4. **Takeaway:** the best choice is *per-track*. A hybrid — individual-channel
    EOT + mix interruption — would likely beat either alone.
 
 A full threshold sweep (`--sweep`) confirms the trend is stable across operating
-points (EOT recall 0.62–0.67 at fp 0.15–0.21; INT peaks ~0.70 at fp ~0.22).
+points (EOT recall 0.61–0.73 at fp 0.10–0.21; INT peaks ~0.63 at fp ~0.12).
+
+## Decision-threshold trade-off (dev)
+
+`plot_pareto_dev.py` sweeps a single decision threshold θ over the cached
+probabilities and plots the two opposing objectives — **EOT median latency** and
+**false-interruption rate** — on a dual axis (`pareto_sweep_dev.png`). They move
+in opposite directions as θ rises: no single threshold optimizes both, so the
+committed per-track operating points (EOT 0.20, INT 0.15) are a Pareto choice
+along this curve. The EOT-latency line is masked where EOT recall drops below 5%
+(its median is then over too few detections to be meaningful).
+
+```bash
+python -m baselines.espnet_turntaking_perchannel.plot_pareto_dev \
+    --out baselines/espnet_turntaking_perchannel/pareto_sweep_dev.png
+```
 
 ## How to run
 
@@ -83,6 +100,7 @@ from `ESPNET_TT_EXP` (HF `espnet/Turn_taking_prediction_SWBD`).
 - `requirements.txt` — model-side deps (scorer deps come from the repo `eval` extra).
 - `predictions-dev.json` — committed dev predictions at the operating point above.
 - `predictions-test.json` — committed test predictions (same operating point).
+- `plot_pareto_dev.py` / `pareto_sweep_dev.png` — EOT-latency vs false-interruption-rate trade-off figure.
 - `run_dev_sharded.sbatch` / `run_test_sharded.sbatch` — sharded inference jobs
   used to produce the caches.
 
