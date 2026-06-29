@@ -58,6 +58,34 @@ Operating point: EOT `tau_high=0.20`, INT `tau_high=0.15`, refractory 2.0 s
 A full threshold sweep (`--sweep`) confirms the trend is stable across operating
 points (EOT recall 0.61–0.73 at fp 0.10–0.21; INT peaks ~0.63 at fp ~0.12).
 
+## In-domain training × per-channel inference (dev)
+
+The head-to-head above uses the published `espnet/Turn_taking_prediction_SWBD`
+model (Switchboard-only — out-of-domain for this benchmark). The same two
+inference strategies were also run on two **in-domain** variants of the same
+architecture, trained with the recipe in
+[`../espnet_turntaking/training`](../espnet_turntaking/training): **TURN**
+(trained on the TURN corpus) and **MIX** (TURN + Switchboard pooled). All cells
+are `recall / fp_rate`, same operating point, latest `eval.score` (3 s window).
+
+| Model (mix-trained) | EOT, mix-inf | EOT, per-channel | INT, mix-inf | INT, per-channel |
+| --- | --- | --- | --- | --- |
+| SWBD-OOD (published, OOD) | 0.458 / 0.188 | 0.733 / 0.208 | 0.775 / 0.158 | 0.795 / 0.217 |
+| TURN (in-domain) | 0.416 / 0.086 | **0.728 / 0.073** | 0.821 / 0.172 | **0.867 / 0.114** |
+| MIX (TURN + SWBD) | 0.424 / 0.117 | 0.703 / 0.119 | 0.746 / 0.116 | 0.663 / **0.074** |
+
+- **Per-channel inference raises EOT recall for every model** (~0.42 → 0.70+) —
+  the same effect seen on the OOD model, now confirmed for the in-domain ones.
+- **In-domain training compounds with it:** TURN per-channel is the strongest
+  cell overall — EOT recall 0.728 at fp **0.073** and INT recall 0.867 at fp
+  0.114, i.e. it *gains* recall while roughly thirding the OOD model's
+  per-channel EOT fp_rate.
+- **MIX is the conservative corner:** the lowest interruption fp_rate (0.074)
+  of any cell, but it trades away INT recall (0.663) under per-channel inference.
+
+(MIX was trained with half the effective global batch, so it is mildly
+under-trained relative to TURN.)
+
 ## Decision-threshold trade-off (dev)
 
 `plot_pareto_dev.py` sweeps a single decision threshold θ over the cached
@@ -72,6 +100,30 @@ along this curve. The EOT-latency line is masked where EOT recall drops below 5%
 python -m baselines.espnet_turntaking_perchannel.plot_pareto_dev \
     --out baselines/espnet_turntaking_perchannel/pareto_sweep_dev.png
 ```
+
+## Threshold sweep (dev)
+
+`plot_threshold_sweep.py` sweeps the commit threshold τ ∈ {0.1, …, 1.0} over the
+cached probabilities (each track swept independently; `tau_low = 0.4·τ`,
+refractory 2 s) and scores every operating point with the official `eval.score`.
+Outputs `threshold_sweep_dev.png` (recall / fp_rate / precision / F1 / latency
+vs τ, plus recall-vs-fp operating curves) and `threshold_sweep_dev.csv`.
+
+```bash
+python -m baselines.espnet_turntaking_perchannel.plot_threshold_sweep \
+    --out baselines/espnet_turntaking_perchannel/threshold_sweep_dev.png \
+    --csv baselines/espnet_turntaking_perchannel/threshold_sweep_dev.csv
+```
+
+| | best F1 | recall @ best-F1 | precision @ best-F1 |
+| --- | --- | --- | --- |
+| EOT | 0.793 @ τ=0.2 | 0.733 | 0.863 |
+| INT | 0.436 @ τ=0.2 | 0.634 | 0.332 |
+
+EOT precision stays high (0.76→0.94 as τ rises) — the single-speaker end-of-turn
+signal is clean; interruption precision never exceeds ~0.38 — relational, hence
+out-of-distribution on an isolated channel. The committed operating point
+(EOT τ=0.20, INT τ=0.15) sits at the EOT F1 knee.
 
 ## How to run
 
@@ -101,6 +153,7 @@ from `ESPNET_TT_EXP` (HF `espnet/Turn_taking_prediction_SWBD`).
 - `predictions-dev.json` — committed dev predictions at the operating point above.
 - `predictions-test.json` — committed test predictions (same operating point).
 - `plot_pareto_dev.py` / `pareto_sweep_dev.png` — EOT-latency vs false-interruption-rate trade-off figure.
+- `plot_threshold_sweep.py` / `threshold_sweep_dev.png` / `threshold_sweep_dev.csv` — per-track threshold sweep (recall / fp / precision / F1 / latency vs τ).
 - `run_dev_sharded.sbatch` / `run_test_sharded.sbatch` — sharded inference jobs
   used to produce the caches.
 
