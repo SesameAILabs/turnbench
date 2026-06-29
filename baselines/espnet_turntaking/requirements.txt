@@ -1,0 +1,12 @@
+# Model-side dependencies for producing predictions with this baseline.
+# (The scorer's own deps come from the repo's `eval` extra in pyproject.toml.)
+#
+# espnet2 must be importable — install the SLU checkout that provides the
+# turn-taking `slu` task, e.g. `pip install -e /path/to/espnet`. The checkpoint
+# is Hugging Face `espnet/Turn_taking_prediction_SWBD`; point ESPNET_TT_EXP at
+# its experiment dir (config.yaml + valid.loss.ave.pth).
+numpy
+soundfile
+librosa
+torch>=2.3
+espnet
