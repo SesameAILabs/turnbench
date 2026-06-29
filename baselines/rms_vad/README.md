@@ -1,9 +1,6 @@
 # rms_vad
 
-Rule-based energy VAD, no training or parameters: a speaker is speaking wherever
-their 20 ms RMS exceeds a fixed threshold (`0.01`). The reference baseline and the
-floor of the benchmark — it fires on every silence, so low latency at a high
-false-positive rate.
+This is a rule-based Voice Activity Detector (VAD) that makes decisions based on the short-term energy of the audio signal. Specifically, it measures the Root Mean Square (RMS) energy in each 20ms window. If the RMS exceeds a fixed threshold (`0.01`), it considers the speaker to be active (speaking). This threshold-based approach does not require any training or model parameters. This is a very sensitive model, serving as a simple reference baseline. It has a high recall, but also produces many false positives.
 
 ## Input
 
@@ -11,15 +8,12 @@ Each speaker's mono audio channel, scored independently.
 
 ## Output
 
-One boolean per 20 ms window: is that window's RMS above the threshold?
+One boolean per 20ms window whether that window's RMS is above the threshold.
 
 ## Predictions
 
-Wherever the per-window boolean flips, emit one event: silence→speech (the
-speaker started talking) is an interruption, speech→silence (they stopped) is an
-EOT. The event time is the end of the flipped window, since the flip is only known
-once that window has been heard. Run over both speaker channels of every
-conversation:
+**Speech onset event:** Boolean flip from False to True.
+**Speech offset event:** Boolean flip from True to False.
 
 ```bash
 # dev (score in-place, or write a JSON)
@@ -34,7 +28,6 @@ uv run python -m baselines.rms_vad.predict \
 
 ## Results (dev)
 
-Latency is `t_pred − t_gold` in ms over true positives (negative = fired early).
 
 | Task | Recall | FP-rate | Latency p10 | Latency p50 | Latency p90 |
 | --- | ---: | ---: | ---: | ---: | ---: |
