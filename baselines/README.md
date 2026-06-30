@@ -18,7 +18,7 @@ In `baselines/<name>/`:
 ## Rules
 
 1. **Causal** — output at `t` may use audio only up to `t`; fold lookahead into the timestamp ([details](../docs/SUBMISSION_FORMAT.md)).
-2. **Operating point** — tuned on dev. Pick **independently for EOT and interruption**: for each task, the threshold giving the **lowest latency at `fp_rate ≤ 0.1`** on dev (`eval.sweep score` on that task's probs file prints it). This gives two thresholds, θ_eot and θ_int; your single `predictions-{dev,test}.json` then carries its `eot` times committed at θ_eot and its `interruption` times at θ_int.
+2. **Operating point** — tuned on dev. Pick **independently for EOT and interruption**: for each task, the threshold giving the **lowest latency at `fp_rate ≤ 0.1`** on dev (`eval.sweep` on that task's probs file prints it). This gives two thresholds, θ_eot and θ_int; your single `predictions-{dev,test}.json` then carries its `eot` times committed at θ_eot and its `interruption` times at θ_int.
 3. **Reproducible** from your `README.md` alone.
 
 ## Dev threshold sweep
@@ -41,8 +41,8 @@ To illustrate the latency vs false-interruption trade-off, the paper sweeps a th
 **Get your operating point (rule 2).** Run the sweep on each task's probs file; it sweeps θ on dev and prints the chosen threshold (lowest latency at `fp_rate ≤ 0.1`):
 
 ```bash
-uv run python -m eval.sweep score baselines/<name>/probs-eot.json   # → θ_eot
-uv run python -m eval.sweep score baselines/<name>/probs-int.json   # → θ_int
+uv run python -m eval.sweep baselines/<name>/probs-eot.json   # → θ_eot
+uv run python -m eval.sweep baselines/<name>/probs-int.json   # → θ_int
 ```
 
 Then commit `predictions-{dev,test}.json` with your `eot` times generated at θ_eot and `interruption` times at θ_int.

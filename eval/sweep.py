@@ -21,7 +21,7 @@ this.
 Dev only: there is no test probabilities file — test is scored from each model's
 single committed `predictions-test.json` at its declared operating point.
 
-    python -m eval.sweep validate baselines/<name>/probs-eot.json
+    python -m eval.sweep baselines/<name>/probs-eot.json
 """
 
 import json
@@ -142,30 +142,7 @@ def validate_probs(probs: ProbsFile, duration_s_by_id: dict[str, float]) -> None
     validate_frame_counts(probs, duration_s_by_id)
 
 
-app = typer.Typer(add_completion=False, help="TurnBench dev threshold-sweep tooling.")
-
-
-@app.callback()
-def main() -> None:
-    """TurnBench dev threshold-sweep tooling (validate now; score to follow)."""
-
-
-@app.command()
-def validate(
-    probs_path: Annotated[
-        Path, typer.Argument(help="probabilities JSON (probs-eot.json / probs-int.json)")
-    ],
-) -> None:
-    """Validate a probs file against the dev grid (strict and loud — no dataset)."""
-    probs = load_probs(probs_path)
-    validate_probs(probs, load_durations("dev"))
-    typer.echo(
-        f"OK: {probs_path} — task={probs.task}, {len(probs.probs)} conversations, "
-        f"frame_rate_hz={probs.frame_rate_hz}"
-    )
-
-
-# ---- sweep + scoring (the dev threshold-sweep CSV behind the paper figure) ----
+# ---- sweep + scoring (the dev threshold-sweep behind the paper figure) -------
 
 DEFAULT_GRID = [round(0.05 + 0.05 * i, 2) for i in range(19)]  # 0.05 .. 0.95
 REFRACTORY_S = 2.0  # matches the baselines' own commit refractory (e.g. espnet)
@@ -255,16 +232,15 @@ def operating_point(rows: list[SweepRow], *, fp_budget: float = 0.1) -> SweepRow
     return min(qualifying, key=lambda r: r.lat_p50) if qualifying else None
 
 
-@app.command()
-def score(
+def main(
     probs_path: Annotated[
         Path, typer.Argument(help="probabilities JSON (probs-eot.json / probs-int.json)")
     ],
     fp_budget: Annotated[float, typer.Option(help="operating-point false-positive budget")] = 0.1,
 ) -> None:
-    """Sweep a probs file over the dev gold and print per-theta metrics + the
-    operating point (rule 2). In-memory only — the figure is rendered straight
-    from the probs files by data_analysis/plot_sweep.py."""
+    """Validate a probs file, sweep it over the dev gold, and print per-theta
+    metrics + the operating point (rule 2). In-memory only — the figure is
+    rendered straight from the probs files by data_analysis/plot_sweep.py."""
     from eval.data import DEV_DATASET, resolve_dataset
 
     probs = load_probs(probs_path)
@@ -287,4 +263,4 @@ def score(
 
 
 if __name__ == "__main__":
-    app()
+    typer.run(main)
