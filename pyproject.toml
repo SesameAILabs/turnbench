@@ -19,6 +19,9 @@ eval = [
 dev = [
     "pytest==9.0.3",
 ]
+plot = [
+    "matplotlib==3.11.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["eval"]

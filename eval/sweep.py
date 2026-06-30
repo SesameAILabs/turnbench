@@ -26,6 +26,7 @@ single committed `predictions-test.json` at its declared operating point.
 
 import json
 import math
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -162,6 +163,127 @@ def validate(
         f"OK: {probs_path} — task={probs.task}, {len(probs.probs)} conversations, "
         f"frame_rate_hz={probs.frame_rate_hz}"
     )
+
+
+# ---- sweep + scoring (the dev threshold-sweep CSV behind the paper figure) ----
+
+DEFAULT_GRID = [round(0.05 + 0.05 * i, 2) for i in range(19)]  # 0.05 .. 0.95
+REFRACTORY_S = 2.0  # matches the baselines' own commit refractory (e.g. espnet)
+
+
+def commit_events(
+    probs: list[float], frame_rate_hz: float, theta: float, *, refractory_s: float = REFRACTORY_S
+) -> list[float]:
+    """The standard, central commit rule applied to every model's probs: emit one
+    event at each rising edge where the probability crosses above `theta` (deduped
+    by a refractory), timestamped at the frame's end. As theta rises the crossing
+    moves later, so latency rises and spurious fires drop."""
+    refractory_frames = max(1, round(refractory_s * frame_rate_hz))
+    times: list[float] = []
+    above_prev = False
+    last = None
+    for i, prob in enumerate(probs):
+        above = prob > theta
+        if above and not above_prev and (last is None or i - last >= refractory_frames):
+            times.append((i + 1) / frame_rate_hz)
+            last = i
+        above_prev = above
+    return times
+
+
+@dataclass(frozen=True)
+class SweepRow:
+    theta: float
+    recall: float
+    fp_rate: float          # the task's own fp_rate (mid-turn pauses for eot; backchannels for int) — drives the operating point
+    false_int_rate: float   # events fired on backchannel spans / all backchannels — the figure's red axis
+    lat_p10: float
+    lat_p50: float
+    lat_p90: float
+    tp: int
+    fp: int
+    fn: int
+
+
+def sweep(probs: ProbsFile, dataset, thetas: list[float] = DEFAULT_GRID, *, refractory_s: float = REFRACTORY_S):
+    """Score `probs` at each threshold against dev gold → one SweepRow per theta.
+    Gold is built once per conversation and reused across thresholds."""
+    from eval.data import conversation
+    from eval.gold import events_for_conversation
+    from eval.score import TaskScore, merge, score_task
+
+    fps = probs.frame_rate_hz
+    cached = [
+        (entry, events_for_conversation(conversation(dataset, entry.conversation_id)))
+        for entry in probs.probs
+    ]
+    rows: list[SweepRow] = []
+    for theta in thetas:
+        task, backchannel = TaskScore(), TaskScore()
+        for entry, gold in cached:
+            events = {
+                1: commit_events(entry.speaker_1.prob, fps, theta, refractory_s=refractory_s),
+                2: commit_events(entry.speaker_2.prob, fps, theta, refractory_s=refractory_s),
+            }
+            if probs.task == "eot":
+                positives, negatives, excluded = (
+                    gold.eot_positive_events, gold.eot_negative_spans, gold.eot_excluded,
+                )
+            else:
+                positives, negatives, excluded = (
+                    gold.int_positive_events, gold.int_negative_spans, gold.int_excluded,
+                )
+            merge(task, score_task(positives, negatives, events, excluded))
+            # false-interruption rate = events firing on backchannel spans (the INT
+            # task's negatives). For task="int" this coincides with fp_rate above.
+            merge(backchannel, score_task([], gold.int_negative_spans, events, gold.int_excluded))
+        latency = task.latency()
+        rows.append(SweepRow(
+            theta, task.recall, task.fp_rate, backchannel.fp_rate,
+            latency.p10, latency.p50, latency.p90, task.tp, task.fp, task.fn,
+        ))
+    return rows
+
+
+def operating_point(rows: list[SweepRow], *, fp_budget: float = 0.1) -> SweepRow | None:
+    """Rule 2: lowest median-latency theta with fp_rate ≤ budget. None if nothing
+    qualifies (a model too conservative to reach the budget)."""
+    qualifying = [
+        r for r in rows
+        if r.fp_rate == r.fp_rate and r.fp_rate <= fp_budget and r.lat_p50 == r.lat_p50
+    ]
+    return min(qualifying, key=lambda r: r.lat_p50) if qualifying else None
+
+
+@app.command()
+def score(
+    probs_path: Annotated[
+        Path, typer.Argument(help="probabilities JSON (probs-eot.json / probs-int.json)")
+    ],
+    fp_budget: Annotated[float, typer.Option(help="operating-point false-positive budget")] = 0.1,
+) -> None:
+    """Sweep a probs file over the dev gold and print per-theta metrics + the
+    operating point (rule 2). In-memory only — the figure is rendered straight
+    from the probs files by data_analysis/plot_sweep.py."""
+    from eval.data import DEV_DATASET, resolve_dataset
+
+    probs = load_probs(probs_path)
+    validate_probs(probs, load_durations("dev"))
+    rows = sweep(probs, resolve_dataset(source=DEV_DATASET))
+    for r in rows:
+        typer.echo(
+            f"θ={r.theta:.2f}  recall={r.recall:.3f}  fp={r.fp_rate:.3f}  "
+            f"false_int={r.false_int_rate:.3f}  lat_p50={r.lat_p50:.0f}ms"
+        )
+    op = operating_point(rows, fp_budget=fp_budget)
+    if op is not None:
+        typer.secho(
+            f"operating point (rule 2): θ={op.theta:.2f}  lat_p50={op.lat_p50:.0f}ms  "
+            f"fp_rate={op.fp_rate:.3f} ≤ {fp_budget}",
+            fg="green",
+        )
+    else:
+        typer.secho(f"no threshold reaches fp_rate ≤ {fp_budget}", fg="yellow")
 
 
 if __name__ == "__main__":
