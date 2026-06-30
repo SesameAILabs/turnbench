@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 stats_out/
 .venv/
+.DS_Store
 
 # Predictions are derived from the (gated) dataset and may directly leak
 # annotator labels (e.g. oracle_annotator_*). Never commit.
