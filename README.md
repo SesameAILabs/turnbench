@@ -69,6 +69,10 @@ over the dataset and emits a `predictions.json`
 thresholding. The benchmark only sees committed events — no shared trace format,
 no central runner. `baselines/rms_vad/` is the minimal reference.
 
+**Adding or updating a baseline?** See [`baselines/README.md`](baselines/README.md)
+for the author checklist — what to commit, the causal/reproducibility rules, and
+the dev threshold-sweep `probs-dev.json`.
+
 > **Migration note.** The model baselines below were written against an earlier
 > continuous-trace pipeline (per-frame NPZ, swept centrally), now removed. Each
 > needs its author to update `predict.py` to emit a `predictions.json` directly
