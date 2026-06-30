@@ -18,12 +18,12 @@ In `baselines/<name>/`:
 ## Rules
 
 1. **Causal** — output at `t` may use audio only up to `t`; fold lookahead into the timestamp ([details](../docs/SUBMISSION_FORMAT.md)).
-2. **Operating point tuned on dev**.
+2. **Operating point** — tuned on dev. For EOT and interruption **independently**, pick the threshold that gives the **lowest latency at `fp_rate ≤ 0.1`** on dev, and commit your `predictions-{dev,test}.json` at that point. This is so operating points are comparable across models.
 3. **Reproducible** from your `README.md` alone.
 
 ## Dev threshold sweep
 
-To illustrate the threshold trade-off on recall and false positive, the paper sweeps a threshold over the raw per-frame probabilities for the EOT/INT task. If your model produces continuous probabilities, please commit a `probs-dev.json` file with the probabilities for the dev set in order to be included in this analysis.
+To illustrate the latency vs false-interruption trade-off, the paper sweeps a threshold over the raw per-frame probabilities for the EOT / interruption task. If your model produces continuous probabilities, commit `probs-eot.json` and/or `probs-int.json` with the per-frame dev-set probabilities to be included in this analysis — the same sweep then picks your operating point (rule 2) and is scored centrally.
 
 ```json
 {
