@@ -1,0 +1,103 @@
+# wavlm_base_causal
+
+A lightweight, fully causal turn-taking predictor using a frozen
+**WavLM-Base-Plus** encoder (~95 M parameters) with causal attention masking.
+Trained on Switchboard + TurnBench (train_joint) with hard turn-taking labels.
+
+## Architecture
+
+```
+WavLM-Base-Plus (frozen, causal-masked)
+  → Conv1d subsample (stride 2, 768d → 256d)
+  → 4-layer causal Transformer encoder (256d, 4 heads, FFN 1024)
+  → Linear head → 5 classes {C, NA, I, BC, T}
+```
+
+Total: ~98 M parameters (3.8 M trainable, backbone frozen).
+
+The model runs in a **single causal forward pass** per speaker channel — no
+sliding windows. Each frame's prediction depends only on audio up to that
+frame. Frame rate: 25 Hz (40 ms stride), first prediction at 200 ms.
+Declared lookahead: **0 ms**.
+
+## Operating point (rule 2: lowest latency at fp_rate ≤ 0.1)
+
+```
+θ_eot = 0.50   (from eval.sweep on probs-eot.json)
+θ_int = 0.20   (from eval.sweep on probs-int.json)
+```
+
+Commitment: online hysteresis detector (tau_low = 0.4 × tau_high, refractory 2.0 s).
+
+## How to reproduce
+
+### 1. Environment
+
+The model is built on ESPnet's `CausalS3prlFrontend` (WavLM with causal
+streaming mask). Install ESPnet at the pinned commit:
+
+```bash
+git clone https://github.com/espnet/espnet && cd espnet
+git checkout 750e3749fc37a09187fe0fc6fb278ccb007181e8   # version 202604
+cd tools && make   # installs matching torchaudio + whisper fork
+pip install -e .   # provides espnet2
+```
+
+Additional dependencies:
+
+```bash
+pip install numpy soundfile scipy
+```
+
+The predictor model code lives in the ESPnet turn-taking recipe:
+`espnet/egs2/universa_unite/turn_taking1/pyscripts/`
+
+- `turn_taking_predictor_model.py` — `CausalTurnTakingPredictor` model
+- `train_turn_taking_predictor.py` — training script
+- `run_predictor_inference.py` — inference (chunked mode for long audio)
+- `eval_turnbench.py` — convert frame probs to Submission JSON + score
+
+### 2. Checkpoint
+
+The trained checkpoint is at:
+`exp/tt_pred_base_turn_swbd_res/valid.loss.best.pth`
+
+(Trained for 200 epochs on TurnBench + Switchboard train_joint, WavLM-Base-Plus
+frozen, AdamW lr=1e-4, warmup 2000 steps, cosine decay, batch size 128.)
+
+### 3. Produce per-frame probabilities (probs-eot.json / probs-int.json)
+
+Run chunked inference on each speaker channel of the dev set:
+
+```bash
+python pyscripts/run_predictor_inference.py \
+    --model-dir exp/tt_pred_base_turn_swbd_res \
+    --wavscp    data_turnbench/dev_infer/wav.scp \
+    --output    exp/tt_pred_base_turn_swbd_res/decode_dev_chunked/text \
+    --device cuda --batch-size 1 --chunk-seconds 30
+```
+
+Then extract per-class probabilities into the probs JSON format (P(T) for EOT,
+P(I) for INT) using the frame grid from `eval/durations-dev.json`.
+
+### 4. Get operating point
+
+```bash
+uv run python -m eval.sweep baselines/wavlm_base_causal/probs-eot.json   # → θ_eot = 0.50
+uv run python -m eval.sweep baselines/wavlm_base_causal/probs-int.json   # → θ_int = 0.20
+```
+
+### 5. Produce predictions-dev.json and predictions-test.json
+
+Apply the hysteresis commit detector at the operating thresholds above to the
+per-frame P(T) (EOT) and P(I) (INT) probabilities, emitting event times for
+each speaker channel.
+
+## Files
+
+- `predictions-dev.json` — committed events at θ_eot=0.50, θ_int=0.20.
+- `predictions-test.json` — same operating point, test split.
+- `probs-eot.json` — per-frame P(T) on dev (25 Hz grid).
+- `probs-int.json` — per-frame P(I) on dev (25 Hz grid).
+- `predict.py` — prediction stub.
+- `README.md` — this file.
