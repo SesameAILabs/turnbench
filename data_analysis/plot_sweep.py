@@ -28,13 +28,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root, fo
 from eval.data import DEV_DATASET, resolve_dataset  # noqa: E402
 from eval.sweep import SweepRow, load_probs, operating_point, sweep  # noqa: E402
 
-# TurnBench site palette (site/src/app/globals.css): sage data hue, burgundy
-# primary, bad-red, on the bone/card surface — so figures match the paper/site.
-OLIVE = "#5b652a"    # latency (left axis) — sage
-STEEL = "#000000"    # recall (right axis) — black
-CRIMSON = "#b91c1c"  # fp_rate (right axis) — bad-red
-BG = "#f6f5ef"       # card surface
-INK = "#111111"      # foreground
+# Paper figure: white surface, black text. The three curve colors are the only
+# hues — they are functional (they tell latency / recall / FP rate apart in a
+# static figure), not theme decoration.
+OLIVE = "#5b652a"    # latency (left axis)
+STEEL = "#000000"    # recall (right axis)
+CRIMSON = "#b91c1c"  # fp_rate (right axis)
+BG = "#ffffff"       # plot surface
+INK = "#000000"      # foreground
 
 
 def _latency_masked(rows: list[SweepRow], recall_floor: float) -> list[float]:
@@ -47,17 +48,17 @@ def plot_single(rows: list[SweepRow], task: str, out: Path, *, fp_budget: float,
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    plt.rcParams.update({"font.family": "serif", "font.size": 12})
+    plt.rcParams.update({"font.family": "serif", "font.size": 15})
     op = operating_point(rows, fp_budget=fp_budget)  # picked on the full sweep
     rows = [r for r in rows if r.theta <= theta_max]  # zoom x to the live region
     theta = [r.theta for r in rows]
 
     fig, axL = plt.subplots(figsize=(7.2, 5.0))
-    fig.patch.set_facecolor("#ecece8")  # bone surface
+    fig.patch.set_facecolor(BG)  # white
     axL.set_facecolor(BG)
     line_lat, = axL.plot(theta, _latency_masked(rows, recall_floor), "o-", color=OLIVE, lw=2, ms=5, label=f"{task} latency")
-    axL.set_xlabel("Decision threshold")
-    axL.set_ylabel(f"{task} median latency (ms)")
+    axL.set_xlabel("Decision threshold", labelpad=10)
+    axL.set_ylabel(f"{task} median latency (ms)", labelpad=10)
     axL.set_xlim(0.0, theta_max)
     axL.tick_params(axis="y", colors=OLIVE)
     axL.yaxis.label.set_color(OLIVE)
@@ -65,25 +66,26 @@ def plot_single(rows: list[SweepRow], task: str, out: Path, *, fp_budget: float,
     axR = axL.twinx()
     line_rec, = axR.plot(theta, [r.recall for r in rows], "o-", color=STEEL, lw=2, ms=5, label="recall")
     line_fp, = axR.plot(theta, [r.fp_rate for r in rows], "s-", color=CRIMSON, lw=2, ms=5, label="FP rate")
-    axR.set_ylabel("recall / FP rate")
+    axR.set_ylabel("recall / FP rate", labelpad=10)
     axR.set_ylim(0.0, 1.0)
     axR.axhline(fp_budget, ls=":", lw=1.2, color=CRIMSON, alpha=0.7)  # FP-rate budget
-    axR.text(0.6, fp_budget - 0.015, f"FP budget = {fp_budget:g}", transform=axR.get_yaxis_transform(),
-             ha="center", va="top", fontsize=8, color=CRIMSON)
+    axR.text(0.72, fp_budget - 0.015, f"FP budget = {fp_budget:g}", transform=axR.get_yaxis_transform(),
+             ha="center", va="top", fontsize=11, color=CRIMSON)
 
     if op is not None:
-        axL.axvline(op.theta, ls="--", lw=1.2, color="#888")
-        axR.text(op.theta - 0.015, 0.7, f"op θ={op.theta:.2f}", color="#555", fontsize=9, va="center", ha="right")
+        axL.axvline(op.theta, ls="--", lw=1.2, color=INK)
+        axR.text(op.theta - 0.015, 0.7, f"op θ={op.theta:.2f}", color=INK, fontsize=12, va="center", ha="right")
 
     if criterion_arrows:  # low θ fires on weak evidence (eager); high θ requires strong evidence
-        axL.text(0.0, -0.19, "← more eager", transform=axL.transAxes, ha="left", va="top",
-                 fontsize=9, style="italic", color=INK)
-        axL.text(1.0, -0.19, "more conservative →", transform=axL.transAxes, ha="right", va="top",
-                 fontsize=9, style="italic", color=INK)
+        axL.text(-0.14, -0.24, "← more eager", transform=axL.transAxes, ha="left", va="top",
+                 fontsize=11, style="italic", color=INK)
+        axL.text(1.09, -0.24, "more conservative →", transform=axL.transAxes, ha="right", va="top",
+                 fontsize=11, style="italic", color=INK)
 
-    axL.legend(handles=[line_lat, line_rec, line_fp], loc="upper center", ncol=3, frameon=False, bbox_to_anchor=(0.5, 1.16))
+    axL.legend(handles=[line_lat, line_rec, line_fp], loc="upper center", ncol=3, frameon=False,
+               bbox_to_anchor=(0.5, 1.18), fontsize=13, columnspacing=1.2, handlelength=1.6, handletextpad=0.5)
     fig.tight_layout()
-    fig.savefig(out, dpi=200, facecolor="#ecece8", bbox_inches="tight")
+    fig.savefig(out, dpi=200, facecolor=BG, bbox_inches="tight")
     print(f"saved -> {out}")
 
 
