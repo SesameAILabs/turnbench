@@ -28,10 +28,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root, fo
 from eval.data import DEV_DATASET, resolve_dataset  # noqa: E402
 from eval.sweep import SweepRow, load_probs, operating_point, sweep  # noqa: E402
 
-OLIVE = "#6e7b3d"    # latency (left axis)
-STEEL = "#2b6cb0"    # recall (right axis)
-CRIMSON = "#b23a48"  # fp_rate (right axis)
-BG = "#eef0e0"
+# TurnBench site palette (site/src/app/globals.css): sage data hue, burgundy
+# primary, bad-red, on the bone/card surface — so figures match the paper/site.
+OLIVE = "#5b652a"    # latency (left axis) — sage
+STEEL = "#43292e"    # recall (right axis) — burgundy (primary)
+CRIMSON = "#b91c1c"  # fp_rate (right axis) — bad-red
+BG = "#f6f5ef"       # card surface
+INK = "#111111"      # foreground
 
 
 def _latency_masked(rows: list[SweepRow], recall_floor: float) -> list[float]:
@@ -39,7 +42,7 @@ def _latency_masked(rows: list[SweepRow], recall_floor: float) -> list[float]:
     return [r.lat_p50 if r.recall >= recall_floor else float("nan") for r in rows]
 
 
-def plot_single(rows: list[SweepRow], task: str, out: Path, *, fp_budget: float, recall_floor: float, theta_max: float = 1.0) -> None:
+def plot_single(rows: list[SweepRow], task: str, out: Path, *, fp_budget: float, recall_floor: float, theta_max: float = 1.0, criterion_arrows: bool = False) -> None:
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -50,7 +53,7 @@ def plot_single(rows: list[SweepRow], task: str, out: Path, *, fp_budget: float,
     theta = [r.theta for r in rows]
 
     fig, axL = plt.subplots(figsize=(7.2, 5.0))
-    fig.patch.set_facecolor("white")
+    fig.patch.set_facecolor("#ecece8")  # bone surface
     axL.set_facecolor(BG)
     line_lat, = axL.plot(theta, _latency_masked(rows, recall_floor), "o-", color=OLIVE, lw=2, ms=5, label=f"{task} latency")
     axL.set_xlabel("Decision threshold")
@@ -61,17 +64,26 @@ def plot_single(rows: list[SweepRow], task: str, out: Path, *, fp_budget: float,
 
     axR = axL.twinx()
     line_rec, = axR.plot(theta, [r.recall for r in rows], "o-", color=STEEL, lw=2, ms=5, label="recall")
-    line_fp, = axR.plot(theta, [r.fp_rate for r in rows], "s-", color=CRIMSON, lw=2, ms=5, label="fp_rate")
-    axR.set_ylabel("recall / fp_rate")
+    line_fp, = axR.plot(theta, [r.fp_rate for r in rows], "s-", color=CRIMSON, lw=2, ms=5, label="FP rate")
+    axR.set_ylabel("recall / FP rate")
     axR.set_ylim(0.0, 1.0)
+    axR.axhline(fp_budget, ls=":", lw=1.2, color=CRIMSON, alpha=0.7)  # FP-rate budget
+    axR.text(0.6, fp_budget - 0.015, f"FP budget = {fp_budget:g}", transform=axR.get_yaxis_transform(),
+             ha="center", va="top", fontsize=8, color=CRIMSON)
 
     if op is not None:
         axL.axvline(op.theta, ls="--", lw=1.2, color="#888")
-        axL.text(op.theta + 0.01, axL.get_ylim()[1] * 0.96, f"op θ={op.theta:.2f}", color="#555", fontsize=9, va="top")
+        axL.text(op.theta - 0.015, axL.get_ylim()[1] * 0.4, f"op θ={op.theta:.2f}", color="#555", fontsize=9, va="center", ha="right")
+
+    if criterion_arrows:  # low θ fires on weak evidence (eager); high θ requires strong evidence
+        axL.text(0.0, -0.19, "← more eager", transform=axL.transAxes, ha="left", va="top",
+                 fontsize=9, style="italic", color=INK)
+        axL.text(1.0, -0.19, "more conservative →", transform=axL.transAxes, ha="right", va="top",
+                 fontsize=9, style="italic", color=INK)
 
     axL.legend(handles=[line_lat, line_rec, line_fp], loc="upper center", ncol=3, frameon=False, bbox_to_anchor=(0.5, 1.08))
     fig.tight_layout()
-    fig.savefig(out, dpi=140, facecolor="white")
+    fig.savefig(out, dpi=200, facecolor="#ecece8", bbox_inches="tight")
     print(f"saved -> {out}")
 
 
@@ -82,13 +94,17 @@ def main() -> None:
     ap.add_argument("--fp-budget", type=float, default=0.1, help="operating-point false-positive budget")
     ap.add_argument("--recall-floor", type=float, default=0.05, help="hide latency below this recall")
     ap.add_argument("--theta-max", type=float, default=1.0, help="zoom the x-axis to [0, theta-max] (drop the dead tail)")
+    ap.add_argument("--criterion-arrows", action="store_true", help="annotate the θ axis with eager ↔ conservative")
+    ap.add_argument("--step", type=float, default=0.05, help="threshold grid step for the sweep")
     args = ap.parse_args()
 
     dataset = resolve_dataset(source=DEV_DATASET, skip_audio=True)  # gold, loaded once and reused
     probs = load_probs(args.probs)
-    rows = sweep(probs, dataset)
+    thetas = [round(i * args.step, 4) for i in range(1, int(round(1.0 / args.step)))]
+    rows = sweep(probs, dataset, thetas)
     plot_single(rows, probs.task.upper(), args.out, fp_budget=args.fp_budget,
-                recall_floor=args.recall_floor, theta_max=args.theta_max)
+                recall_floor=args.recall_floor, theta_max=args.theta_max,
+                criterion_arrows=args.criterion_arrows)
 
 
 if __name__ == "__main__":
