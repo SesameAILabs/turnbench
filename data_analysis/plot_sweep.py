@@ -31,7 +31,7 @@ from eval.sweep import SweepRow, load_probs, operating_point, sweep  # noqa: E40
 # TurnBench site palette (site/src/app/globals.css): sage data hue, burgundy
 # primary, bad-red, on the bone/card surface — so figures match the paper/site.
 OLIVE = "#5b652a"    # latency (left axis) — sage
-STEEL = "#43292e"    # recall (right axis) — burgundy (primary)
+STEEL = "#000000"    # recall (right axis) — black
 CRIMSON = "#b91c1c"  # fp_rate (right axis) — bad-red
 BG = "#f6f5ef"       # card surface
 INK = "#111111"      # foreground
@@ -73,7 +73,7 @@ def plot_single(rows: list[SweepRow], task: str, out: Path, *, fp_budget: float,
 
     if op is not None:
         axL.axvline(op.theta, ls="--", lw=1.2, color="#888")
-        axR.text(op.theta - 0.015, 0.6, f"op θ={op.theta:.2f}", color="#555", fontsize=9, va="center", ha="right")
+        axR.text(op.theta - 0.015, 0.7, f"op θ={op.theta:.2f}", color="#555", fontsize=9, va="center", ha="right")
 
     if criterion_arrows:  # low θ fires on weak evidence (eager); high θ requires strong evidence
         axL.text(0.0, -0.19, "← more eager", transform=axL.transAxes, ha="left", va="top",
@@ -81,7 +81,7 @@ def plot_single(rows: list[SweepRow], task: str, out: Path, *, fp_budget: float,
         axL.text(1.0, -0.19, "more conservative →", transform=axL.transAxes, ha="right", va="top",
                  fontsize=9, style="italic", color=INK)
 
-    axL.legend(handles=[line_lat, line_rec, line_fp], loc="upper center", ncol=3, frameon=False, bbox_to_anchor=(0.5, 1.08))
+    axL.legend(handles=[line_lat, line_rec, line_fp], loc="upper center", ncol=3, frameon=False, bbox_to_anchor=(0.5, 1.16))
     fig.tight_layout()
     fig.savefig(out, dpi=200, facecolor="#ecece8", bbox_inches="tight")
     print(f"saved -> {out}")
