@@ -14,6 +14,7 @@ that shows no baseline is simultaneously in-budget, high-recall, and low-latency
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import sys
 from pathlib import Path
@@ -120,17 +121,45 @@ def figure(scored: dict, out: Path, tag: str) -> None:
     print(f"saved figure -> {out}")
 
 
+def _num(x: float) -> float | None:
+    """JSON has no NaN; empty tasks (no positives / no negatives) become null."""
+    return None if x is None or math.isnan(x) else round(x, 6)
+
+
+def write_json(scored: dict, out: Path, dataset: str, split: str) -> None:
+    """Emit the same rows the table shows as a committable artifact the website
+    renders. Sorted by EOT recall (NaN last), so the file order is the ranking."""
+    models = []
+    for label, r in sorted(
+        scored.items(),
+        key=lambda kv: (kv[1]["EOT"][0] if not math.isnan(kv[1]["EOT"][0]) else -1.0),
+        reverse=True,
+    ):
+        (er, ef, el), (ir, iff, il) = r["EOT"], r["INT"]
+        models.append({
+            "model": label,
+            "eot": {"recall": _num(er), "fp_rate": _num(ef), "latency_p50_ms": _num(el)},
+            "int": {"recall": _num(ir), "fp_rate": _num(iff), "latency_p50_ms": _num(il)},
+        })
+    payload = {"split": split, "dataset": dataset, "budget": BUDGET, "models": models}
+    out.write_text(json.dumps(payload, indent=2) + "\n")
+    print(f"wrote leaderboard -> {out} ({len(models)} models)")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--dataset", default=DEV_DATASET)
     ap.add_argument("--split", default=None, choices=["dev", "test"])
     ap.add_argument("--figure", type=Path, default=None, help="also write the tradeoff scatter here")
+    ap.add_argument("--json", type=Path, default=None, dest="json_out", help="also write the leaderboard as JSON here")
     args = ap.parse_args()
     split = args.split or ("test" if ("test" in args.dataset or "golden" in args.dataset) else "dev")
 
     scored = score_all(resolve_dataset(source=args.dataset, skip_audio=True), split)
     tag = f"{args.dataset.split('/')[-1]} · {split}"
     print_table(scored, tag)
+    if args.json_out:
+        write_json(scored, args.json_out, args.dataset, split)
     if args.figure:
         figure(scored, args.figure, tag)
 
