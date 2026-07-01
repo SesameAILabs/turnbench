@@ -82,7 +82,6 @@ the dev threshold-sweep `probs-dev.json`.
 | --- | --- | --- | --- | --- |
 | `rms_vad` | Energy VAD | Speech on/off edges → discrete events | n/a | implemented (runs on dev today) |
 | `oracle_annotator` | Sanity check | Replays the gold events | n/a | implemented |
-| `sesame` | Internal CD model | Continuous per-frame heads @ 12.5 Hz | (internal) | predictions provided externally |
 | `gemini` | Full-duplex streaming dialogue | ASR/VAD-aligned timestamps over output audio | undisclosed | needs migration |
 | `moshi` | Audio (full-duplex, 12.5 Hz) | Per-frame voice-activity on system stream | ~7B | needs migration |
 | `espnet_turntaking` | Audio (frozen Whisper-medium, CMU) | 5-class @ 25 Hz, trained on Switchboard (Arora et al., ICLR 2025) | ~307M | needs migration |
