@@ -3,4 +3,5 @@ moshi==0.2.11
 julius==0.2.7
 sphn==0.1.12
 numpy==1.26.4
-huggingface_hub
+tqdm==4.66.5
+huggingface_hub==0.30.2

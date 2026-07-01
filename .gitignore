@@ -11,3 +11,7 @@ predictions/
 
 # Local consensus / clip output that depends on the dataset.
 eval/clips/
+
+# SGE launcher scripts and partial inference outputs (local only)
+baselines/kyutai_semantic_vad/sge_launch.sh
+baselines/kyutai_semantic_vad/partial/

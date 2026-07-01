@@ -1,53 +1,30 @@
 # kyutai_semantic_vad
 
-Kyutai STT-1B semantic VAD for end-of-turn detection.
+Kyutai STT-1B semantic VAD for end-of-turn detection. Uses the VAD head (`vad_heads[2]`) of the Kyutai STT-1B model to produce continuous EOT probabilities at 12.5Hz. Both speaker channels are batched together (batch_size=2) through a single streaming pass — one forward pass per frame for both speakers.
 
-**Model:** Kyutai STT-1B (`kyutai/stt-1b-en_fr-candle`) — streaming ASR with a VAD head (`vad_heads[2]`) that produces continuous EOT probabilities at 12.5Hz. Both speaker channels are batched together (batch_size=2) through a single streaming pass.
+**Model:** [`kyutai/stt-1b-en_fr-candle`](https://huggingface.co/kyutai/stt-1b-en_fr-candle) — streaming ASR with a VAD extra head.
 
-**Inference:** Streaming — Mimi encodes audio chunk-by-chunk (1920 samples, 80ms), LM steps autoregressively with KV cache via `lm_gen.step_with_extra_heads`.
+**Score direction:** P(turn ending); `probs-eot = score`, `probs-int = 1 − score`.
 
 ## Setup
 
 ```bash
-pip install moshi==0.2.11 julius sphn
+pip install -r baselines/kyutai_semantic_vad/requirements.txt
 ```
 
-Model is loaded from `kyutai/stt-1b-en_fr-candle` (cached in `$HF_HOME`). Set `TT_BENCHMARK_DATA` in the repo's `.env`.
+Model weights are loaded from `kyutai/stt-1b-en_fr-candle` (cached in `$HF_HOME`).
 
 ## Run
 
 ```bash
-bash baselines/kyutai_semantic_vad/run.sh
-
-# or directly:
-python3 baselines/kyutai_semantic_vad/predict.py --split eval/splits/dev.txt --run-name kyutai_semantic_vad_dev
+bash baselines/kyutai_semantic_vad/run.sh          # dev + test + eval.check
+bash baselines/kyutai_semantic_vad/run.sh --dev    # dev probs + predictions only
+bash baselines/kyutai_semantic_vad/run.sh --test   # sweep existing probs → test predictions
 ```
 
-## Parameters
+## Results (dev, pretrained)
 
-| Component | Params |
-|---|---|
-| Mimi encoder (params) | 39.39M |
-| Mimi encoder (codebook buffers) | 16.84M |
-| LM transformer | 989.20M |
-| VAD extra heads | ~0M (linear) |
-| **Total (used at inference)** | **~1.05B** |
-
-Mimi decoder (~40M) is not used. The full LM runs to maintain KV cache state — text output is discarded.
-
-## Score mapping
-
-| Benchmark array | Model output |
-|---|---|
-| `eot_score_speaker_1` | VAD prob for speaker 1 channel |
-| `eot_score_speaker_2` | VAD prob for speaker 2 channel |
-| `interruption_score_speaker_1` | `1 - VAD prob` for speaker 1 (proxy) |
-| `interruption_score_speaker_2` | `1 - VAD prob` for speaker 2 (proxy) |
-
-Note: this model is single-channel and only exposes one documented head (`vad_heads[2]`,
-EOT probability) — there's no cross-speaker overlap signal. `1 - vad_K` ("speaker K is
-actively speaking, i.e. not about to end their turn") is used as a directionally-correct
-single-channel proxy for "speaker K is barging in," but it is not a true overlap/barge-in
-detector.
-This is based on https://github.com/kyutai-labs/delayed-streams-modeling/blob/main/scripts/stt_from_file_pytorch.py
-
+| Task | θ | Recall | FP-rate | Latency p10 | Latency p50 | Latency p90 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| EOT | 0.85 | 0.793 | 0.094 | 253 ms | 1194 ms | 1790 ms |
+| INT | 0.65 | 0.862 | 0.345 | 237 ms | 387 ms | 1107 ms |
