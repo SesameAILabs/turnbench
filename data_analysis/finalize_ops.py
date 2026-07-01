@@ -53,6 +53,8 @@ TEST_PROBS_SRC = {
     "mimi_endpointer": "predictions/mimi_test_probs",
     "kyutai_semantic_vad": "predictions/kyutai_test_probs_merged",
     "smart_turn_v3": "predictions/smart_turn_test_probs",
+    "wavlm_base_causal": "predictions/wavlm_probs/wavlm_base_causal_test",
+    "wavlm_large_causal": "predictions/wavlm_probs/wavlm_large_causal_test",
 }
 
 

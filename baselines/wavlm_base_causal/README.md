@@ -27,69 +27,66 @@ Declared lookahead: **0 ms**.
   that the speaker is finishing.
 - **INT:** P(I) — interruption probability directly.
 
-## Operating point (rule 2: lowest latency at fp_rate ≤ 0.1)
+## Operating point (rule 2: highest recall at fp_rate ≤ 0.1)
 
 ```
-θ_eot = 0.95   (from eval.sweep on probs-eot.json)
-θ_int = 0.20   (from eval.sweep on probs-int.json)
+θ_eot ≈ 0.9293   (eval.sweep on probs-eot.json — score-quantile candidates)
+θ_int ≈ 0.1072   (eval.sweep on probs-int.json)
 ```
 
-Dev results at operating point:
-- EOT: recall=0.410, fp_rate=0.071, latency p50=770ms
-- INT: recall=0.305, fp_rate=0.012, latency p50=845ms
+| task | split | recall | fp_rate |
+| --- | --- | --- | --- |
+| EOT | dev | 0.485 | 0.100 |
+| EOT | test | 0.403 | 0.061 |
+| INT | dev | 0.859 | 0.100 |
+| INT | test | 0.820 | 0.111 |
 
-Commitment: online hysteresis detector (tau_low = 0.4 × tau_high, refractory 2.0 s).
+Commitment: central rising-edge detector (`eval.sweep.commit_events`, refractory 2.0 s).
+`probs-{eot,int}.json` (dev) and `probs-test-{eot,int}.json` are emitted by this
+`predict.py` (`--probs-out-dir`); predictions are committed centrally from those
+files (`data_analysis/finalize_ops.py`), so artifacts and code stay self-consistent.
 
 ## How to reproduce
 
 ### 1. Environment
 
-The model is built on ESPnet's `CausalS3prlFrontend` (WavLM with causal
-streaming mask). Install ESPnet at the pinned commit:
-
 ```bash
-git clone https://github.com/espnet/espnet && cd espnet
-git checkout 750e3749fc37a09187fe0fc6fb278ccb007181e8   # version 202604
-cd tools && make   # installs matching torchaudio + whisper fork
-pip install -e .   # provides espnet2
+pip install espnet soundfile numpy huggingface_hub
+# s3prl: use espnet's pinned fork; every public s3prl asserts attn_mask is None on
+# WavLM's fast attention path, which the causal streaming mask needs. Route masked
+# calls to the reference (slow) path — a 2-line, semantics-preserving guard change:
+pip install "git+https://github.com/espnet/s3prl.git@6553a49"
+python - <<'EOF'
+import pathlib, s3prl
+f = pathlib.Path(s3prl.__path__[0]) / "upstream/wavlm/modules.py"
+t = f.read_text()
+t = t.replace("            and self.q_head_dim == self.head_dim\n        ):\n            assert key is not None and value is not None\n            assert attn_mask is None",
+              "            and self.q_head_dim == self.head_dim\n            and attn_mask is None\n        ):\n            assert key is not None and value is not None")
+f.write_text(t)
+EOF
 ```
 
-Additional dependencies:
+`CausalS3prlFrontend` is **not** in stock ESPnet — install it from the HF repo:
 
 ```bash
-pip install numpy soundfile scipy
+wget -P $(python -c "import espnet2; print(espnet2.__path__[0])")/asr/frontend/ \
+    https://huggingface.co/ZhuoyanTao/causal-wavlm-turn-taking/resolve/main/espnet2/asr/frontend/causal_s3prl.py
 ```
-
-The predictor model code lives in the ESPnet turn-taking recipe:
-`espnet/egs2/universa_unite/turn_taking1/pyscripts/`
-
-- `turn_taking_predictor_model.py` — `CausalTurnTakingPredictor` model
-- `train_turn_taking_predictor.py` — training script
-- `run_predictor_inference.py` — inference (chunked mode for long audio)
-- `eval_turnbench.py` — convert frame probs to Submission JSON + score
 
 ### 2. Checkpoint
 
-The trained checkpoint is at:
-`exp/tt_pred_base_turn_swbd_res/valid.loss.best.pth`
+Available on HuggingFace: [`ZhuoyanTao/causal-wavlm-turn-taking`](https://huggingface.co/ZhuoyanTao/causal-wavlm-turn-taking)
+(`tt_pred_base_turn_swbd_res/valid.loss.best.pth`).
 
-(Trained for 200 epochs on TurnBench + Switchboard train_joint, WavLM-Base-Plus
-frozen, AdamW lr=1e-4, warmup 2000 steps, cosine decay, batch size 128.)
+The checkpoint is self-contained — model config is embedded; no config.yaml needed.
+WavLM-Base-Plus is auto-downloaded by s3prl on first run.
 
-### 3. Produce per-frame probabilities (probs-eot.json / probs-int.json)
-
-Run chunked inference on each speaker channel of the dev set:
+### 3. Run predict.py
 
 ```bash
-python pyscripts/run_predictor_inference.py \
-    --model-dir exp/tt_pred_base_turn_swbd_res \
-    --wavscp    data_turnbench/dev_infer/wav.scp \
-    --output    exp/tt_pred_base_turn_swbd_res/decode_dev_chunked/text \
-    --device cuda --batch-size 1 --chunk-seconds 30
+python -m baselines.wavlm_base_causal.predict                   # score on dev
+python -m baselines.wavlm_base_causal.predict --out preds.json  # write predictions
 ```
-
-Then extract per-class probabilities into the probs JSON format (P(T) for EOT,
-P(I) for INT) using the frame grid from `eval/durations-dev.json`.
 
 ### 4. Get operating point
 
@@ -98,17 +95,11 @@ uv run python -m eval.sweep baselines/wavlm_base_causal/probs-eot.json   # → �
 uv run python -m eval.sweep baselines/wavlm_base_causal/probs-int.json   # → θ_int = 0.20
 ```
 
-### 5. Produce predictions-dev.json and predictions-test.json
-
-Apply the hysteresis commit detector at the operating thresholds above to the
-per-frame P(T) (EOT) and P(I) (INT) probabilities, emitting event times for
-each speaker channel.
-
 ## Files
 
 - `predictions-dev.json` — committed events at θ_eot=0.95, θ_int=0.20.
 - `predictions-test.json` — same operating point, test split.
 - `probs-eot.json` — per-frame P(NA)+P(T) on dev (25 Hz grid).
 - `probs-int.json` — per-frame P(I) on dev (25 Hz grid).
-- `predict.py` — prediction stub.
+- `predict.py` — per-channel inference (downloads checkpoint from HF).
 - `README.md` — this file.

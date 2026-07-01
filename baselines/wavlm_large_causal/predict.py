@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""WavLM-Base Causal Predictor — per-channel inference on TurnBench.
+"""WavLM-Large Causal Predictor — per-channel inference on TurnBench.
 
 Downloads the checkpoint from HuggingFace and runs a single causal forward
 pass per speaker channel.  No sliding window — fully streaming.
 
 Architecture:
-  WavLM-Base-Plus (frozen, causal-masked)  768d @50fps
-  Conv1d stride-2 subsampling              768→256d, 50→25fps (40ms)
+  WavLM-Large (frozen, causal-masked)    1024d @50fps
+  Conv1d stride-2 subsampling              1024→256d, 50→25fps (40ms)
   4-layer causal TransformerEncoder        256d, 4 heads, FFN 1024
   Linear head                             256→5  {C, NA, I, BC, T}
 
@@ -17,8 +17,8 @@ Setup:
     #       https://huggingface.co/ZhuoyanTao/causal-wavlm-turn-taking/resolve/main/espnet2/asr/frontend/causal_s3prl.py
 
 Usage:
-    python -m baselines.wavlm_base_causal.predict                   # score on dev
-    python -m baselines.wavlm_base_causal.predict --out preds.json  # write predictions
+    python -m baselines.wavlm_large_causal.predict                   # score on dev
+    python -m baselines.wavlm_large_causal.predict --out preds.json  # write predictions
 """
 from __future__ import annotations
 
@@ -38,14 +38,14 @@ from eval.submission import SCHEMA_VERSION, ConversationPrediction, SpeakerEvent
 from eval.sweep import ConversationProbs, ProbsFile, REFRACTORY_S, SpeakerProbs, commit_events  # noqa: E402
 
 HF_REPO = "ZhuoyanTao/causal-wavlm-turn-taking"
-CKPT_DIR = "tt_pred_base_turn_swbd_res"
+CKPT_DIR = "tt_pred_large_turn_swbd_res"
 SR = 16000
 FRAME_HZ = 25.0        # 40 ms stride after stride-2 subsampling
 FIRST_FRAME_S = 0.20   # skip first 200 ms (5 frames)
 C_IDX, NA_IDX, I_IDX, BC_IDX, T_IDX = 0, 1, 2, 3, 4
 
 # Operating point (rule 2: highest recall at fp_rate ≤ 0.1, from eval.sweep)
-EOT_THETA = 0.95
+EOT_THETA = 0.85
 INT_THETA = 0.20
 
 _model = None
@@ -69,7 +69,7 @@ def _load_model(device: str):
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     cfg = ckpt.get("model_config", {})
     model = CausalTurnTakingPredictor(
-        upstream_name=cfg.get("upstream_name", "wavlm_base_plus"),
+        upstream_name=cfg.get("upstream_name", "wavlm_large"),
         model_dim=cfg.get("model_dim", 256),
         freeze_upstream=True,
         causal_upstream=cfg.get("causal_upstream", True),
@@ -241,7 +241,7 @@ def main() -> int:
 
     from eval.score import score_submission, task_cells
     scores = score_submission(submission, dataset)
-    print(f"wavlm_base_causal — {len(predictions)} conversations")
+    print(f"wavlm_large_causal — {len(predictions)} conversations")
     for name, s in (("EOT", scores.task_eot), ("INT", scores.task_int)):
         recall, fp_rate, latency = task_cells(s)
         print(f"  {name}: recall={recall} fp_rate={fp_rate} latency_ms={latency}")

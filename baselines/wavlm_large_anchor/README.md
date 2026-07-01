@@ -43,45 +43,31 @@ Dev results at operating point:
 
 ### 1. Environment
 
-Install ESPnet at the pinned commit:
-
 ```bash
-git clone https://github.com/espnet/espnet && cd espnet
-git checkout 750e3749fc37a09187fe0fc6fb278ccb007181e8   # version 202604
-cd tools && make
-pip install -e .
+pip install espnet s3prl soundfile numpy huggingface_hub
 ```
 
-Additional dependencies:
+`CausalS3prlFrontend` is **not** in stock ESPnet — install it from the HF repo:
 
 ```bash
-pip install numpy soundfile scipy kaldiio
+wget -P $(python -c "import espnet2; print(espnet2.__path__[0])")/asr/frontend/ \
+    https://huggingface.co/ZhuoyanTao/causal-wavlm-turn-taking/resolve/main/espnet2/asr/frontend/causal_s3prl.py
 ```
 
 ### 2. Checkpoint
 
-The trained checkpoint is at:
-`exp/universa_turn_taking_only_turn_a40/valid.loss.best.pth`
+Available on HuggingFace: [`ZhuoyanTao/causal-wavlm-turn-taking`](https://huggingface.co/ZhuoyanTao/causal-wavlm-turn-taking)
+(`universa_turn_taking_only_turn_a40/{config.yaml, valid.loss.best.pth}`).
 
-(ANCHOR TT-only, trained on TurnBench with `conf/train_ar_turn_taking_only.yaml`,
-4×A40 DDP, batch size 32, 14 epochs.)
+Loaded via ESPnet's `UniversaTask.build_model_from_file`. Config.yaml, tokenizer
+data, and WavLM-Large are downloaded automatically on first run.
 
-Config: `conf/train_ar_turn_taking_only.yaml`
-Token list: `data/token_list/turn_taking_only_tokens/tokens.json` (6 tokens)
-
-### 3. Produce per-frame probabilities
-
-Run sliding-window inference on each speaker channel:
+### 3. Run predict.py
 
 ```bash
-python pyscripts/run_turn_taking_inference.py \
-    --model-dir exp/universa_turn_taking_only_turn_a40 \
-    --wavscp    data_turnbench/dev_infer/wav.scp \
-    --output    exp/universa_turn_taking_only_turn_a40/decode_dev_chunked/text \
-    --device cuda --batch-size 64
+python -m baselines.wavlm_large_anchor.predict                   # score on dev
+python -m baselines.wavlm_large_anchor.predict --out preds.json  # write predictions
 ```
-
-Then extract P(NA)+P(T) for EOT and 1-P(C) for INT into probs JSON format.
 
 ### 4. Get operating point
 
@@ -90,16 +76,11 @@ uv run python -m eval.sweep baselines/wavlm_large_anchor/probs-eot.json   # → 
 uv run python -m eval.sweep baselines/wavlm_large_anchor/probs-int.json   # → θ_int = 0.20
 ```
 
-### 5. Produce predictions
-
-Apply the sweep's standard commit rule (rising-edge + refractory 2.0 s) at
-the operating thresholds.
-
 ## Files
 
 - `predictions-dev.json` — committed events at θ_eot=0.90, θ_int=0.20.
 - `predictions-test.json` — same operating point, test split.
 - `probs-eot.json` — per-frame P(NA)+P(T) on dev (25 Hz grid).
 - `probs-int.json` — per-frame 1-P(C) on dev (25 Hz grid).
-- `predict.py` — prediction stub.
+- `predict.py` — sliding-window inference (downloads checkpoint from HF).
 - `README.md` — this file.
