@@ -36,6 +36,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root
 
 import pyarrow.parquet as pq  # noqa: E402
+from rich import box  # noqa: E402
+from rich.console import Console  # noqa: E402
+from rich.table import Table  # noqa: E402
 
 from eval.data import (  # noqa: E402
     DEV_DATASET,
@@ -86,13 +89,21 @@ def discover(split: str) -> dict[str, Path]:
     return found
 
 
-def cell(ts: TaskScore) -> str:
+def fmt(ts: TaskScore, *, with_lat: bool = True) -> str:
+    """Rich-markup cell `recall / fp [/ lat_ms]`; fp over the 0.10 budget shows red."""
     if ts.tp + ts.fn == 0:
-        return f"{'--':>16}"
+        return "[dim]—[/]"
     recall = ts.tp / (ts.tp + ts.fn)
-    fp_rate = ts.fp / (ts.fp + ts.tn) if (ts.fp + ts.tn) else float("nan")
-    lat = statistics.median(ts.latencies_ms) if ts.latencies_ms else float("nan")
-    return f"{f'{recall:.2f}/{fp_rate:.2f}/{lat:.0f}':>16}"
+    if ts.fp + ts.tn:
+        fp = ts.fp / (ts.fp + ts.tn)
+        fp_str = f"[red]{fp:.2f}[/]" if fp > 0.10 else f"[green]{fp:.2f}[/]"
+    else:
+        fp_str = "[dim]—[/]"
+    out = f"{recall:.2f}/{fp_str}"
+    if with_lat:
+        lat = statistics.median(ts.latencies_ms) if ts.latencies_ms else float("nan")
+        out += f"/[dim]{'—' if lat != lat else f'{lat:.0f}'}[/]"
+    return out
 
 
 def main() -> None:
@@ -132,22 +143,44 @@ def main() -> None:
                 merge(pooled[(label, axis, key, "INT")], sc.task_int)
 
     n_type = {t: sum(meta[c]["type"] == t for c in ids) for t in types}
-    print(f"\n{args.dataset}  ({split} split, {len(ids)} conversations, {len(baselines)} baselines)")
-    print("\ngold event density per conversation_type")
-    print(f"{'type':<32}{'n':>4}{'EOT+':>7}{'EOT-':>7}{'INT+':>7}{'INT-':>7}{'INT+/conv':>11}")
+    console = Console()
+    console.rule(
+        f"[bold]{args.dataset}[/]  ·  {split}  ·  {len(ids)} conversations  ·  {len(baselines)} baselines"
+    )
+
+    density_table = Table(
+        title="gold event density by conversation type", box=box.SIMPLE_HEAVY,
+        title_style="bold", header_style="bold cyan",
+    )
+    density_table.add_column("conversation_type", style="cyan")
+    for col in ("n", "EOT+", "EOT-", "INT+", "INT-", "INT+/conv"):
+        density_table.add_column(col, justify="right")
     for t in types:
         d = density[t]
-        print(f"{t:<32}{n_type[t]:>4}{d[0]:>7}{d[1]:>7}{d[2]:>7}{d[3]:>7}{d[2] / n_type[t]:>11.1f}")
+        density_table.add_row(t, str(n_type[t]), str(d[0]), str(d[1]), str(d[2]), str(d[3]),
+                              f"[bold]{d[2] / n_type[t]:.1f}[/]")
+    console.print(density_table)
 
-    def block(axis: str, keys: list[str]) -> None:
+    def block(axis: str, keys: list[str], headers: list[str], *, with_lat: bool) -> None:
+        metrics = "recall / [green]fp[/] / [dim]lat_ms[/]" if with_lat else "recall / [green]fp[/]"
         for task in ("EOT", "INT"):
-            print(f"\n{task} by {axis}  (recall / fp_rate / lat_p50_ms)")
-            print(f"{'baseline':<20}" + "".join(f"{k[:15]:>16}" for k in keys))
+            table = Table(
+                title=f"{task} by {axis}", box=box.SIMPLE_HEAVY, title_style="bold",
+                header_style="bold cyan",
+                caption=f"{metrics}   ·   [red]red fp[/] = over 0.10 budget",
+                caption_style="dim",
+            )
+            table.add_column("baseline", style="bold")
+            for h in headers:
+                table.add_column(h, justify="right")
             for label in baselines:
-                print(f"{label:<20}" + "".join(cell(pooled[(label, axis, k, task)]) for k in keys))
+                table.add_row(label, *(fmt(pooled[(label, axis, k, task)], with_lat=with_lat) for k in keys))
+            console.print(table)
 
-    block("type", types)
-    block("pairing", ["FF", "MM", "mixed"])
+    # by-type: 6 columns → drop latency for width (it's ~model-constant across types);
+    # by-pairing: 3 columns → room for full recall/fp/latency.
+    block("type", types, [t.split("/")[0][:8] for t in types], with_lat=False)  # full names in density table
+    block("pairing", ["FF", "MM", "mixed"], ["FF", "MM", "mixed"], with_lat=True)
 
 
 if __name__ == "__main__":
