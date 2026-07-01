@@ -6,8 +6,8 @@ carrying the two per-speaker audio channels and the raw three-annotator tracks
 per speaker. `--dataset` accepts any HF dataset repo id, or a local directory of
 parquet shards. The private test set is just a private HF repo, scored by the
 same code server-side. Authentication uses ambient HF credentials (HF_TOKEN /
-`huggingface-cli login`); the public sets are gated, so callers must have been
-granted access to the repo.
+`huggingface-cli login`, or an HF_TOKEN in a repo-root `.env`); the public sets
+are gated, so callers must have been granted access to the repo.
 
 Shards are read with pyarrow and wrapped via the HFDataset constructor, not
 `datasets.load_dataset` — see resolve_dataset for why (load_dataset overflows on
@@ -16,6 +16,7 @@ the full test split).
 
 import hashlib
 import io
+import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -94,6 +95,22 @@ class Dataset:
     durations: dict[str, float]
 
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _seed_hf_token_from_env() -> None:
+    """Seed HF_TOKEN from a repo-root `.env` so scoring the gated splits needs no
+    manual export. A token already in the environment wins; no-ops without `.env`."""
+    env_path = _REPO_ROOT / ".env"
+    if os.environ.get("HF_TOKEN") or not env_path.exists():
+        return
+    for line in env_path.read_text().splitlines():
+        key, sep, value = line.strip().partition("=")
+        if sep and key.strip() == "HF_TOKEN":
+            os.environ["HF_TOKEN"] = value.strip().strip("\"'")
+            return
+
+
 def resolve_dataset(
     source: str = DEV_DATASET, revision: str | None = None, *, skip_audio: bool = False
 ) -> Dataset:
@@ -117,6 +134,7 @@ def resolve_dataset(
     overflows on the full test split. The constructor wraps the chunked table
     as-is — chunks are never combined — and scores identically to load_dataset.
     """
+    _seed_hf_token_from_env()
     # skip_audio only avoids the remote *download*; local shards have nothing to
     # download and their header is the duration fallback, so always read them whole.
     is_local = Path(source).is_dir()
