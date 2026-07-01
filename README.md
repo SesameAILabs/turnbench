@@ -28,7 +28,9 @@ interruption onsets. Full methodology: [`eval/README.md`](eval/README.md).
 
 Dev scoring is based on: [mundo-ai/turn-benchmark-dev](https://huggingface.co/datasets/mundo-ai/turn-benchmark-dev). Since annotations are published for dev, the scorer can be run locally against predictions to provide a signal to develop against. Test scoring is based on: [mundo-ai/turn-benchmark-test](https://huggingface.co/datasets/mundo-ai/turn-benchmark-test). Annotations are not provided.
 
-Both HF datasets are gated and require authentication to access.
+Both HF datasets are gated and require authentication to access — run
+`huggingface-cli login`, or put `HF_TOKEN=<token>` in a repo-root `.env` (the
+scorer auto-loads it).
 
 Raw corpus (source of truth): the gated GCS bucket
 `gs://sesame-cmu-tt-benchmark-dev/full_delivery_with_metadata/` — per-`task_id`
@@ -71,26 +73,32 @@ no central runner. `baselines/rms_vad/` is the minimal reference.
 
 **Adding or updating a baseline?** See [`baselines/README.md`](baselines/README.md)
 for the author checklist — what to commit, the causal/reproducibility rules, and
-the dev threshold-sweep `probs-dev.json`.
+the dev threshold-sweep files (`probs-eot.json` / `probs-int.json`).
 
-> **Migration note.** The model baselines below were written against an earlier
-> continuous-trace pipeline (per-frame NPZ, swept centrally), now removed. Each
-> needs its author to update `predict.py` to emit a `predictions.json` directly
-> (copy `rms_vad`'s shape). Until then they will not run.
+> `TODO:`-marked baselines are **stubs** — the model code is present but they do
+> not yet emit a submission. `oracle_annotator` is a dev-only sanity check (it
+> replays the gold, so has no test predictions); every other baseline runs on
+> dev + test today.
 
-| Baseline | Modality | Native output | Params | Status |
-| --- | --- | --- | --- | --- |
-| `rms_vad` | Energy VAD | Speech on/off edges → discrete events | n/a | implemented (runs on dev today) |
-| `oracle_annotator` | Sanity check | Replays the gold events | n/a | implemented |
-| `gemini` | Full-duplex streaming dialogue | ASR/VAD-aligned timestamps over output audio | undisclosed | needs migration |
-| `moshi` | Audio (full-duplex, 12.5 Hz) | Per-frame voice-activity on system stream | ~7B | needs migration |
-| `espnet_turntaking` | Audio (frozen Whisper-medium, CMU) | 5-class @ 25 Hz, trained on Switchboard (Arora et al., ICLR 2025) | ~307M | needs migration |
-| `mimi_endpointer` | Audio (Mimi codec, 12.5 Hz) | 4-class per frame {user, user-end, system, system-end} | <50M | needs migration |
-| `kyutai_semantic_vad` | Audio + ASR (Kyutai DSM) | Binary EOT per frame (user-only) | >1B | needs migration |
-| `vap` | Audio (two-stream, 50 Hz) | Continuous voice-activity projection per speaker | >100M | needs migration |
-| `smart_turn_v3` | Audio (Whisper-Tiny + linear head) | Binary per 8 s chunk (turn-complete) | ~40M | needs migration |
-| `wavlm_base_causal` | Audio (frozen WavLM-Base-Plus, causal, CMU) | 5-class @ 25 Hz, fully causal, trained on Switchboard | ~98M (3.8M trainable) | needs migration |
-| `wavlm_large_anchor` | Audio (frozen WavLM-Large, 4 s windows, CMU) | 5-class @ 25 Hz, autoregressive decoder, trained on Switchboard | ~628M (313M trainable) | needs migration |
+| Baseline | Modality | Native output |
+| --- | --- | --- |
+| `rms_vad` | Energy VAD | Speech on/off edges → discrete events |
+| `oracle_annotator` | Sanity check | Replays the gold events |
+| `openai_server_vad` | OpenAI Realtime `server_vad` (acoustic silence) | `speech_stopped`→EOT, `speech_started`→INT |
+| `openai_semantic_vad` | OpenAI Realtime `semantic_vad` (content-aware) | `speech_stopped`→EOT, `speech_started`→INT |
+| `espnet_turntaking` | Frozen Whisper-medium, mono two-speaker (CMU, Arora et al. ICLR 2025) | 5-class @ 25 Hz, trained on Switchboard |
+| `espnet_turntaking_perchannel` | Same model, per-channel inference | 5-class @ 25 Hz |
+| `mimi_endpointer` | Mimi codec, 12.5 Hz | 4-class per frame {user, user-end, system, system-end} |
+| `kyutai_semantic_vad` | Kyutai STT-1B VAD head + ASR | Binary EOT per frame |
+| `vap` | Two-stream voice-activity projection, 50 Hz (Ekstedt) | Continuous VA projection per speaker |
+| `smart_turn_v3` | Whisper-Tiny + linear head (Pipecat) | Binary per 8 s chunk (turn-complete) |
+| `wavlm_base_causal` | Frozen WavLM-Base-Plus, fully causal (CMU) | 5-class @ 25 Hz, trained on Switchboard |
+| `wavlm_large_anchor` | Frozen WavLM-Large, 4 s windows, AR decoder (CMU) | 5-class @ 25 Hz, trained on Switchboard |
+| `wavlm_large_causal` | Frozen WavLM-Large, fully causal (CMU) | 5-class @ 25 Hz, trained on Switchboard + TurnBench |
+| `causal_wavlm_predictor` | Frozen WavLM base+large, causal per-channel (CMU) | 5-class @ 25 Hz (base + large variants) |
+| TODO: `gemini` | Full-duplex streaming dialogue | ASR/VAD-aligned timestamps over output audio |
+| TODO: `moshi` | Audio (full-duplex, 12.5 Hz) | Per-frame voice-activity on system stream |
+| TODO: `dualturn` | Qwen2.5-0.5B + Mimi codec (anyreach) | 12 per-channel classification heads |
 
 ## Repo layout
 
@@ -104,17 +112,6 @@ eval/                — the benchmark
   make_splits.py       regenerates the speaker-disjoint dev/test splits
 baselines/           — one directory per baseline (see above)
 data_analysis/       — corpus statistics & figures
-```
-
-### Corpus tooling (needs the raw dataset)
-
-`data_analysis/` and `eval/make_splits.py` read a local copy of the raw dataset
-via a `.env` file:
-
-```bash
-cp .env.example .env   # set TT_BENCHMARK_DATA to the dataset root
-python3 data_analysis/analyze.py            # corpus totals, label inventory
-python3 data_analysis/per_conversation.py   # per-conversation metrics
 ```
 
 ### Website parity (`eval.parity`)
