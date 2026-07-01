@@ -47,8 +47,8 @@ def score_all(dataset, split: str) -> dict[str, dict]:
     for label, path in discover(split).items():
         sc = score_submission(load_submission(path), dataset)
         out[label] = {
-            "EOT": (sc.task_eot.recall, sc.task_eot.fp_rate, sc.task_eot.latency().p50),
-            "INT": (sc.task_int.recall, sc.task_int.fp_rate, sc.task_int.latency().p50),
+            "EOT": (sc.task_eot.recall, sc.task_eot.fp_rate, sc.task_eot.latency()),
+            "INT": (sc.task_int.recall, sc.task_int.fp_rate, sc.task_int.latency()),
         }
     return out
 
@@ -69,7 +69,7 @@ def print_table(scored: dict, tag: str) -> None:
         table.add_column(t, justify="right")
     for i, (label, r) in enumerate(sorted(scored.items(), key=lambda kv: kv[1]["EOT"][0], reverse=True), 1):
         (er, ef, el), (ir, iff, il) = r["EOT"], r["INT"]
-        table.add_row(str(i), label, f"{er:.3f}", _fp(ef), f"{el:.0f}", f"{ir:.3f}", _fp(iff), f"{il:.0f}")
+        table.add_row(str(i), label, f"{er:.3f}", _fp(ef), f"{el.p50:.0f}", f"{ir:.3f}", _fp(iff), f"{il.p50:.0f}")
     Console().print(table)
 
 
@@ -97,7 +97,8 @@ def figure(scored: dict, out: Path, tag: str) -> None:
     for ax, task in zip(axes, ("EOT", "INT")):
         in_budget = []
         for label, r in scored.items():
-            recall, fp, lat = r[task]
+            recall, fp, lat_obj = r[task]
+            lat = lat_obj.p50
             ok = fp <= BUDGET
             ax.scatter(lat, recall, s=70, zorder=3, facecolor=IN_C if ok else "none",
                        edgecolor=IN_C if ok else OVER_C, linewidths=1.6)
@@ -135,13 +136,16 @@ def write_json(scored: dict, out: Path, dataset: str, split: str) -> None:
         key=lambda kv: (kv[1]["EOT"][0] if not math.isnan(kv[1]["EOT"][0]) else -1.0),
         reverse=True,
     ):
+        def task(recall: float, fp: float, lat) -> dict:
+            return {
+                "recall": _num(recall),
+                "fp_rate": _num(fp),
+                "latency_ms": {"p10": _num(lat.p10), "p50": _num(lat.p50), "p90": _num(lat.p90)},
+            }
+
         (er, ef, el), (ir, iff, il) = r["EOT"], r["INT"]
-        models.append({
-            "model": label,
-            "eot": {"recall": _num(er), "fp_rate": _num(ef), "latency_p50_ms": _num(el)},
-            "int": {"recall": _num(ir), "fp_rate": _num(iff), "latency_p50_ms": _num(il)},
-        })
-    payload = {"split": split, "dataset": dataset, "budget": BUDGET, "models": models}
+        models.append({"model": label, "eot": task(er, ef, el), "int": task(ir, iff, il)})
+    payload = {"split": split, "dataset": dataset, "fp_budget": BUDGET, "models": models}
     out.write_text(json.dumps(payload, indent=2) + "\n")
     print(f"wrote leaderboard -> {out} ({len(models)} models)")
 

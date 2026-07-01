@@ -1,0 +1,301 @@
+{
+  "split": "test",
+  "dataset": "mundo-ai/turn-benchmark-test-golden",
+  "fp_budget": 0.1,
+  "models": [
+    {
+      "model": "openai_server_vad",
+      "eot": {
+        "recall": 0.954712,
+        "fp_rate": 0.5246,
+        "latency_ms": {
+          "p10": 65.0,
+          "p50": 281.5,
+          "p90": 394.3
+        }
+      },
+      "int": {
+        "recall": 0.99005,
+        "fp_rate": 0.458267,
+        "latency_ms": {
+          "p10": 116.0,
+          "p50": 183.5,
+          "p90": 411.5
+        }
+      }
+    },
+    {
+      "model": "vap",
+      "eot": {
+        "recall": 0.849039,
+        "fp_rate": 0.075525,
+        "latency_ms": {
+          "p10": -70.8,
+          "p50": 312.0,
+          "p90": 1494.0
+        }
+      },
+      "int": {
+        "recall": 0.922886,
+        "fp_rate": 0.064451,
+        "latency_ms": {
+          "p10": 349.0,
+          "p50": 1135.0,
+          "p90": 2242.1
+        }
+      }
+    },
+    {
+      "model": "mimi_endpointer",
+      "eot": {
+        "recall": 0.785476,
+        "fp_rate": 0.081793,
+        "latency_ms": {
+          "p10": 24.0,
+          "p50": 575.0,
+          "p90": 1612.0
+        }
+      },
+      "int": {
+        "recall": 0.837065,
+        "fp_rate": 0.076571,
+        "latency_ms": {
+          "p10": 293.0,
+          "p50": 1176.0,
+          "p90": 2353.8
+        }
+      }
+    },
+    {
+      "model": "wavlm_large_anchor",
+      "eot": {
+        "recall": 0.784046,
+        "fp_rate": 0.038859,
+        "latency_ms": {
+          "p10": 347.0,
+          "p50": 1187.0,
+          "p90": 1933.7
+        }
+      },
+      "int": {
+        "recall": 0.787313,
+        "fp_rate": 0.120046,
+        "latency_ms": {
+          "p10": 314.0,
+          "p50": 1092.0,
+          "p90": 2348.2
+        }
+      }
+    },
+    {
+      "model": "kyutai_semantic_vad",
+      "eot": {
+        "recall": 0.762434,
+        "fp_rate": 0.043247,
+        "latency_ms": {
+          "p10": 250.0,
+          "p50": 1196.5,
+          "p90": 1785.0
+        }
+      },
+      "int": {
+        "recall": 0.794776,
+        "fp_rate": 0.325229,
+        "latency_ms": {
+          "p10": 121.8,
+          "p50": 383.0,
+          "p90": 891.2
+        }
+      }
+    },
+    {
+      "model": "rms_vad",
+      "eot": {
+        "recall": 0.717623,
+        "fp_rate": 0.632404,
+        "latency_ms": {
+          "p10": -224.5,
+          "p50": -117.0,
+          "p90": 1848.0
+        }
+      },
+      "int": {
+        "recall": 0.996269,
+        "fp_rate": 0.445057,
+        "latency_ms": {
+          "p10": 57.0,
+          "p50": 123.0,
+          "p90": 330.0
+        }
+      }
+    },
+    {
+      "model": "smart_turn_v3",
+      "eot": {
+        "recall": 0.642619,
+        "fp_rate": 0.036352,
+        "latency_ms": {
+          "p10": 766.3,
+          "p50": 1027.0,
+          "p90": 1415.2
+        }
+      },
+      "int": {
+        "recall": 0.563433,
+        "fp_rate": 0.337567,
+        "latency_ms": {
+          "p10": 70.0,
+          "p50": 149.0,
+          "p90": 439.4
+        }
+      }
+    },
+    {
+      "model": "espnet_turntaking_perchannel",
+      "eot": {
+        "recall": 0.617035,
+        "fp_rate": 0.057662,
+        "latency_ms": {
+          "p10": 121.2,
+          "p50": 846.0,
+          "p90": 2134.0
+        }
+      },
+      "int": {
+        "recall": 0.522388,
+        "fp_rate": 0.103716,
+        "latency_ms": {
+          "p10": 106.5,
+          "p50": 997.5,
+          "p90": 2521.4
+        }
+      }
+    },
+    {
+      "model": "espnet_turntaking",
+      "eot": {
+        "recall": 0.402034,
+        "fp_rate": 0.120338,
+        "latency_ms": {
+          "p10": -169.0,
+          "p50": 18.0,
+          "p90": 2377.3
+        }
+      },
+      "int": {
+        "recall": 0.573383,
+        "fp_rate": 0.079837,
+        "latency_ms": {
+          "p10": 90.0,
+          "p50": 210.0,
+          "p90": 1334.0
+        }
+      }
+    },
+    {
+      "model": "wavlm_large_causal",
+      "eot": {
+        "recall": 0.344033,
+        "fp_rate": 0.043873,
+        "latency_ms": {
+          "p10": 27.4,
+          "p50": 634.0,
+          "p90": 2450.2
+        }
+      },
+      "int": {
+        "recall": 0.534826,
+        "fp_rate": 0.064378,
+        "latency_ms": {
+          "p10": 278.8,
+          "p50": 1221.5,
+          "p90": 2427.2
+        }
+      }
+    },
+    {
+      "model": "causal_wavlm_predictor/large",
+      "eot": {
+        "recall": 0.327507,
+        "fp_rate": 0.098088,
+        "latency_ms": {
+          "p10": -55.0,
+          "p50": 617.0,
+          "p90": 2207.0
+        }
+      },
+      "int": {
+        "recall": 0.746269,
+        "fp_rate": 0.169981,
+        "latency_ms": {
+          "p10": 141.8,
+          "p50": 689.5,
+          "p90": 1979.2
+        }
+      }
+    },
+    {
+      "model": "openai_semantic_vad",
+      "eot": {
+        "recall": 0.302558,
+        "fp_rate": 0.017549,
+        "latency_ms": {
+          "p10": 444.3,
+          "p50": 793.0,
+          "p90": 2231.7
+        }
+      },
+      "int": {
+        "recall": 0.483831,
+        "fp_rate": 0.270794,
+        "latency_ms": {
+          "p10": 116.0,
+          "p50": 196.0,
+          "p90": 477.8
+        }
+      }
+    },
+    {
+      "model": "wavlm_base_causal",
+      "eot": {
+        "recall": 0.28635,
+        "fp_rate": 0.037606,
+        "latency_ms": {
+          "p10": -29.0,
+          "p50": 632.0,
+          "p90": 2506.0
+        }
+      },
+      "int": {
+        "recall": 0.267413,
+        "fp_rate": 0.010597,
+        "latency_ms": {
+          "p10": 330.0,
+          "p50": 1118.0,
+          "p90": 2430.4
+        }
+      }
+    },
+    {
+      "model": "causal_wavlm_predictor/base",
+      "eot": {
+        "recall": 0.193072,
+        "fp_rate": 0.124726,
+        "latency_ms": {
+          "p10": -165.0,
+          "p50": 331.0,
+          "p90": 2307.6
+        }
+      },
+      "int": {
+        "recall": 0.516169,
+        "fp_rate": 0.036362,
+        "latency_ms": {
+          "p10": 187.4,
+          "p50": 1008.0,
+          "p90": 2365.2
+        }
+      }
+    }
+  ]
+}
