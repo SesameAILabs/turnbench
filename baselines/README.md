@@ -18,12 +18,12 @@ In `baselines/<name>/`:
 ## Rules
 
 1. **Causal** — output at `t` may use audio only up to `t`; fold lookahead into the timestamp ([details](../docs/SUBMISSION_FORMAT.md)).
-2. **Operating point** — tuned on dev. Pick **independently for EOT and interruption**: for each task, the threshold giving the **lowest latency at `fp_rate ≤ 0.1`** on dev (`eval.sweep` on that task's probs file prints it). This gives two thresholds, θ_eot and θ_int; your single `predictions-{dev,test}.json` then carries its `eot` times committed at θ_eot and its `interruption` times at θ_int.
+2. **Operating point** — tuned on dev. Pick **independently for EOT and interruption**: for each task, the threshold giving the **highest recall at `fp_rate ≤ 0.1`** on dev (`eval.sweep` on that task's probs file prints it) — i.e. operate as aggressively as the false-positive budget allows. This gives two thresholds, θ_eot and θ_int; your single `predictions-{dev,test}.json` then carries its `eot` times committed at θ_eot and its `interruption` times at θ_int.
 3. **Reproducible** from your `README.md` alone.
 
 ## Dev threshold sweep
 
-To illustrate the latency vs false-interruption trade-off, the paper sweeps a threshold over the raw per-frame probabilities for the EOT / interruption task. If your model produces continuous probabilities, commit `probs-eot.json` and/or `probs-int.json` with the per-frame dev-set probabilities to be included in this analysis — the same sweep then picks your operating point (rule 2) and is scored centrally.
+To illustrate the latency vs false-interruption trade-off, the paper sweeps a threshold over the raw per-frame probabilities for the EOT / interruption task. If your model produces continuous probabilities, commit `probs-eot.json` and/or `probs-int.json` with the per-frame dev-set probabilities to be included in this analysis — the same sweep then picks your operating point (rule 2 above) and is scored centrally.
 
 ```json
 {
@@ -38,7 +38,7 @@ To illustrate the latency vs false-interruption trade-off, the paper sweeps a th
 }
 ```
 
-**Get your operating point (rule 2).** Run the sweep on each task's probs file; it sweeps θ on dev and prints the chosen threshold (lowest latency at `fp_rate ≤ 0.1`):
+**Get your operating point (rule 2).** Run the sweep on each task's probs file; it sweeps θ on dev and prints the chosen threshold (highest recall at `fp_rate ≤ 0.1`):
 
 ```bash
 uv run python -m eval.sweep baselines/<name>/probs-eot.json   # → θ_eot

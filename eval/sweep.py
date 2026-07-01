@@ -223,13 +223,25 @@ def sweep(probs: ProbsFile, dataset, thetas: list[float] = DEFAULT_GRID, *, refr
 
 
 def operating_point(rows: list[SweepRow], *, fp_budget: float = 0.1) -> SweepRow | None:
-    """Rule 2: lowest median-latency theta with fp_rate ≤ budget. None if nothing
-    qualifies (a model too conservative to reach the budget)."""
-    qualifying = [
-        r for r in rows
-        if r.fp_rate == r.fp_rate and r.fp_rate <= fp_budget and r.lat_p50 == r.lat_p50
-    ]
-    return min(qualifying, key=lambda r: r.lat_p50) if qualifying else None
+    """Fair operating point: the highest-recall theta whose fp_rate is within
+    budget — operate as aggressively as the false-positive budget allows, catching
+    as many events as possible. None if no threshold reaches the budget (a model
+    too conservative to ever fire cleanly).
+
+    This replaces an earlier "lowest latency at fp_rate ≤ budget" rule, which was
+    degenerate: a near-silent threshold has fp_rate ≈ 0 and whatever latency its
+    handful of fires happen to have, so minimizing latency rewarded firing almost
+    never (recall ≈ 0). Maximizing recall under the budget cannot pick that corner.
+
+    Note recall is NOT guaranteed monotone in theta: under the rising-edge commit
+    rule, a well-calibrated (mostly-low, spiky) probability track gives recall that
+    falls with theta, so this picks the lowest qualifying theta — but a
+    mis-calibrated, mostly-high track can make recall non-monotone, and then the
+    highest-recall qualifying theta can sit anywhere in the grid, including its
+    edge. A boundary pick is a signal the probs are poorly calibrated, not a
+    failure of this rule."""
+    qualifying = [r for r in rows if r.fp_rate == r.fp_rate and r.fp_rate <= fp_budget]
+    return max(qualifying, key=lambda r: r.recall) if qualifying else None
 
 
 def main(
@@ -239,8 +251,9 @@ def main(
     fp_budget: Annotated[float, typer.Option(help="operating-point false-positive budget")] = 0.1,
 ) -> None:
     """Validate a probs file, sweep it over the dev gold, and print per-theta
-    metrics + the operating point (rule 2). In-memory only — the figure is
-    rendered straight from the probs files by data_analysis/plot_sweep.py."""
+    metrics + the operating point (highest recall at fp_rate ≤ budget). In-memory
+    only — the figure is rendered straight from the probs files by
+    data_analysis/plot_sweep.py."""
     from eval.data import DEV_DATASET, resolve_dataset
 
     probs = load_probs(probs_path)
@@ -254,8 +267,8 @@ def main(
     op = operating_point(rows, fp_budget=fp_budget)
     if op is not None:
         typer.secho(
-            f"operating point (rule 2): θ={op.theta:.2f}  lat_p50={op.lat_p50:.0f}ms  "
-            f"fp_rate={op.fp_rate:.3f} ≤ {fp_budget}",
+            f"operating point: θ={op.theta:.2f}  recall={op.recall:.3f}  "
+            f"fp_rate={op.fp_rate:.3f} ≤ {fp_budget}  lat_p50={op.lat_p50:.0f}ms",
             fg="green",
         )
     else:
