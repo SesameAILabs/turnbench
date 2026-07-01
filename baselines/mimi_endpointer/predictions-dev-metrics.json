@@ -1,0 +1,22 @@
+{
+  "eot_thr": 0.9,
+  "int_thr": 0.95,
+  "eot_recall": 0.757878,
+  "eot_fp_rate": 0.049859,
+  "eot_lat_p10": 63.2,
+  "eot_lat_p50": 656.0,
+  "eot_lat_p90": 1773.8,
+  "eot_tp": 1443,
+  "eot_fn": 461,
+  "eot_fp": 53,
+  "eot_tn": 1010,
+  "int_recall": 0.832853,
+  "int_fp_rate": 0.069381,
+  "int_lat_p50": 907.0,
+  "int_tp": 289,
+  "int_fn": 58,
+  "int_fp": 259,
+  "int_tn": 3474,
+  "int_lat_p10": 303.0,
+  "int_lat_p90": 2243.0
+}

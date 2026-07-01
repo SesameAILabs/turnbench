@@ -1,57 +1,42 @@
 # mimi_endpointer
 
-Two-stream LSTM over Kyutai Mimi embeddings, trained on SpokenWOZ.
+Two-stream LSTM over Kyutai Mimi embeddings, trained on SpokenWOZ with label-delayed supervision. Each speaker channel is encoded through Mimi (24 kHz, 8 quantizers, 25 Hz after upsample) and processed by a shared unidirectional 2-layer LSTM (512 hidden, 128 projection) with a 5-class head: `[bos, system_end, user_end, system, user]`.
 
-**Model:** Unidirectional 2-layer LSTM (512 hidden, 128 projection) on top of Mimi (24kHz, 8 quantizers, 25Hz after upsample). 5-class output: `[bos, system_end, user_end, system, user]`.
+**Model:** [`viks66/mimi-endpointer`](https://huggingface.co/viks66/mimi-endpointer) — oto_d1f checkpoint is the main submission.
 
-**Inference:** Streaming — Mimi processes audio in 1920-sample chunks (80ms) with KV cache, LSTM steps autoregressively per frame.
+**Score direction:**
+- EOT: `1 - P(user)` (high = turn ending); fires when score rises above θ_eot.
+- INT: `P(user)` (high = taking floor); fires when score rises above θ_int.
 
 ## Setup
 
 ```bash
-pip install -r requirements.txt
+pip install -r baselines/mimi_endpointer/requirements.txt
 ```
 
-Set `TT_BENCHMARK_DATA` in the repo's `.env`. Place (or symlink) your checkpoint at:
-```
-baselines/mimi_endpointer/checkpoint.pt
-```
+Place (or symlink) the oto_d1f checkpoint at `baselines/mimi_endpointer/checkpoint.pt`, or omit `--checkpoint` to download from HuggingFace.
 
 ## Run
 
 ```bash
-# dev set
-python3 baselines/mimi_endpointer/predict.py --split eval/splits/dev.txt --run-name mimi_endpointer_dev
+# dev: probs + auto-threshold predictions + score + sweep tables
+bash baselines/mimi_endpointer/run.sh --dev --oto
 
-# test set
-python3 baselines/mimi_endpointer/predict.py --split eval/splits/test.txt --run-name mimi_endpointer_test
+# test: sweep existing dev probs → pick threshold → test predictions
+bash baselines/mimi_endpointer/run.sh --test --oto
+
+# both in one shot
+bash baselines/mimi_endpointer/run.sh --oto
+
+# other checkpoints
+bash baselines/mimi_endpointer/run.sh --dev --swbd
+bash baselines/mimi_endpointer/run.sh --dev --swbd-oto
+bash baselines/mimi_endpointer/run.sh --dev          # pretrained (prefixed outputs)
 ```
 
-Writes `predictions/mimi_endpointer_dev/traces/<task_id>.npz` — four float32 score arrays at 25Hz per conversation.
+## Results (dev, oto_d1f, eot_thr=0.90, int_thr=0.95)
 
-## Parameters
-
-| Component | Params |
-|---|---|
-| Mimi encoder (SEANet CNN) | 12.63M |
-| Mimi encoder transformer | 25.19M |
-| Quantizer projections | 0.52M |
-| Codebook embeddings (8 × 2048 × 256) | 4.19M |
-| Upsample | ~0M |
-| **Mimi encoder total** | **42.53M** |
-| LSTM projection (512→128) | 0.07M |
-| LSTM ×2 streams (2-layer, 512 hidden) | 6.83M |
-| Linear head | 0.005M |
-| **LSTM endpointer total** | **6.90M** |
-| **Full inference stack** | **~49.4M** |
-
-Mimi decoder (~40M) is not used at inference.
-
-## Score mapping
-
-| Benchmark array | Model output |
-|---|---|
-| `eot_score_speaker_1` | P(user_end) |
-| `eot_score_speaker_2` | P(system_end) |
-| `interruption_score_speaker_1` | P(user) |
-| `interruption_score_speaker_2` | P(system) |
+| Task | Recall | FP-rate | Latency p10 | Latency p50 | Latency p90 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| EOT | 0.758 | 0.050 | 63 | 656 | 1774 |
+| INT | 0.833 | 0.069 | 303 | 907 | 2243 |
