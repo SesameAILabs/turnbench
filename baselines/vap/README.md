@@ -25,9 +25,9 @@ bash baselines/vap/run.sh --dev --pretrained   # dev, pretrained checkpoint
 bash baselines/vap/run.sh --test        # test (needs prior --dev run for probs)
 ```
 
-## Results (dev, oto checkpoint, operating point θ=0.90)
+## Results (oto checkpoint, swept operating point @ fp ≤ 0.1)
 
-| Task | Recall | FP-rate | Latency p10 | Latency p50 | Latency p90 |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| EOT | 0.833 | 0.065 | −47 ms | 419 ms | 1648 ms |
-| INT | 0.922 | 0.064 | 516 ms | 1087 ms | 2286 ms |
+| Task | θ | dev recall/fp | test recall/fp |
+| --- | ---: | ---: | ---: |
+| EOT | 0.9161 | 0.841 / 0.045 | 0.845 / 0.055 |
+| INT | 0.8591 | 0.957 / 0.100 | 0.945 / 0.107 |

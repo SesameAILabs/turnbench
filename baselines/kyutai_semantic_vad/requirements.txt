@@ -1,4 +1,5 @@
 torch==2.7.0
+torchaudio==2.7.0
 moshi==0.2.11
 julius==0.2.7
 sphn==0.1.12

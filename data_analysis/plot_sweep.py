@@ -43,13 +43,14 @@ def _latency_masked(rows: list[SweepRow], recall_floor: float) -> list[float]:
     return [r.lat_p50 if r.recall >= recall_floor else float("nan") for r in rows]
 
 
-def plot_single(rows: list[SweepRow], task: str, out: Path, *, fp_budget: float, recall_floor: float, theta_max: float = 1.0, criterion_arrows: bool = False) -> None:
+def plot_single(rows: list[SweepRow], task: str, out: Path, *, fp_budget: float, recall_floor: float, theta_max: float = 1.0, criterion_arrows: bool = False, op: SweepRow | None = None) -> None:
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     plt.rcParams.update({"font.family": "serif", "font.size": 15})
-    op = operating_point(rows, fp_budget=fp_budget)  # picked on the full sweep
+    if op is None:  # fall back to the plotted rows; callers pass the true op from the full candidate sweep
+        op = operating_point(rows, fp_budget=fp_budget)
     rows = [r for r in rows if r.theta <= theta_max]  # zoom x to the live region
     theta = [r.theta for r in rows]
 
@@ -72,7 +73,7 @@ def plot_single(rows: list[SweepRow], task: str, out: Path, *, fp_budget: float,
 
     if op is not None:
         axL.axvline(op.theta, ls="--", lw=1.2, color=INK)
-        axR.text(op.theta - 0.015, 0.7, f"op θ={op.theta:.2f}", color=INK, fontsize=12, va="center", ha="right")
+        axR.text(op.theta - 0.015, 0.7, f"op θ={op.theta:.4g}", color=INK, fontsize=12, va="center", ha="right")
 
     if criterion_arrows:  # low θ fires on weak evidence (eager); high θ requires strong evidence
         axL.text(-0.14, -0.24, "← more eager", transform=axL.transAxes, ha="left", va="top",
@@ -102,9 +103,14 @@ def main() -> None:
     probs = load_probs(args.probs)
     thetas = [round(i * args.step, 4) for i in range(1, int(round(1.0 / args.step)))]
     rows = sweep(probs, dataset, thetas)
+    # The curve is a uniform-grid view; the MARKED op comes from the full
+    # eval.sweep candidate set (score quantiles ∪ grid), so the figure never
+    # advertises a grid-limited operating point. For compressed score scales
+    # (op θ near 0) zoom with --theta-max to make the marker legible.
+    op = operating_point(sweep(probs, dataset), fp_budget=args.fp_budget)
     plot_single(rows, probs.task.upper(), args.out, fp_budget=args.fp_budget,
                 recall_floor=args.recall_floor, theta_max=args.theta_max,
-                criterion_arrows=args.criterion_arrows)
+                criterion_arrows=args.criterion_arrows, op=op)
 
 
 if __name__ == "__main__":

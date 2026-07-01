@@ -108,3 +108,66 @@ def test_frame_count_mismatch_rejected():
 def test_validate_probs_accepts_a_consistent_file():
     probs = ProbsFile.model_validate(payload())
     validate_probs(probs, {"233": 0.14})  # coverage + frame counts both pass
+
+# ---- commit rule + candidate thresholds -------------------------------------
+
+
+def _commit_events_reference(probs, frame_rate_hz, theta, refractory_s):
+    """The original pure-Python commit rule, kept verbatim as the behavioural
+    reference for the vectorized implementation."""
+    refractory_frames = max(1, round(refractory_s * frame_rate_hz))
+    times = []
+    above_prev = False
+    last = None
+    for i, prob in enumerate(probs):
+        above = prob > theta
+        if above and not above_prev and (last is None or i - last >= refractory_frames):
+            times.append((i + 1) / frame_rate_hz)
+            last = i
+        above_prev = above
+    return times
+
+
+def test_commit_events_matches_reference_implementation():
+    """The vectorized commit rule must reproduce the reference loop exactly —
+    including the subtlety that a refractory-suppressed rising edge does NOT
+    extend the refractory window (only committed events do)."""
+    import random
+
+    from eval.sweep import commit_events
+
+    rng = random.Random(7)
+    cases = [
+        [],                                    # empty
+        [0.0] * 50,                            # never fires
+        [1.0] * 50,                            # one rising edge at frame 0
+        [0.0, 1.0] * 200,                      # chattering: refractory suppression
+        [rng.random() ** 4 for _ in range(2000)],   # compressed-scale scores
+        [1 - rng.random() ** 4 for _ in range(2000)],  # mass near 1
+    ]
+    for probs in cases:
+        for theta in (0.0, 0.001, 0.03, 0.5, 0.97, 1.0):
+            for refractory_s in (0.04, 2.0):
+                assert commit_events(probs, 25.0, theta, refractory_s=refractory_s) == \
+                    _commit_events_reference(probs, 25.0, theta, refractory_s=refractory_s), \
+                    f"mismatch at theta={theta} refractory={refractory_s}"
+
+
+def test_candidate_thetas_are_quantiles_plus_uniform_grid():
+    """Candidates = quantiles of the model's own pooled nonzero scores (resolution
+    where the mass is — a compressed score gets sub-0.01 candidates a uniform grid
+    can never contain) UNIONED with the uniform 0.01 grid (safety net for operating
+    points in thin tails, where quantile candidates go sparse)."""
+    from eval.sweep import candidate_thetas
+
+    compressed = ProbsFile.model_validate(payload(probs=[
+        entry("233", [0.001 * i for i in (1, 1, 2)]),
+    ]))
+    thetas = candidate_thetas(compressed, n=16)
+    assert thetas == sorted(set(thetas))
+    assert min(thetas) == 0.001  # quantile part: resolution inside the attained mass
+    assert any(t < 0.01 for t in thetas)  # ...below the uniform grid's floor
+    assert all(round(0.01 * i, 2) in thetas for i in range(1, 100))  # uniform part present
+
+    all_zero = ProbsFile.model_validate(payload(probs=[entry("233", [0.0, 0.0, 0.0])]))
+    assert candidate_thetas(all_zero) == [round(0.01 * i, 2) for i in range(1, 100)]

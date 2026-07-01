@@ -93,6 +93,10 @@ def _load_model():
     import torch
     from espnet2.tasks.slu import SLUTask
 
+    if os.environ.get("TT_TF32", "0") == "1":  # 2.3x on H100 tensor cores, ~5e-3 prob delta
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+
     exp = os.environ.get("ESPNET_TT_EXP")
     if not exp:
         raise RuntimeError(

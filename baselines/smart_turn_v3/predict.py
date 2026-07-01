@@ -226,6 +226,7 @@ def main(
     threshold_int: float | None = None,
     probs_only: bool = False,
     workers: int = 8,
+    probs_out_dir: Path | None = None,
 ) -> None:
     is_dev = (dataset_source == DEV_DATASET)
     split  = "dev" if is_dev else "test"
@@ -251,10 +252,18 @@ def main(
 
     conv_scores = [results[cid] for cid in ids]  # restore submission order
 
+    # --probs-out-dir redirects the probs output (e.g. emitting TEST probs without
+    # clobbering the committed dev files). Resolved against the CALLER's cwd —
+    # this module chdirs into the smart_turn submodule at import.
     if is_dev or probs_only:
+        if probs_out_dir is not None:
+            probs_dir = probs_out_dir if probs_out_dir.is_absolute() else _CALLER_CWD / probs_out_dir
+        else:
+            probs_dir = _HERE
+        probs_dir.mkdir(parents=True, exist_ok=True)
         for task in ("eot", "int"):
             pf = _build_probs_file(conv_scores, task)
-            path = _HERE / f"probs-{task}.json"
+            path = probs_dir / f"probs-{task}.json"
             path.write_text(pf.model_dump_json(indent=2))
             print(f"Wrote {path}", flush=True)
 
@@ -297,6 +306,7 @@ if __name__ == "__main__":
     parser.add_argument("--threshold-int", type=float, default=None)
     parser.add_argument("--probs-only",    action="store_true")
     parser.add_argument("--workers",       type=int, default=8)
+    parser.add_argument("--probs-out-dir", type=Path, default=None)
     args = parser.parse_args()
     main(
         run_name=args.run_name,
@@ -306,4 +316,5 @@ if __name__ == "__main__":
         threshold_int=args.threshold_int,
         probs_only=args.probs_only,
         workers=args.workers,
+        probs_out_dir=args.probs_out_dir,
     )

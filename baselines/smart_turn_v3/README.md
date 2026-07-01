@@ -8,8 +8,20 @@ Pipecat Smart Turn v3 — Whisper Tiny encoder + linear classifier for semantic 
 
 ## Setup
 
+The pinned `smart_turn` submodule commit was force-removed upstream, so
+`git submodule update --init` fails ("not our ref") — clone `pipecat-ai/smart-turn`
+at HEAD instead. The v3.1 ONNX weights aren't vendored; download them from
+`pipecat-ai/smart-turn-v3` on HF. Note the naming: `inference.py` builds a session
+at import against the un-suffixed `smart-turn-v3.1.onnx`, while `predict.py`
+overrides it with the `-gpu` variant on CUDA — so fetch both and alias the
+un-suffixed name:
+
 ```bash
-git submodule update --init baselines/smart_turn_v3/smart_turn
+git clone https://github.com/pipecat-ai/smart-turn baselines/smart_turn_v3/smart_turn
+D=baselines/smart_turn_v3/smart_turn
+huggingface-cli download pipecat-ai/smart-turn-v3 smart-turn-v3.1-gpu.onnx --local-dir "$D"
+huggingface-cli download pipecat-ai/smart-turn-v3 smart-turn-v3.1-cpu.onnx --local-dir "$D"
+cp "$D/smart-turn-v3.1-cpu.onnx" "$D/smart-turn-v3.1.onnx"   # inference.py's import-time model
 pip install -r baselines/smart_turn_v3/requirements.txt
 ```
 
@@ -21,11 +33,14 @@ bash baselines/smart_turn_v3/run.sh --dev    # dev probs + predictions only
 bash baselines/smart_turn_v3/run.sh --test   # sweep existing probs → test predictions
 ```
 
-## Results (dev, pretrained)
+## Results (swept operating point @ fp ≤ 0.1)
 
-| Task | θ | Recall | FP-rate | Latency p10 | Latency p50 | Latency p90 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| EOT | 0.05 | 0.637 | 0.082 | 701 ms | 1019 ms | 1392 ms |
-| INT | 0.95† | 0.579 | 0.356 | 77 ms | 152 ms | 698 ms |
+| Task | θ | dev recall/fp | test recall/fp |
+| --- | ---: | ---: | ---: |
+| EOT | 0.0082 | 0.754 / 0.100 | 0.752 / 0.047 |
+| INT | 0.0155 | 0.118 / 0.096 | 0.107 / 0.093 |
 
-†INT threshold from CHECKPOINT_DEFAULTS (no sweep op within fp_budget=0.10).
+Test is scored against the gold set and tracks dev closely. INT recall is real
+but weak (0.118): this is primarily an end-of-turn detector, and the small
+in-budget interruption signal only becomes visible with quantile-resolution
+threshold candidates (a fixed grid found none).

@@ -28,40 +28,53 @@ single-threshold rising-edge rule (2 s refractory), per `eval.sweep`.
 ## Submission (dev operating point — highest recall at `fp_rate ≤ 0.1`)
 
 Operating point chosen centrally by `eval.sweep` (rule 2 in
-[`../README.md`](../README.md)): **θ_eot = 0.35**, **θ_int = 0.25**. Reproduce via
-[How to run](#how-to-run).
+[`../README.md`](../README.md)): **θ_eot ≈ 0.309**, **θ_int ≈ 0.217**. Reproduce
+via [How to run](#how-to-run).
 
-| task | recall | fp_rate | latency p10/p50/p90 |
+| task | split | recall | fp_rate |
 | --- | --- | --- | --- |
-| EOT | 0.550 | 0.080 | 97 / 914 / 2281 ms |
-| INT | 0.470 | 0.074 | 169 / 1233 / 2511 ms |
+| EOT | dev | 0.640 | 0.100 |
+| EOT | test | 0.711 | 0.081 |
+| INT | dev | 0.585 | 0.096 |
+| INT | test | 0.611 | 0.135 |
 
 ## Mix vs. individual-channel (each at its `fp_rate ≤ 0.1` operating point)
 
 Same model, same dev set; only the inference strategy differs. Each baseline is
-scored at its own committed operating point (`recall / fp_rate`):
+scored at its own swept operating point (`recall / fp_rate`, dev):
 
 | task | mix + attribution (`espnet_turntaking`) | individual-channel (this) |
 | --- | --- | --- |
-| EOT | 0.347 / 0.094 | **0.550 / 0.080** |
-| INT | **0.637 / 0.091** | 0.470 / 0.074 |
+| EOT | **0.836 / 0.074** | 0.640 / 0.100 |
+| INT | **0.637 / 0.091** | 0.585 / 0.096 |
 
-The better strategy is per-track:
-
-- **End-of-turn favours individual-channel** (recall 0.55 vs 0.35). EOT is
-  largely a *single-speaker* event ("this speaker stopped"), which an isolated
-  channel captures cleanly.
-- **Interruption favours the mix** (recall 0.64 vs 0.47). Interruption is
-  *relational* — it needs the other speaker present — and the model was trained
-  on the mix, so an isolated channel is out-of-distribution for it.
-- **Cost:** individual-channel is 2× the inference compute (two passes per
-  conversation) and commits later. A hybrid — individual-channel EOT + mix
-  interruption — would likely beat either alone.
+At the swept operating points **the mix wins both tracks** — a reversal of the
+comparison at earlier, coarser operating points, driven entirely by the mix's
+EOT score (`P_T × energy-hold`): its optimum lives at θ ≈ 0.0007, which coarse
+threshold grids could not reach (it was previously stuck at 0.347 recall).
+Per-channel inference remains the *architecturally* cleaner single-speaker EOT
+signal, but the energy-weighted mix score turns out to rank turn-ends better —
+and per-channel costs 2× the inference compute (two passes per conversation).
 
 ## How to run
 
 `predict.py` (ESPnet + torch) fills the per-frame probability cache; `submit.py`
 derives the submission artifacts from that cache with no model re-run.
+
+**Quick reproduce.** `run.sh` shards `predict.py` over all visible GPUs → cache →
+`submit.py` probs → `eval.sweep` operating point (highest recall at fp ≤ 0.1, swept
+over score-quantile candidates) → `predictions-{split}.json` + `eval.check`. TF32 on by default (`TT_TF32=1`,
+~2.3× on H100; `TT_TF32=0` for bit-exact fp32). Runs the model twice per
+conversation (one pass per channel):
+
+```bash
+PYTHON=/path/to/espnet-venv/bin/python \
+ESPNET_TT_EXP=/abs/.../asr_train_asr_whisper_turn_taking_raw_en_word \
+  bash baselines/espnet_turntaking_perchannel/run.sh dev    # → probs-*.json + predictions-dev.json
+  bash baselines/espnet_turntaking_perchannel/run.sh test   # → predictions-test.json (dev op)
+```
+
+Or the equivalent manual steps that `run.sh` wraps:
 
 ```bash
 # --- 1) per-frame probabilities (model side; your espnet env) ---
@@ -74,13 +87,13 @@ python -m baselines.espnet_turntaking_perchannel.predict \
 # --- 2) dev probs → operating point (rule 2: highest recall at fp_rate ≤ 0.1) ---
 python -m baselines.espnet_turntaking_perchannel.submit probs --task eot --out baselines/espnet_turntaking_perchannel/probs-eot.json
 python -m baselines.espnet_turntaking_perchannel.submit probs --task int --out baselines/espnet_turntaking_perchannel/probs-int.json
-uv run python -m eval.sweep baselines/espnet_turntaking_perchannel/probs-eot.json   # → θ_eot (0.35)
-uv run python -m eval.sweep baselines/espnet_turntaking_perchannel/probs-int.json   # → θ_int (0.25)
+uv run python -m eval.sweep baselines/espnet_turntaking_perchannel/probs-eot.json   # → θ_eot (≈0.309)
+uv run python -m eval.sweep baselines/espnet_turntaking_perchannel/probs-int.json   # → θ_int (≈0.217)
 
 # --- 3) committed predictions at (θ_eot, θ_int) ---
-python -m baselines.espnet_turntaking_perchannel.submit predictions --split dev  --theta-eot 0.35 --theta-int 0.25 \
+python -m baselines.espnet_turntaking_perchannel.submit predictions --split dev  --theta-eot 0.3091361972333867 --theta-int 0.21735300794389617 \
     --out baselines/espnet_turntaking_perchannel/predictions-dev.json
-python -m baselines.espnet_turntaking_perchannel.submit predictions --split test --theta-eot 0.35 --theta-int 0.25 \
+python -m baselines.espnet_turntaking_perchannel.submit predictions --split test --theta-eot 0.3091361972333867 --theta-int 0.21735300794389617 \
     --out baselines/espnet_turntaking_perchannel/predictions-test.json
 
 # --- 4) validate every committed file (only way to check the test file) ---
@@ -111,7 +124,7 @@ committed per-frame probabilities **bit-for-bit**.
 - `submit.py` — derives the submission artifacts from the cache (probs + predictions).
 - `requirements.txt` — model-side deps (scorer deps come from the repo `eval` extra).
 - `probs-eot.json` / `probs-int.json` — per-frame dev probabilities for the central sweep.
-- `predictions-dev.json` / `predictions-test.json` — committed events at θ_eot=0.35 / θ_int=0.25.
+- `predictions-dev.json` / `predictions-test.json` — committed events at the swept operating point (θ_eot ≈ 0.309, θ_int ≈ 0.217).
 - `run_dev_sharded.sbatch` / `run_test_sharded.sbatch` — sharded inference jobs
   used to produce the caches.
 

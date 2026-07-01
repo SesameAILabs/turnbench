@@ -144,8 +144,43 @@ def validate_probs(probs: ProbsFile, duration_s_by_id: dict[str, float]) -> None
 
 # ---- sweep + scoring (the dev threshold-sweep behind the paper figure) -------
 
-DEFAULT_GRID = [round(0.05 + 0.05 * i, 2) for i in range(19)]  # 0.05 .. 0.95
+# Candidate thresholds are the QUANTILES of the model's own pooled score
+# distribution, not a fixed uniform grid. A uniform grid implicitly assumes every
+# model's scores span [0, 1] with comparable density; in practice score scales
+# differ wildly (a weighted composite may concentrate all mass in [0, 0.05], a
+# calibrated head near 1.0), so any fixed step size both wastes candidates where
+# the distribution is empty and misses the fp-budget boundary where it is dense.
+# Quantile candidates are scale-invariant: they place resolution exactly where the
+# score mass is, and committed events only change when theta crosses an attained
+# score value, so the quantiles of attained values sample every distinct outcome.
+N_CANDIDATES = 512
 REFRACTORY_S = 2.0  # matches the baselines' own commit refractory (e.g. espnet)
+
+
+def candidate_thetas(probs: ProbsFile, n: int = N_CANDIDATES) -> list[float]:
+    """Candidate thresholds: `n` quantiles of the file's pooled per-frame scores
+    (all conversations, both speakers, zeros excluded — a threshold below every
+    attained value adds no distinct outcome), UNIONED with a uniform 0.01 grid.
+
+    The quantiles adapt resolution to wherever the score mass lives (a compressed
+    score gets fine steps near 0, a calibrated head near 1); the uniform grid is
+    the safety net for the opposite failure — an operating point sitting in a
+    thin tail of the distribution, where quantile candidates go sparse.
+    Deduplicated and ascending."""
+    import numpy as np
+
+    grid = np.array([round(0.01 * i, 2) for i in range(1, 100)])
+    pooled = np.concatenate([
+        np.asarray(speaker.prob, dtype=np.float64)
+        for entry in probs.probs
+        for speaker in (entry.speaker_1, entry.speaker_2)
+    ])
+    pooled = pooled[pooled > 0.0]
+    if pooled.size == 0:
+        return [float(t) for t in grid]  # degenerate all-zero probs: grid only
+    levels = np.linspace(0.0, 1.0, n)
+    thetas = np.unique(np.concatenate([np.quantile(pooled, levels), grid]))
+    return [float(t) for t in thetas]
 
 
 def commit_events(
@@ -154,17 +189,26 @@ def commit_events(
     """The standard, central commit rule applied to every model's probs: emit one
     event at each rising edge where the probability crosses above `theta` (deduped
     by a refractory), timestamped at the frame's end. As theta rises the crossing
-    moves later, so latency rises and spurious fires drop."""
+    moves later, so latency rises and spurious fires drop.
+
+    Vectorized rising-edge detection (the sweep calls this per theta per speaker);
+    the refractory pass stays a loop over the handful of edges. A rising edge
+    suppressed by the refractory does NOT extend it — only committed events do."""
+    import numpy as np
+
     refractory_frames = max(1, round(refractory_s * frame_rate_hz))
+    p = np.asarray(probs, dtype=np.float64)
+    if p.size == 0:
+        return []
+    above = p > theta
+    rising = np.flatnonzero(above & ~np.concatenate(([False], above[:-1])))
     times: list[float] = []
-    above_prev = False
     last = None
-    for i, prob in enumerate(probs):
-        above = prob > theta
-        if above and not above_prev and (last is None or i - last >= refractory_frames):
+    for edge in rising:
+        i = int(edge)
+        if last is None or i - last >= refractory_frames:
             times.append((i + 1) / frame_rate_hz)
             last = i
-        above_prev = above
     return times
 
 
@@ -182,25 +226,34 @@ class SweepRow:
     fn: int
 
 
-def sweep(probs: ProbsFile, dataset, thetas: list[float] = DEFAULT_GRID, *, refractory_s: float = REFRACTORY_S):
+def sweep(probs: ProbsFile, dataset, thetas: list[float] | None = None, *, refractory_s: float = REFRACTORY_S):
     """Score `probs` at each threshold against dev gold → one SweepRow per theta.
+    `thetas` defaults to the file's own score quantiles (`candidate_thetas`).
     Gold is built once per conversation and reused across thresholds."""
+    import numpy as np
+
     from eval.data import conversation
     from eval.gold import events_for_conversation
     from eval.score import TaskScore, merge, score_task
 
+    if thetas is None:
+        thetas = candidate_thetas(probs)
     fps = probs.frame_rate_hz
     cached = [
-        (entry, events_for_conversation(conversation(dataset, entry.conversation_id)))
+        (
+            np.asarray(entry.speaker_1.prob, dtype=np.float64),  # converted once, not per theta
+            np.asarray(entry.speaker_2.prob, dtype=np.float64),
+            events_for_conversation(conversation(dataset, entry.conversation_id)),
+        )
         for entry in probs.probs
     ]
     rows: list[SweepRow] = []
     for theta in thetas:
         task, backchannel = TaskScore(), TaskScore()
-        for entry, gold in cached:
+        for prob_1, prob_2, gold in cached:
             events = {
-                1: commit_events(entry.speaker_1.prob, fps, theta, refractory_s=refractory_s),
-                2: commit_events(entry.speaker_2.prob, fps, theta, refractory_s=refractory_s),
+                1: commit_events(prob_1, fps, theta, refractory_s=refractory_s),
+                2: commit_events(prob_2, fps, theta, refractory_s=refractory_s),
             }
             if probs.task == "eot":
                 positives, negatives, excluded = (
@@ -266,9 +319,11 @@ def main(
 
     console = Console()
     table = Table(
-        title=f"{probs_path} — {probs.task.upper()} dev threshold sweep",
+        title=f"{probs_path} — {probs.task.upper()} dev threshold sweep "
+              f"({len(rows)} score-quantile candidates)",
         title_justify="left",
-        caption=f"● operating point = highest recall at fp_rate ≤ {fp_budget}",
+        caption=f"● operating point = highest recall at fp_rate ≤ {fp_budget}; "
+                f"table subsampled for display, op chosen over all candidates",
         caption_justify="left",
     )
     table.add_column("θ", justify="right")
@@ -276,10 +331,15 @@ def main(
     table.add_column("fp_rate", justify="right")
     table.add_column("lat ms p10/50/90", justify="right")
     table.add_column("", justify="left")
-    for row in rows:
+    # ~20 evenly-spaced rows keep the table readable; the op row is always shown.
+    step = max(1, len(rows) // 20)
+    shown = {i for i in range(0, len(rows), step)} | {len(rows) - 1}
+    for i, row in enumerate(rows):
         is_op = op is not None and row is op
+        if i not in shown and not is_op:
+            continue
         table.add_row(
-            f"{row.theta:.2f}",
+            f"{row.theta:.4f}",
             rate(row.recall),
             rate(row.fp_rate),
             format_latency(row),
@@ -290,7 +350,7 @@ def main(
 
     if op is not None:
         console.print(
-            f"[bold green]operating point: θ={op.theta:.2f}  recall={op.recall:.3f}  "
+            f"[bold green]operating point: θ={op.theta:.4f}  recall={op.recall:.3f}  "
             f"fp_rate={op.fp_rate:.3f} ≤ {fp_budget}  lat_p50={op.lat_p50:.0f}ms[/]"
         )
     else:

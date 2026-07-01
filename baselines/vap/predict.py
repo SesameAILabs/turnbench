@@ -205,6 +205,7 @@ def main(
     threshold_eot: float | None = None,
     threshold_int: float | None = None,
     probs_only: bool = False,
+    probs_out_dir: Path | None = None,
 ) -> None:
     pfx = "" if run_name == "oto" else f"{run_name}-"
     is_dev = (dataset_source == DEV_DATASET)
@@ -232,11 +233,14 @@ def main(
             bar.set_postfix(id=conv_id, rt=f"{rt:.1f}x")
             conv_scores.append((conv_id, p1, p2, duration_s))
 
-    # Write probs files (dev only, or --probs-only)
+    # Write probs files (dev only, or --probs-only). --probs-out-dir redirects the
+    # output (e.g. emitting TEST probs without clobbering the committed dev files).
     if is_dev or probs_only:
+        probs_dir = probs_out_dir if probs_out_dir is not None else _HERE
+        probs_dir.mkdir(parents=True, exist_ok=True)
         for task in ("eot", "int"):
             pf = _build_probs_file(conv_scores, task)
-            path = _HERE / f"{pfx}probs-{task}.json"
+            path = probs_dir / f"{pfx}probs-{task}.json"
             path.write_text(pf.model_dump_json(indent=2))
             print(f"Wrote {path}", flush=True)
 
@@ -281,6 +285,7 @@ if __name__ == "__main__":
     parser.add_argument("--threshold-eot",  type=float, default=None)
     parser.add_argument("--threshold-int",  type=float, default=None)
     parser.add_argument("--probs-only",     action="store_true")
+    parser.add_argument("--probs-out-dir",  type=Path, default=None)
     args = parser.parse_args()
     main(
         run_name=args.run_name,
@@ -290,4 +295,5 @@ if __name__ == "__main__":
         threshold_eot=args.threshold_eot,
         threshold_int=args.threshold_int,
         probs_only=args.probs_only,
+        probs_out_dir=args.probs_out_dir,
     )

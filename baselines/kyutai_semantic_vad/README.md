@@ -22,9 +22,9 @@ bash baselines/kyutai_semantic_vad/run.sh --dev    # dev probs + predictions onl
 bash baselines/kyutai_semantic_vad/run.sh --test   # sweep existing probs → test predictions
 ```
 
-## Results (dev, pretrained)
+## Results (pretrained, swept operating point @ fp ≤ 0.1)
 
-| Task | θ | Recall | FP-rate | Latency p10 | Latency p50 | Latency p90 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| EOT | 0.85 | 0.793 | 0.094 | 253 ms | 1194 ms | 1790 ms |
-| INT | 0.65 | 0.862 | 0.345 | 237 ms | 387 ms | 1107 ms |
+| Task | θ | dev recall/fp | test recall/fp |
+| --- | ---: | ---: | ---: |
+| EOT | 0.8125 | 0.803 / 0.100 | 0.773 / 0.059 |
+| INT | 0.9734 | 0.934 / 0.085 | 0.898 / 0.081 |

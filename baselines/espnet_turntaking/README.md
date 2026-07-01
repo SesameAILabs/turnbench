@@ -46,30 +46,49 @@ by `eval.sweep` (highest recall at `fp_rate ≤ 0.1`) — see below.
 ## Results (dev, official operating point — highest recall at `fp_rate ≤ 0.1`)
 
 Operating point chosen centrally by `eval.sweep` (rule 2 in
-[`../README.md`](../README.md)): **θ_eot = 0.20**, **θ_int = 0.20**, committed with
-the standard single-threshold rising-edge rule (2 s refractory).
+[`../README.md`](../README.md)): **θ_eot ≈ 0.000718**, **θ_int = 0.20**, committed
+with the standard single-threshold rising-edge rule (2 s refractory). The tiny
+θ_eot is expected, not a bug: the EOT score is `P_T × energy-hold` — a
+probability *attenuated* by an energy weight, concentrating its mass in
+[0, 0.05] (median 0.003) — so its operating point sits at the ~36th percentile
+of its own score distribution. `eval.sweep`'s quantile candidates find it; no
+fixed uniform grid can.
 
-| task | recall | fp_rate | latency p10/p50/p90 |
+| task | split | recall | fp_rate |
 | --- | --- | --- | --- |
-| EOT | 0.347 | 0.094 | −150 / 51 / 2339 ms |
-| INT | 0.637 | 0.091 | 77 / 227 / 1426 ms |
+| EOT | dev | 0.836 | 0.074 |
+| EOT | test | 0.826 | 0.078 |
+| INT | dev | 0.637 | 0.091 |
+| INT | test | 0.573 | 0.080 |
 
 Reference `rms_vad` (energy VAD) on the same gold: EOT 0.595 / **0.547** /
-−98 ms, INT 0.994 / **0.390** / 137 ms. The energy baseline fires on every
-silence — high recall, high false-positive rate. This model occupies the
-opposite corner: **~3× lower fp_rate** at near-zero EOT latency, trading recall
-for precision (the regime that wins when ranking gates on a false-positive
-budget). The full threshold→(recall, fp_rate, latency) curve is reproducible by
-sweeping `probs-eot.json` with `eval.sweep`; a lower θ buys recall at higher
-fp_rate. EOT recall is capped by the `P_T`-only mapping (it can't fire on
-turn-ends not followed by an immediate handoff); folding in `P_NA` raises EOT
-recall at higher fp_rate.
+−98 ms, INT 0.994 / **0.390** / 137 ms — high recall bought with an fp_rate
+far over the budget. This model reaches higher EOT recall *inside* the budget.
+The full threshold→(recall, fp_rate, latency) curve is reproducible by sweeping
+`probs-eot.json` with `eval.sweep`.
 
 ## How to run
 
 `predict.py` (ESPnet + torch) produces the per-frame probability cache; `submit.py`
 derives the submission artifacts from that cache with no model re-run; the scorer
 runs in the repo's uv env. All share the HF dataset cache.
+
+**Quick reproduce.** `run.sh` shards `predict.py` over all visible GPUs → cache →
+`submit.py` probs → `eval.sweep` operating point (highest recall at fp ≤ 0.1, swept
+over score-quantile candidates) → `predictions-{split}.json`, then `eval.check`.
+TF32 is on by default
+(`TT_TF32=1`, ~2.3× on H100 tensor cores at ~5e-3 prob delta; set `TT_TF32=0` for
+bit-exact fp32):
+
+```bash
+PYTHON=/path/to/espnet-venv/bin/python \
+ESPNET_TT_EXP=/abs/.../asr_train_asr_whisper_turn_taking_raw_en_word \
+  bash baselines/espnet_turntaking/run.sh dev    # → probs-*.json + predictions-dev.json
+# then the test submission, committed at the same dev operating point:
+  bash baselines/espnet_turntaking/run.sh test   # → predictions-test.json
+```
+
+Or the equivalent manual steps that `run.sh` wraps:
 
 ```bash
 # --- 1) per-frame probabilities (model side; your espnet env) ---
@@ -82,13 +101,13 @@ python -m baselines.espnet_turntaking.predict \
 # --- 2) dev probs → operating point (rule 2: highest recall at fp_rate ≤ 0.1) ---
 python -m baselines.espnet_turntaking.submit probs --task eot --out baselines/espnet_turntaking/probs-eot.json
 python -m baselines.espnet_turntaking.submit probs --task int --out baselines/espnet_turntaking/probs-int.json
-uv run python -m eval.sweep baselines/espnet_turntaking/probs-eot.json   # → θ_eot (0.20)
+uv run python -m eval.sweep baselines/espnet_turntaking/probs-eot.json   # → θ_eot (≈0.000718)
 uv run python -m eval.sweep baselines/espnet_turntaking/probs-int.json   # → θ_int (0.20)
 
 # --- 3) committed predictions at (θ_eot, θ_int) ---
-python -m baselines.espnet_turntaking.submit predictions --split dev  --theta-eot 0.20 --theta-int 0.20 \
+python -m baselines.espnet_turntaking.submit predictions --split dev  --theta-eot 0.0007176333522367602 --theta-int 0.20 \
     --out baselines/espnet_turntaking/predictions-dev.json
-python -m baselines.espnet_turntaking.submit predictions --split test --theta-eot 0.20 --theta-int 0.20 \
+python -m baselines.espnet_turntaking.submit predictions --split test --theta-eot 0.0007176333522367602 --theta-int 0.20 \
     --cache-dir predictions/espnet_turntaking_test/cache --out baselines/espnet_turntaking/predictions-test.json
 
 # --- 4) validate every committed file (only way to check the test file) ---
@@ -120,7 +139,7 @@ committed `predictions-dev.json` **bit-for-bit**.
 - `submit.py` — derives the submission artifacts from the cache (probs + predictions).
 - `requirements.txt` — model-side deps (scorer deps come from the repo `eval` extra).
 - `probs-eot.json` / `probs-int.json` — per-frame dev probabilities for the central sweep.
-- `predictions-dev.json` / `predictions-test.json` — committed events at θ_eot=0.20 / θ_int=0.20.
+- `predictions-dev.json` / `predictions-test.json` — committed events at the swept operating point (θ_eot ≈ 0.000718, θ_int = 0.20).
 
 ## Notes
 

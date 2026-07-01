@@ -216,6 +216,7 @@ def main(
     threshold_int: float | None = None,
     fast: bool = True,
     probs_only: bool = False,
+    probs_out_dir: Path | None = None,
 ) -> None:
     is_dev = (dataset_source == DEV_DATASET)
     split  = "dev" if is_dev else "test"
@@ -246,10 +247,13 @@ def main(
     # probs filenames: no prefix for "oto_d1f" (main submission), "{run_name}-" for others
     _pfx = "" if run_name == "oto_d1f" else f"{run_name}-"
 
-    # ── probs-only: write probs files, then exit ─────────────────────────────
+    # ── probs-only: write probs files, then exit. --probs-out-dir redirects the
+    # output (e.g. emitting TEST probs without clobbering the committed dev files).
     if probs_only:
-        _write_probs(conv_probs, _HERE / f"{_pfx}probs-eot.json", "eot")
-        _write_probs(conv_probs, _HERE / f"{_pfx}probs-int.json", "int")
+        probs_dir = probs_out_dir if probs_out_dir is not None else _HERE
+        probs_dir.mkdir(parents=True, exist_ok=True)
+        _write_probs(conv_probs, probs_dir / f"{_pfx}probs-eot.json", "eot")
+        _write_probs(conv_probs, probs_dir / f"{_pfx}probs-int.json", "int")
         return
 
     # ── submission mode ──────────────────────────────────────────────────────
@@ -332,6 +336,8 @@ if __name__ == "__main__":
                         help="use streaming AR inference instead of fast full-sequence")
     parser.add_argument("--probs-only",    action="store_true",
                         help="write probs-eot.json + probs-int.json only; no predictions")
+    parser.add_argument("--probs-out-dir", type=Path, default=None,
+                        help="directory for --probs-only output (default: this baseline dir)")
     args = parser.parse_args()
     main(
         run_name=args.run_name,
@@ -342,4 +348,5 @@ if __name__ == "__main__":
         threshold_int=args.threshold_int,
         fast=not args.no_fast,
         probs_only=args.probs_only,
+        probs_out_dir=args.probs_out_dir,
     )

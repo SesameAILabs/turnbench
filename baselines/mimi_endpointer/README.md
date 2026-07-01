@@ -34,9 +34,9 @@ bash baselines/mimi_endpointer/run.sh --dev --swbd-oto
 bash baselines/mimi_endpointer/run.sh --dev          # pretrained (prefixed outputs)
 ```
 
-## Results (dev, oto_d1f, eot_thr=0.90, int_thr=0.95)
+## Results (oto_d1f, swept operating point @ fp ≤ 0.1)
 
-| Task | Recall | FP-rate | Latency p10 | Latency p50 | Latency p90 |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| EOT | 0.758 | 0.050 | 63 | 656 | 1774 |
-| INT | 0.833 | 0.069 | 303 | 907 | 2243 |
+| Task | θ | dev recall/fp | test recall/fp |
+| --- | ---: | ---: | ---: |
+| EOT | 0.92 | 0.759 / 0.047 | 0.782 / 0.078 |
+| INT | 0.9224 | 0.876 / 0.100 | 0.899 / 0.106 |
