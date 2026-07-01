@@ -162,12 +162,19 @@ def resolve_dataset(
 
 
 def _read_gold_columns(source: str, revision: str | None) -> pa.Table:
-    """Read every shard's gold columns from a remote dataset, projected over HTTP
-    range requests (`pre_buffer` coalesces the per-column-chunk reads). Shards are
-    read in parallel, and the tiny result is cached locally per (source, revision)
-    so repeat runs are instant. Caching is skipped when the revision is unpinned,
-    since 'latest' is not a stable cache key."""
-    cache = _gold_cache_path(source, revision) if revision else None
+    return read_columns_projected(source, revision, GOLD_COLUMNS)
+
+
+def read_columns_projected(source: str, revision: str | None, columns: list[str]) -> pa.Table:
+    """Read `columns` from every shard of a remote dataset, projected over HTTP
+    range requests (`pre_buffer` coalesces the per-column-chunk reads) — never
+    downloading the rest of the shard (the audio is ~99.96% of it). Shards are
+    read in parallel, and the tiny result is cached locally per
+    (source, revision, columns) so repeat runs are instant. When `revision` is
+    None the source's pinned revision is used; caching is skipped when no
+    revision is known, since 'latest' is not a stable cache key."""
+    revision = revision or PINNED_REVISIONS.get(source)
+    cache = _projected_cache_path(source, revision, columns) if revision else None
     if cache is not None and cache.exists():
         return pq.read_table(cache)
 
@@ -180,7 +187,7 @@ def _read_gold_columns(source: str, revision: str | None) -> pa.Table:
 
     def read_shard(name: str) -> pa.Table:
         with fs.open(f"datasets/{source}/{name}", "rb", revision=revision) as handle:
-            return pq.ParquetFile(handle, pre_buffer=True).read(columns=GOLD_COLUMNS)
+            return pq.ParquetFile(handle, pre_buffer=True).read(columns=columns)
 
     with ThreadPoolExecutor(max_workers=max(1, len(files))) as pool:
         table = pa.concat_tables(list(pool.map(read_shard, files)))
@@ -191,10 +198,10 @@ def _read_gold_columns(source: str, revision: str | None) -> pa.Table:
     return table
 
 
-def _gold_cache_path(source: str, revision: str) -> Path:
-    """Local cache file for a source's projected gold at a pinned revision. The
-    column set is folded into the name so a change to GOLD_COLUMNS invalidates it."""
-    columns_tag = hashlib.sha1(",".join(GOLD_COLUMNS).encode()).hexdigest()[:8]
+def _projected_cache_path(source: str, revision: str, columns: list[str]) -> Path:
+    """Local cache file for a source's projected columns at a pinned revision. The
+    column set is folded into the name so a change to the columns invalidates it."""
+    columns_tag = hashlib.sha1(",".join(columns).encode()).hexdigest()[:8]
     slug = source.replace("/", "__")
     return _GOLD_CACHE_DIR / f"{slug}@{revision}.{columns_tag}.parquet"
 
