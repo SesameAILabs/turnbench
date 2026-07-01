@@ -35,7 +35,6 @@ Usage:
 """
 from __future__ import annotations
 
-import json
 import sys
 import time
 
@@ -307,21 +306,9 @@ def main(
         int_   = scores.task_int
         elat   = eot.latency()
         ilat   = int_.latency()
-        metrics = {
-            "eot_thr": threshold_eot, "int_thr": threshold_int,
-            "eot_recall":  round(eot.recall, 6),  "eot_fp_rate": round(eot.fp_rate, 6),
-            "eot_lat_p10": round(elat.p10, 3),    "eot_lat_p50": round(elat.p50, 3),  "eot_lat_p90": round(elat.p90, 3),
-            "eot_tp": eot.tp,  "eot_fn": eot.fn,  "eot_fp": eot.fp,  "eot_tn": eot.tn,
-            "int_recall":  round(int_.recall, 6),  "int_fp_rate": round(int_.fp_rate, 6),
-            "int_lat_p50": round(ilat.p50, 3),
-            "int_tp": int_.tp, "int_fn": int_.fn,  "int_fp": int_.fp, "int_tn": int_.tn,
-        }
-        mpath = out.parent / (out.stem + "-metrics.json")
-        mpath.write_text(json.dumps(metrics, indent=2))
         print(
             f"EOT  recall={eot.recall:.3f}  fp_rate={eot.fp_rate:.3f}  p50={elat.p50:.3f}s\n"
-            f"INT  recall={int_.recall:.3f}  fp_rate={int_.fp_rate:.3f}  p50={ilat.p50:.3f}s\n"
-            f"Metrics saved → {mpath}",
+            f"INT  recall={int_.recall:.3f}  fp_rate={int_.fp_rate:.3f}  p50={ilat.p50:.3f}s",
             flush=True,
         )
 
