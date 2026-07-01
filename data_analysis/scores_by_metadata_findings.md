@@ -5,11 +5,11 @@ and speaker-gender pairing. Numbers below are the **test set (116 conversations,
 golden gold)**; reproduce with:
 
 ```bash
-HF_TOKEN=<gold-token> uv run --extra eval python data_analysis/scores_by_metadata.py \
+HF_TOKEN=<gold-token> uv run --extra eval python data_analysis/results_by_conversation_type.py \
     --dataset mundo-ai/turn-benchmark-test-golden
 ```
 
-(Dev, `uv run --extra eval python data_analysis/scores_by_metadata.py`, runs token-free
+(Dev, `uv run --extra eval python data_analysis/results_by_conversation_type.py`, runs token-free
 but is thin at 38 conversations.) Cells are `recall / fp_rate / median-latency-ms`,
 pooling TP/FN/FP/TN within each group. See `per_conversation.py` for the complementary
 *dataset*-characterization stats.
@@ -89,7 +89,7 @@ without overturning the headline.
 
 ## 6. Full results (test set, 116 conversations, 14 baselines)
 
-All numbers below are the raw `scores_by_metadata.py` output on
+All numbers below are the raw `results_by_conversation_type.py` output on
 `mundo-ai/turn-benchmark-test-golden`. By-type cells are `recall / fp_rate` (latency
 dropped — it is ~model-constant across types); by-pairing cells are
 `recall / fp_rate / median-latency-ms`. **fp over the 0.10 budget is in bold.**

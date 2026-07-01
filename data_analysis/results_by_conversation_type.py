@@ -15,11 +15,17 @@ column; it is present even in the public test parquet (labels stripped), so the
 metadata axis needs no gold token — only scoring does.
 
     # dev (public, no token)
-    uv run --extra eval python data_analysis/scores_by_metadata.py
+    uv run --extra eval python data_analysis/results_by_conversation_type.py
 
     # test (gold is private — set HF_TOKEN to the gold-repo token first)
-    uv run --extra eval python data_analysis/scores_by_metadata.py \
+    uv run --extra eval python data_analysis/results_by_conversation_type.py \
         --dataset mundo-ai/turn-benchmark-test-golden
+
+    # the paper's Table IV (tab:by-type): the complete LaTeX table* environment,
+    # regenerated from the committed predictions — paste the output verbatim.
+    # Run on latest main; never hand-edit the numbers.
+    uv run --extra eval python data_analysis/results_by_conversation_type.py \
+        --dataset mundo-ai/turn-benchmark-test-golden --latex
 
 The three-axis regime (acoustic high-recall/high-fp, semantic low/low, learned
 balanced) holds within every type; the interesting movement is in *where* each
@@ -36,6 +42,7 @@ from typing import NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root
 
+import pyarrow as pa  # noqa: E402
 import pyarrow.parquet as pq  # noqa: E402
 from rich import box  # noqa: E402
 from rich.console import Console  # noqa: E402
@@ -46,6 +53,7 @@ from eval.data import (  # noqa: E402
     GOLD_DATASET,
     conversation,
     conversation_ids,
+    read_columns_projected,
     resolve_dataset,
 )
 from eval.gold import events_for_conversation  # noqa: E402
@@ -54,6 +62,28 @@ from eval.submission import load_submission  # noqa: E402
 
 PAIRING = {("female", "female"): "FF", ("male", "male"): "MM"}
 BASELINES_DIR = Path(__file__).resolve().parent.parent / "baselines"
+LEADERBOARD_JSON = Path(__file__).resolve().parent.parent / "results" / "leaderboard-test.json"
+
+# Paper display names for --latex, in table order; None = \midrule group break.
+# Baselines missing from this list are appended (unmapped) at the end so new
+# models are never silently dropped.
+PAPER_ROWS: list[tuple[str, str] | None] = [
+    ("rms_vad", "RMS VAD"),
+    None,
+    ("openai_server_vad", "OpenAI Server VAD"),
+    ("openai_semantic_vad", "OpenAI Semantic VAD"),
+    ("kyutai_semantic_vad", "Kyutai SVAD"),
+    ("smart_turn_v3", "SmartTurn v3"),
+    None,
+    ("vap", "VAP"),
+    ("mimi_endpointer", "Mimi-EP"),
+    ("espnet_turntaking", "ESPnet TT-pred.\\"),
+    ("espnet_turntaking_perchannel", "ESPnet TT-pred.\\ (per-ch.)"),
+    None,
+    ("wavlm_base_causal", "WavLM-Base (causal)"),
+    ("wavlm_large_causal", "WavLM-Large (causal)"),
+    ("wavlm_large_anchor", "WavLM-Large (anchor)"),
+]
 
 
 def metadata_repo(source: str) -> str:
@@ -64,18 +94,24 @@ def metadata_repo(source: str) -> str:
 
 
 def load_metadata(source: str) -> dict[str, dict[str, str]]:
-    """{conversation_id: {"type": ..., "pairing": FF|MM|mixed}} from the parquet."""
-    from baselines.openai_realtime import _shard_files
-
+    """{conversation_id: {"type": ..., "pairing": FF|MM|mixed}} from the parquet.
+    Read column-projected over HTTP range requests — never snapshotting the shards,
+    whose audio would dominate the download and memory."""
+    repo = metadata_repo(source)
+    if Path(repo).is_dir():
+        table = pa.concat_tables([
+            pq.ParquetFile(shard).read(columns=["conversation_id", "metadata"])
+            for shard in sorted(Path(repo).glob("*.parquet"))
+        ])
+    else:
+        table = read_columns_projected(repo, None, ["conversation_id", "metadata"])
     out: dict[str, dict[str, str]] = {}
-    for shard in _shard_files(metadata_repo(source), None):
-        table = pq.ParquetFile(shard).read(columns=["conversation_id", "metadata"])
-        for cid, m in zip(table["conversation_id"].to_pylist(), table["metadata"].to_pylist()):
-            genders = (m["speaker_1_actor_gender"], m["speaker_2_actor_gender"])
-            out[cid] = {
-                "type": m["conversation_type"],
-                "pairing": PAIRING.get(tuple(sorted(genders)), "mixed"),
-            }
+    for cid, m in zip(table["conversation_id"].to_pylist(), table["metadata"].to_pylist()):
+        genders = (m["speaker_1_actor_gender"], m["speaker_2_actor_gender"])
+        out[cid] = {
+            "type": m["conversation_type"],
+            "pairing": PAIRING.get(tuple(sorted(genders)), "mixed"),
+        }
     return out
 
 
@@ -162,15 +198,95 @@ def compute(dataset_source: str, split: str) -> MetadataScores:
     return MetadataScores(ids, types, baselines, density, pooled, n_type)
 
 
+def latex_table(ms: MetadataScores) -> str:
+    """The paper's complete per-conversation-type table (tab:by-type): the full
+    table* environment, one row per baseline in PAPER_ROWS order — per-type
+    `recall/fpr` cells for EOT and INT (leading zeros stripped, 1.00 shown as
+    1.0), then the overall median-latency Δt columns read from
+    results/leaderboard-test.json so the two committed artifacts cannot disagree."""
+    import json
+
+    p50 = {
+        m["model"]: (m["eot"]["latency_ms"]["p50"], m["int"]["latency_ms"]["p50"])
+        for m in json.loads(LEADERBOARD_JSON.read_text())["models"]
+    }
+
+    def num(x: float) -> str:
+        s = f"{x:.2f}"
+        return "1.0" if s == "1.00" else s.lstrip("0")
+
+    def cell(ts: TaskScore) -> str:
+        return f"{num(ts.tp / (ts.tp + ts.fn))}/{num(ts.fp / (ts.fp + ts.tn))}"
+
+    def lat(x: float) -> str:
+        v = round(x)
+        return f"$-${abs(v)}" if v < 0 else str(v)
+
+    mapped = [r[0] for r in PAPER_ROWS if r]
+    rows: list[tuple[str, str] | None] = [
+        r for r in PAPER_ROWS if r is None or r[0] in ms.baselines
+    ] + [(label, label) for label in ms.baselines if label not in mapped]
+
+    width = max(len(name) for row in rows if row for _, name in [row])
+    lines = []
+    for row in rows:
+        if row is None:
+            lines.append("\\midrule")
+            continue
+        label, name = row
+        cells = [
+            cell(ms.pooled[(label, "type", t, task)])
+            for t in ms.types
+            for task in ("EOT", "INT")
+        ]
+        le, li = p50[label]
+        lines.append(f"{name:<{width}} & " + " & ".join(cells) + f" & {lat(le)} & {lat(li)} \\\\")
+
+    n = len(ms.types)
+    type_heads = " & ".join(
+        f"\\multicolumn{{2}}{{c{'|' if i < n - 1 else '|'}}}{{\\ctype{{{t.split('/')[0]}}}}}"
+        for i, t in enumerate(ms.types)
+    )
+    cmidrules = "".join(f"\\cmidrule(lr){{{2 * i + 2}-{2 * i + 3}}}" for i in range(n + 1))
+    return "\n".join([
+        "\\begin{table*}[!tbp]",
+        "\\centering",
+        "\\scriptsize",
+        "\\setlength{\\tabcolsep}{3pt}",
+        "\\renewcommand{\\arraystretch}{1.1}",
+        "\\caption{Per-conversation-type results, per baseline (test set). Per-type sub-columns "
+        "EOT and INT (Interruption) report recall\\,/\\,fpr (leading zeros omitted); the "
+        "\\textsc{Overall} column reports median latency (ms), "
+        "$\\Delta t = t_\\text{pred}-t_\\text{gold}$, for each track. fpr is the false-positive rate.}",
+        "\\label{tab:by-type}",
+        "\\begin{tabular*}{\\textwidth}{@{\\extracolsep{\\fill}}l" + "|cc" * (n + 1) + "@{}}",
+        "\\toprule",
+        f"& {type_heads} & \\multicolumn{{2}}{{c}}{{Overall $\\Delta t$}} \\\\",
+        cmidrules,
+        "Baseline & " + " & ".join(["EOT & INT"] * (n + 1)) + " \\\\",
+        "\\midrule",
+        *lines,
+        "\\bottomrule",
+        "\\end{tabular*}",
+        "\\end{table*}",
+    ])
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--dataset", default=DEV_DATASET, help="gold source (HF repo or local dir)")
     ap.add_argument("--split", default=None, choices=["dev", "test"],
                     help="which predictions-<split>.json to score (default: inferred from --dataset)")
+    ap.add_argument("--latex", action="store_true",
+                    help="print the paper's tab:by-type LaTeX rows instead of the rich tables")
     args = ap.parse_args()
     split = args.split or ("test" if ("test" in args.dataset or "golden" in args.dataset) else "dev")
 
-    ids, types, baselines, density, pooled, n_type = compute(args.dataset, split)
+    scores = compute(args.dataset, split)
+    if args.latex:
+        print(latex_table(scores))
+        return
+    ids, types, baselines, density, pooled, n_type = scores
     console = Console()
     console.rule(
         f"[bold]{args.dataset}[/]  ·  {split}  ·  {len(ids)} conversations  ·  {len(baselines)} baselines"

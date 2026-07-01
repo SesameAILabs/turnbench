@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Model-comparison figures for the by-metadata breakdown (companion to
-scores_by_metadata.py / scores_by_metadata_findings.md).
+results_by_conversation_type.py / scores_by_metadata_findings.md).
 
 Scores every committed baseline against the gold, pools into conversation_type
-and gender-pairing groups (via scores_by_metadata.compute), and renders:
+and gender-pairing groups (via results_by_conversation_type.compute), and renders:
 
     figures/int-fp-by-type.png       models x type heatmap of INT fp_rate
                                      (the §3 finding: fp concentrates in casual talk)
@@ -26,7 +26,7 @@ import matplotlib  # noqa: E402
 import numpy as np  # noqa: E402
 
 from eval.data import DEV_DATASET  # noqa: E402
-from scores_by_metadata import compute  # noqa: E402
+from results_by_conversation_type import compute  # noqa: E402
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
