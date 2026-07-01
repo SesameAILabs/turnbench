@@ -73,7 +73,7 @@ def plot_single(rows: list[SweepRow], task: str, out: Path, *, fp_budget: float,
 
     if op is not None:
         axL.axvline(op.theta, ls="--", lw=1.2, color="#888")
-        axL.text(op.theta - 0.015, axL.get_ylim()[1] * 0.4, f"op θ={op.theta:.2f}", color="#555", fontsize=9, va="center", ha="right")
+        axR.text(op.theta - 0.015, 0.6, f"op θ={op.theta:.2f}", color="#555", fontsize=9, va="center", ha="right")
 
     if criterion_arrows:  # low θ fires on weak evidence (eager); high θ requires strong evidence
         axL.text(0.0, -0.19, "← more eager", transform=axL.transAxes, ha="left", va="top",
