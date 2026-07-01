@@ -52,6 +52,20 @@ The conversations that trip up interruption detection are **backchannel-heavy ca
 (all those "uh-huh"s misfiring as floor-taking) — *not* the argument-heavy ones, despite
 arguments carrying 2× the real interruptions. Mildly counterintuitive; worth highlighting.
 
+INT false-positive rate by type (bar = fp, scale 0→0.60; `openai_server_vad`):
+
+```
+Casual         ██████████████████████████████████████████████████████  0.54
+Task-Oriented  ██████████████████████████████████████████████████████  0.54
+Narrative      █████████████████████████████████████████████           0.45
+Instructional  ███████████████████████████████████████████             0.43
+Collaborative  ███████████████████████████████████████                 0.39
+Argumentative  ██████████████████████████████████████                  0.38
+```
+
+Same U-shape holds for `rms_vad` (Casual 0.52 / Task 0.55, Argumentative 0.39) — the peak is
+where the small talk is, the trough is where the real interruptions are.
+
 ## 4. Candidate gender effect on interruption detection (needs confirmation)
 Several **independent** models detect interruptions worse on **female–female** pairs — lower
 recall and/or higher fp — with **no comparable gap on EOT**:
