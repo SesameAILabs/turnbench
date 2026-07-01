@@ -39,14 +39,15 @@ def _latency_masked(rows: list[SweepRow], recall_floor: float) -> list[float]:
     return [r.lat_p50 if r.recall >= recall_floor else float("nan") for r in rows]
 
 
-def plot_single(rows: list[SweepRow], task: str, out: Path, *, fp_budget: float, recall_floor: float) -> None:
+def plot_single(rows: list[SweepRow], task: str, out: Path, *, fp_budget: float, recall_floor: float, theta_max: float = 1.0) -> None:
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     plt.rcParams.update({"font.family": "serif", "font.size": 12})
+    op = operating_point(rows, fp_budget=fp_budget)  # picked on the full sweep
+    rows = [r for r in rows if r.theta <= theta_max]  # zoom x to the live region
     theta = [r.theta for r in rows]
-    op = operating_point(rows, fp_budget=fp_budget)
 
     fig, axL = plt.subplots(figsize=(7.2, 5.0))
     fig.patch.set_facecolor("white")
@@ -54,7 +55,7 @@ def plot_single(rows: list[SweepRow], task: str, out: Path, *, fp_budget: float,
     line_lat, = axL.plot(theta, _latency_masked(rows, recall_floor), "o-", color=OLIVE, lw=2, ms=5, label=f"{task} latency")
     axL.set_xlabel("Decision threshold")
     axL.set_ylabel(f"{task} median latency (ms)")
-    axL.set_xlim(0.0, 1.0)
+    axL.set_xlim(0.0, theta_max)
     axL.tick_params(axis="y", colors=OLIVE)
     axL.yaxis.label.set_color(OLIVE)
 
@@ -80,12 +81,14 @@ def main() -> None:
     ap.add_argument("--out", type=Path, required=True, help="output image path")
     ap.add_argument("--fp-budget", type=float, default=0.1, help="operating-point false-positive budget")
     ap.add_argument("--recall-floor", type=float, default=0.05, help="hide latency below this recall")
+    ap.add_argument("--theta-max", type=float, default=1.0, help="zoom the x-axis to [0, theta-max] (drop the dead tail)")
     args = ap.parse_args()
 
     dataset = resolve_dataset(source=DEV_DATASET, skip_audio=True)  # gold, loaded once and reused
     probs = load_probs(args.probs)
     rows = sweep(probs, dataset)
-    plot_single(rows, probs.task.upper(), args.out, fp_budget=args.fp_budget, recall_floor=args.recall_floor)
+    plot_single(rows, probs.task.upper(), args.out, fp_budget=args.fp_budget,
+                recall_floor=args.recall_floor, theta_max=args.theta_max)
 
 
 if __name__ == "__main__":
