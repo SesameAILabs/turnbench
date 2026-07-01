@@ -21,139 +21,97 @@ interruption_speaker_K = commit(P_I on speaker_K_audio)   # K interrupting
 ```
 
 No mix, no energy attribution: the per-channel run *is* the per-speaker signal.
-Per-frame scores are committed to event times with an online hysteresis +
-refractory detector (`_commit`); each time depends only on audio up to that
-frame.
+Each channel's per-frame `P_T` (EOT) / `P_I` (interruption) is the continuous
+score; the committed submission (`submit.py`) thresholds it with the central
+single-threshold rising-edge rule (2 s refractory), per `eval.sweep`.
 
-## Results (dev, official `eval.score`, 3 s scoring window) — head-to-head vs. the mix baseline
+## Submission (dev operating point — highest recall at `fp_rate ≤ 0.1`)
 
-Same model, same dev set; only the inference strategy differs.
+Operating point chosen centrally by `eval.sweep` (rule 2 in
+[`../README.md`](../README.md)): **θ_eot = 0.35**, **θ_int = 0.25**. Reproduce via
+[How to run](#how-to-run).
 
-| Track | Strategy | recall | fp_rate | latency p10/p50/p90 (ms) |
-| --- | --- | --- | --- | --- |
-| **EOT** | mix + attribution (`espnet_turntaking`) | 0.461 | 0.183 | −160 / 52 / 2391 |
-| **EOT** | **individual-channel (this)** | **0.733** | 0.208 | −32 / 499 / 1911 |
-| **INT** | mix + attribution (`espnet_turntaking`) | 0.772 | **0.159** | 74 / 200 / 1197 |
-| **INT** | **individual-channel (this)** | **0.795** | 0.217 | 69 / 756 / 2150 |
-
-Operating point: EOT `tau_high=0.20`, INT `tau_high=0.15`, refractory 2.0 s
-(tuned on dev with `--sweep`; override via `PC_*` env vars).
-
-### Observations
-
-1. **End-of-turn: individual-channel is much better** (recall 0.73 vs 0.46). EOT
-   is largely a *single-speaker* event ("this speaker stopped"), which an
-   isolated channel captures cleanly.
-2. **Interruption: the mix is preferable** (fp 0.16 vs 0.22 and far lower
-   latency; recall is close, 0.77 vs 0.80). Interruption is genuinely
-   *relational* — it needs the other speaker present — and the model was trained
-   on the mix, so an isolated channel defines it less cleanly (more false
-   positives, later commits).
-3. **Costs:** much higher latency (EOT p50 499 ms vs 52 ms; the mix fires
-   early/speculatively) and 2× the inference compute (two passes per
-   conversation).
-4. **Takeaway:** the best choice is *per-track*. A hybrid — individual-channel
-   EOT + mix interruption — would likely beat either alone.
-
-A full threshold sweep (`--sweep`) confirms the trend is stable across operating
-points (EOT recall 0.61–0.73 at fp 0.10–0.21; INT peaks ~0.63 at fp ~0.12).
-
-## In-domain training × per-channel inference (dev)
-
-The head-to-head above uses the published `espnet/Turn_taking_prediction_SWBD`
-model (Switchboard-only — out-of-domain for this benchmark). The same two
-inference strategies were also run on two **in-domain** variants of the same
-architecture, trained with the recipe in
-[`../espnet_turntaking/training`](../espnet_turntaking/training): **TURN**
-(trained on the TURN corpus) and **MIX** (TURN + Switchboard pooled). All cells
-are `recall / fp_rate`, same operating point, latest `eval.score` (3 s window).
-
-| Model (mix-trained) | EOT, mix-inf | EOT, per-channel | INT, mix-inf | INT, per-channel |
-| --- | --- | --- | --- | --- |
-| SWBD-OOD (published, OOD) | 0.458 / 0.188 | 0.733 / 0.208 | 0.775 / 0.158 | 0.795 / 0.217 |
-| TURN (in-domain) | 0.416 / 0.086 | **0.728 / 0.073** | 0.821 / 0.172 | **0.867 / 0.114** |
-| MIX (TURN + SWBD) | 0.424 / 0.117 | 0.703 / 0.119 | 0.746 / 0.116 | 0.663 / **0.074** |
-
-- **Per-channel inference raises EOT recall for every model** (~0.42 → 0.70+) —
-  the same effect seen on the OOD model, now confirmed for the in-domain ones.
-- **In-domain training compounds with it:** TURN per-channel is the strongest
-  cell overall — EOT recall 0.728 at fp **0.073** and INT recall 0.867 at fp
-  0.114, i.e. it *gains* recall while roughly thirding the OOD model's
-  per-channel EOT fp_rate.
-- **MIX is the conservative corner:** the lowest interruption fp_rate (0.074)
-  of any cell, but it trades away INT recall (0.663) under per-channel inference.
-
-(MIX was trained with half the effective global batch, so it is mildly
-under-trained relative to TURN.)
-
-## Decision-threshold trade-off (dev)
-
-`plot_pareto_dev.py` sweeps a single decision threshold θ over the cached
-probabilities and plots the two opposing objectives — **EOT median latency** and
-**false-interruption rate** — on a dual axis (`pareto_sweep_dev.png`). They move
-in opposite directions as θ rises: no single threshold optimizes both, so the
-committed per-track operating points (EOT 0.20, INT 0.15) are a Pareto choice
-along this curve. The EOT-latency line is masked where EOT recall drops below 5%
-(its median is then over too few detections to be meaningful).
-
-```bash
-python -m baselines.espnet_turntaking_perchannel.plot_pareto_dev \
-    --out baselines/espnet_turntaking_perchannel/pareto_sweep_dev.png
-```
-
-## Threshold sweep (dev)
-
-`plot_threshold_sweep.py` sweeps the commit threshold τ ∈ {0.1, …, 1.0} over the
-cached probabilities (each track swept independently; `tau_low = 0.4·τ`,
-refractory 2 s) and scores every operating point with the official `eval.score`.
-Outputs `threshold_sweep_dev.png` (recall / fp_rate / precision / F1 / latency
-vs τ, plus recall-vs-fp operating curves) and `threshold_sweep_dev.csv`.
-
-```bash
-python -m baselines.espnet_turntaking_perchannel.plot_threshold_sweep \
-    --out baselines/espnet_turntaking_perchannel/threshold_sweep_dev.png \
-    --csv baselines/espnet_turntaking_perchannel/threshold_sweep_dev.csv
-```
-
-| | best F1 | recall @ best-F1 | precision @ best-F1 |
+| task | recall | fp_rate | latency p10/p50/p90 |
 | --- | --- | --- | --- |
-| EOT | 0.793 @ τ=0.2 | 0.733 | 0.863 |
-| INT | 0.436 @ τ=0.2 | 0.634 | 0.332 |
+| EOT | 0.550 | 0.080 | 97 / 914 / 2281 ms |
+| INT | 0.470 | 0.074 | 169 / 1233 / 2511 ms |
 
-EOT precision stays high (0.76→0.94 as τ rises) — the single-speaker end-of-turn
-signal is clean; interruption precision never exceeds ~0.38 — relational, hence
-out-of-distribution on an isolated channel. The committed operating point
-(EOT τ=0.20, INT τ=0.15) sits at the EOT F1 knee.
+## Mix vs. individual-channel (each at its `fp_rate ≤ 0.1` operating point)
+
+Same model, same dev set; only the inference strategy differs. Each baseline is
+scored at its own committed operating point (`recall / fp_rate`):
+
+| task | mix + attribution (`espnet_turntaking`) | individual-channel (this) |
+| --- | --- | --- |
+| EOT | 0.347 / 0.094 | **0.550 / 0.080** |
+| INT | **0.637 / 0.091** | 0.470 / 0.074 |
+
+The better strategy is per-track:
+
+- **End-of-turn favours individual-channel** (recall 0.55 vs 0.35). EOT is
+  largely a *single-speaker* event ("this speaker stopped"), which an isolated
+  channel captures cleanly.
+- **Interruption favours the mix** (recall 0.64 vs 0.47). Interruption is
+  *relational* — it needs the other speaker present — and the model was trained
+  on the mix, so an isolated channel is out-of-distribution for it.
+- **Cost:** individual-channel is 2× the inference compute (two passes per
+  conversation) and commits later. A hybrid — individual-channel EOT + mix
+  interruption — would likely beat either alone.
 
 ## How to run
 
+`predict.py` (ESPnet + torch) fills the per-frame probability cache; `submit.py`
+derives the submission artifacts from that cache with no model re-run.
+
 ```bash
-# model side (your espnet env)
+# --- 1) per-frame probabilities (model side; your espnet env) ---
 export ESPNET_TT_EXP=/abs/path/to/exp/asr_train_asr_whisper_turn_taking_raw_en_word
 pip install -r baselines/espnet_turntaking_perchannel/requirements.txt   # + espnet2 importable
 python -m baselines.espnet_turntaking_perchannel.predict \
-    --out baselines/espnet_turntaking_perchannel/predictions-dev.json
+    --out baselines/espnet_turntaking_perchannel/predictions-dev.json    # fills predictions/espnet_turntaking_perchannel/cache
+#   for test: --dataset <test repo> --shard i --num-shards n  (2× per conversation; same cache dir)
 
-# score (official; uv env)
-uv run python -m eval.score baselines/espnet_turntaking_perchannel/predictions-dev.json
+# --- 2) dev probs → operating point (rule 2: highest recall at fp_rate ≤ 0.1) ---
+python -m baselines.espnet_turntaking_perchannel.submit probs --task eot --out baselines/espnet_turntaking_perchannel/probs-eot.json
+python -m baselines.espnet_turntaking_perchannel.submit probs --task int --out baselines/espnet_turntaking_perchannel/probs-int.json
+uv run python -m eval.sweep baselines/espnet_turntaking_perchannel/probs-eot.json   # → θ_eot (0.35)
+uv run python -m eval.sweep baselines/espnet_turntaking_perchannel/probs-int.json   # → θ_int (0.25)
+
+# --- 3) committed predictions at (θ_eot, θ_int) ---
+python -m baselines.espnet_turntaking_perchannel.submit predictions --split dev  --theta-eot 0.35 --theta-int 0.25 \
+    --out baselines/espnet_turntaking_perchannel/predictions-dev.json
+python -m baselines.espnet_turntaking_perchannel.submit predictions --split test --theta-eot 0.35 --theta-int 0.25 \
+    --out baselines/espnet_turntaking_perchannel/predictions-test.json
+
+# --- 4) validate every committed file (only way to check the test file) ---
+uv run python -m eval.check baselines/espnet_turntaking_perchannel
 ```
 
-`predict.py` follows the reference baseline shape: `--dataset` (default the
-gated HF dev set; or a local parquet dir), `--out` to write a predictions JSON,
-`--shard i --num-shards n` to parallelise the (2× per conversation) inference
-across GPUs, and `--sweep` to tune thresholds on the official scorer. A per-frame
-cache (`--cache-dir`, default `predictions/espnet_turntaking_perchannel/cache`)
-stores each channel's probabilities so re-tuning is instant. The model is read
-from `ESPNET_TT_EXP` (HF `espnet/Turn_taking_prediction_SWBD`).
+`predict.py` runs the model twice per conversation (once per isolated channel);
+`--shard i --num-shards n` parallelises across GPUs, and a per-frame cache
+(`--cache-dir`, default `predictions/espnet_turntaking_perchannel/cache`, holding
+dev + test) makes `submit.py` instant. `submit.py` reads each channel's `P_T`/`P_I`,
+lands them on the canonical grid `floor(dur·25)` by left-padding the 5-frame (0.2 s)
+model pre-roll, and commits with the central `eval.sweep.commit_events` rule.
+
+**Environment (reproducible).** The engine is **stock upstream ESPnet**
+(`github.com/espnet/espnet`, `master`) — *not a fork*. Pin: commit `750e3749`
+(v202604), `pip install -e .` provides `espnet2` (at this version ESPnet ships
+`espnet2`/`espnet3` only — no `espnet1` package, so import `espnet2`). A clean
+install also needs `torchaudio` matched to your `torch`, and ESPnet's pinned
+**whisper fork** (`git+https://github.com/espnet/whisper.git`; the latest pypi
+`openai-whisper` is incompatible — it removed `whisper.audio.N_MELS`).
+`cd tools && make` handles both automatically; see `requirements.txt` for the
+manual list. Verified: a from-scratch install at this pin reproduces the
+committed per-frame probabilities **bit-for-bit**.
 
 ## Files
 
-- `predict.py` — self-contained individual-channel predictor.
+- `predict.py` — individual-channel model side (→ per-frame cache).
+- `submit.py` — derives the submission artifacts from the cache (probs + predictions).
 - `requirements.txt` — model-side deps (scorer deps come from the repo `eval` extra).
-- `predictions-dev.json` — committed dev predictions at the operating point above.
-- `predictions-test.json` — committed test predictions (same operating point).
-- `plot_pareto_dev.py` / `pareto_sweep_dev.png` — EOT-latency vs false-interruption-rate trade-off figure.
-- `plot_threshold_sweep.py` / `threshold_sweep_dev.png` / `threshold_sweep_dev.csv` — per-track threshold sweep (recall / fp / precision / F1 / latency vs τ).
+- `probs-eot.json` / `probs-int.json` — per-frame dev probabilities for the central sweep.
+- `predictions-dev.json` / `predictions-test.json` — committed events at θ_eot=0.35 / θ_int=0.25.
 - `run_dev_sharded.sbatch` / `run_test_sharded.sbatch` — sharded inference jobs
   used to produce the caches.
 

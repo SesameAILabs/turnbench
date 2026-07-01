@@ -34,81 +34,93 @@ share on its channel. EOT uses **`P_T` only** (NA omitted).
 
 ## From per-frame scores to committed event times
 
-The benchmark wants discrete committed times, not a score trace. We turn each
-per-frame channel into event times with an **online hysteresis detector**
-(`_commit`): a time is emitted at the frame where the score first rises to
-`tau_high`; no further event fires until it falls to `tau_low`, and consecutive
-commits are ≥ `refractory_s` apart (turn-ends / interruptions have a real
-minimum spacing). The emitted time is the acoustic time the model has heard up
-to at that frame, so each commit depends only on audio up to that time.
+The benchmark wants discrete committed times, not a score trace. Each
+per-speaker score channel is landed on the canonical 25 Hz grid and committed
+with the **central rule** shared by every baseline (`eval.sweep.commit_events`):
+one event at each rising edge above a per-task threshold θ, deduped by a 2 s
+refractory, timestamped at the frame's end. The emitted time is the acoustic
+time the model has heard up to at that frame, so each commit depends only on
+audio up to that time. The per-task θ is the dev operating point picked centrally
+by `eval.sweep` (highest recall at `fp_rate ≤ 0.1`) — see below.
 
-Operating point (tuned on dev against the official scorer; override via env):
+## Results (dev, official operating point — highest recall at `fp_rate ≤ 0.1`)
 
-| track | `tau_high` | `tau_low` | `refractory_s` | env |
-| --- | --- | --- | --- | --- |
-| eot | 0.12 | 0.048 | 2.0 | `TT_EOT_TAU_HIGH` / `TT_EOT_TAU_LOW` / `TT_EOT_REFRACTORY_S` |
-| interruption | 0.14 | 0.056 | 2.0 | `TT_INT_*` |
-
-## Results (dev, official `eval.score` — 3 s scoring window, 2-of-3 gold)
+Operating point chosen centrally by `eval.sweep` (rule 2 in
+[`../README.md`](../README.md)): **θ_eot = 0.20**, **θ_int = 0.20**, committed with
+the standard single-threshold rising-edge rule (2 s refractory).
 
 | task | recall | fp_rate | latency p10/p50/p90 |
 | --- | --- | --- | --- |
-| EOT | 0.461 | **0.183** | −160 / 52 / 2391 ms |
-| INT | 0.772 | **0.159** | 74 / 200 / 1197 ms |
+| EOT | 0.347 | 0.094 | −150 / 51 / 2339 ms |
+| INT | 0.637 | 0.091 | 77 / 227 / 1426 ms |
 
 Reference `rms_vad` (energy VAD) on the same gold: EOT 0.595 / **0.547** /
 −98 ms, INT 0.994 / **0.390** / 137 ms. The energy baseline fires on every
 silence — high recall, high false-positive rate. This model occupies the
 opposite corner: **~3× lower fp_rate** at near-zero EOT latency, trading recall
 for precision (the regime that wins when ranking gates on a false-positive
-budget). The full threshold→(recall, fp_rate, latency) curve is reproducible
-with `sweep.py`; lowering `tau_high` buys recall at higher fp_rate. EOT recall
-is capped by the `P_T`-only mapping (it can't fire on turn-ends not followed by
-an immediate handoff); folding in `P_NA` raises EOT recall at higher fp_rate.
+budget). The full threshold→(recall, fp_rate, latency) curve is reproducible by
+sweeping `probs-eot.json` with `eval.sweep`; a lower θ buys recall at higher
+fp_rate. EOT recall is capped by the `P_T`-only mapping (it can't fire on
+turn-ends not followed by an immediate handoff); folding in `P_NA` raises EOT
+recall at higher fp_rate.
 
 ## How to run
 
-The model runs in your own environment (ESPnet + torch); the scorer runs in the
-repo's uv env. They share the HF dataset cache.
+`predict.py` (ESPnet + torch) produces the per-frame probability cache; `submit.py`
+derives the submission artifacts from that cache with no model re-run; the scorer
+runs in the repo's uv env. All share the HF dataset cache.
 
 ```bash
-# --- produce predictions (model side; your espnet env) ---
+# --- 1) per-frame probabilities (model side; your espnet env) ---
 export ESPNET_TT_EXP=/abs/path/to/exp/asr_train_asr_whisper_turn_taking_raw_en_word
 pip install -r baselines/espnet_turntaking/requirements.txt   # + espnet2 importable
 python -m baselines.espnet_turntaking.predict \
+    --out baselines/espnet_turntaking/predictions-dev.json     # fills predictions/espnet_turntaking_dev/cache
+#   test cache: --dataset <test repo> --cache-dir predictions/espnet_turntaking_test/cache --num-shards N --shard i
+
+# --- 2) dev probs → operating point (rule 2: highest recall at fp_rate ≤ 0.1) ---
+python -m baselines.espnet_turntaking.submit probs --task eot --out baselines/espnet_turntaking/probs-eot.json
+python -m baselines.espnet_turntaking.submit probs --task int --out baselines/espnet_turntaking/probs-int.json
+uv run python -m eval.sweep baselines/espnet_turntaking/probs-eot.json   # → θ_eot (0.20)
+uv run python -m eval.sweep baselines/espnet_turntaking/probs-int.json   # → θ_int (0.20)
+
+# --- 3) committed predictions at (θ_eot, θ_int) ---
+python -m baselines.espnet_turntaking.submit predictions --split dev  --theta-eot 0.20 --theta-int 0.20 \
     --out baselines/espnet_turntaking/predictions-dev.json
+python -m baselines.espnet_turntaking.submit predictions --split test --theta-eot 0.20 --theta-int 0.20 \
+    --cache-dir predictions/espnet_turntaking_test/cache --out baselines/espnet_turntaking/predictions-test.json
 
-# --- score (official; uv env) ---
-uv sync --extra eval --extra dev
-uv run python -m eval.score baselines/espnet_turntaking/predictions-dev.json
+# --- 4) validate every committed file (only way to check the test file) ---
+uv run python -m eval.check baselines/espnet_turntaking
 ```
 
-`predict.py` follows the reference baseline shape (`baselines/rms_vad/predict.py`):
-`--dataset` (default the gated HF dev set `mundo-ai/turn-benchmark-dev`; or a
-local parquet dir), `--out` to write a predictions JSON, else score in-process.
-The model is read from `ESPNET_TT_EXP` (HF `espnet/Turn_taking_prediction_SWBD`);
-`espnet2` must be importable.
+`predict.py` follows the reference baseline shape (`--dataset` = gated HF dev set
+or a local parquet dir; model from `ESPNET_TT_EXP` = HF
+`espnet/Turn_taking_prediction_SWBD`; `espnet2` importable). `submit.py` reads the
+per-frame cache only: it maps the softmax to per-speaker EOT (`P_T·hold`) /
+interruption (`P_I·onset`) scores, lands them on the canonical grid `floor(dur·25)`
+by left-padding the 5-frame (0.2 s) model pre-roll, writes `probs-*.json`, and
+commits events with the central `eval.sweep.commit_events` rule.
 
-A per-frame score cache (`--cache-dir`, default
-`predictions/espnet_turntaking_dev/cache`) lets repeated runs and the threshold
-sweep skip the model — rebuilding the JSON at new thresholds is instant.
-
-## Tuning
-
-```bash
-# in-memory sweep over cached scores, scored by the official eval.score
-python -m baselines.espnet_turntaking.sweep                 # both tracks
-python -m baselines.espnet_turntaking.sweep --track eot --grid 0.04:0.20:0.02
-```
+**Environment (reproducible).** The engine is **stock upstream ESPnet**
+(`github.com/espnet/espnet`, `master`) — *not a fork*. Pin: commit `750e3749`
+(v202604), `pip install -e .` provides `espnet2` (at this version ESPnet ships
+`espnet2`/`espnet3` only — there is no `espnet1` package, so import `espnet2`).
+A clean install also needs `torchaudio` matched to your `torch`, and ESPnet's
+pinned **whisper fork** (`git+https://github.com/espnet/whisper.git`; the latest
+pypi `openai-whisper` is incompatible — it removed `whisper.audio.N_MELS`).
+`cd tools && make` handles both automatically; see `requirements.txt` for the
+manual list. Verified: a from-scratch install at this pin reproduces the
+committed `predictions-dev.json` **bit-for-bit**.
 
 ## Files
 
-- `predict.py` — the baseline (mix inference + energy attribution + commitment).
-- `sweep.py` — in-memory threshold sweep on the official scorer.
+- `predict.py` — the model side (mix inference + energy attribution → per-frame cache).
+- `submit.py` — derives the submission artifacts from the cache (probs + predictions).
 - `requirements.txt` — model-side deps (scorer deps come from the repo `eval` extra).
-- `predictions-dev.json` — committed dev predictions at the operating point above.
-  `predictions-test.json` is added when the private test set is released
-  (`--dataset <test repo> --out …/predictions-test.json`).
+- `probs-eot.json` / `probs-int.json` — per-frame dev probabilities for the central sweep.
+- `predictions-dev.json` / `predictions-test.json` — committed events at θ_eot=0.20 / θ_int=0.20.
 
 ## Notes
 

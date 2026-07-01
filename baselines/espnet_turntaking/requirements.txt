@@ -1,12 +1,24 @@
 # Model-side dependencies for producing predictions with this baseline.
 # (The scorer's own deps come from the repo's `eval` extra in pyproject.toml.)
 #
-# espnet2 must be importable — install the SLU checkout that provides the
-# turn-taking `slu` task, e.g. `pip install -e /path/to/espnet`. The checkpoint
-# is Hugging Face `espnet/Turn_taking_prediction_SWBD`; point ESPNET_TT_EXP at
-# its experiment dir (config.yaml + valid.loss.ave.pth).
+# Engine = stock upstream ESPnet (https://github.com/espnet/espnet, `master`) — NOT a
+# fork. Install espnet2 (which provides the turn-taking `slu` task) at the pinned
+# commit, then point ESPNET_TT_EXP at the HF checkpoint's exp dir:
+#
+#     git clone https://github.com/espnet/espnet && cd espnet
+#     git checkout 750e3749fc37a09187fe0fc6fb278ccb007181e8   # version 202604
+#     cd tools && make     # ESPnet's installers also pin the matching torchaudio +
+#                          # whisper fork for you (recommended); or install manually:
+#     pip install -e .     # provides espnet2 (v202604 ships espnet2/espnet3; no espnet1)
+#
+# Checkpoint: HF `espnet/Turn_taking_prediction_SWBD` (config.yaml + valid.loss.ave.pth).
+# A from-scratch install at this pin reproduces the committed predictions bit-for-bit.
 numpy
 soundfile
 librosa
 torch>=2.3
-espnet
+torchaudio   # must match your torch build — espnet2's slu task imports it
+espnet       # editable install at the pinned commit above (provides espnet2)
+# ESPnet's Whisper encoder needs ESPnet's pinned whisper fork; the latest pypi
+# openai-whisper removed `whisper.audio.N_MELS` and breaks the encoder:
+git+https://github.com/espnet/whisper.git
