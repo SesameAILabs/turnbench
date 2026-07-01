@@ -32,6 +32,7 @@ import statistics
 import sys
 from collections import defaultdict
 from pathlib import Path
+from typing import NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root
 
@@ -106,16 +107,31 @@ def fmt(ts: TaskScore, *, with_lat: bool = True) -> str:
     return out
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--dataset", default=DEV_DATASET, help="gold source (HF repo or local dir)")
-    ap.add_argument("--split", default=None, choices=["dev", "test"],
-                    help="which predictions-<split>.json to score (default: inferred from --dataset)")
-    args = ap.parse_args()
-    split = args.split or ("test" if ("test" in args.dataset or "golden" in args.dataset) else "dev")
+class MetadataScores(NamedTuple):
+    """Everything the table-printer and the plotter both need.
 
-    meta = load_metadata(args.dataset)
-    dataset = resolve_dataset(source=args.dataset, skip_audio=True)
+    ids: scored conversation ids (present in both meta and the dataset).
+    types: sorted conversation_type labels.
+    baselines: {label: predictions_path}.
+    density: {type: [EOT+, EOT-, INT+, INT-]} gold-event counts (baseline-independent).
+    pooled: {(label, axis, key, task): TaskScore} — axis in {"type","pairing"},
+        key a type name or FF/MM/mixed, task in {"EOT","INT"}; TP/FN/FP/TN pooled within group.
+    n_type: {type: n_conversations}.
+    """
+    ids: list[str]
+    types: list[str]
+    baselines: dict[str, Path]
+    density: dict[str, list[int]]
+    pooled: dict[tuple, TaskScore]
+    n_type: dict[str, int]
+
+
+def compute(dataset_source: str, split: str) -> MetadataScores:
+    """Score every committed baseline for `split` against the gold at `dataset_source`,
+    pooling TP/FN/FP/TN + latencies into conversation_type and gender-pairing groups.
+    Returns a MetadataScores; raises SystemExit if no predictions files are found."""
+    meta = load_metadata(dataset_source)
+    dataset = resolve_dataset(source=dataset_source, skip_audio=True)
     ids = [c for c in conversation_ids(dataset) if c in meta]
     types = sorted({meta[c]["type"] for c in ids})
     baselines = discover(split)
@@ -143,6 +159,18 @@ def main() -> None:
                 merge(pooled[(label, axis, key, "INT")], sc.task_int)
 
     n_type = {t: sum(meta[c]["type"] == t for c in ids) for t in types}
+    return MetadataScores(ids, types, baselines, density, pooled, n_type)
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--dataset", default=DEV_DATASET, help="gold source (HF repo or local dir)")
+    ap.add_argument("--split", default=None, choices=["dev", "test"],
+                    help="which predictions-<split>.json to score (default: inferred from --dataset)")
+    args = ap.parse_args()
+    split = args.split or ("test" if ("test" in args.dataset or "golden" in args.dataset) else "dev")
+
+    ids, types, baselines, density, pooled, n_type = compute(args.dataset, split)
     console = Console()
     console.rule(
         f"[bold]{args.dataset}[/]  ·  {split}  ·  {len(ids)} conversations  ·  {len(baselines)} baselines"

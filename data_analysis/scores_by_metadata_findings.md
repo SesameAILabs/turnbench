@@ -52,19 +52,12 @@ The conversations that trip up interruption detection are **backchannel-heavy ca
 (all those "uh-huh"s misfiring as floor-taking) — *not* the argument-heavy ones, despite
 arguments carrying 2× the real interruptions. Mildly counterintuitive; worth highlighting.
 
-INT false-positive rate by type (bar = fp, scale 0→0.60; `openai_server_vad`):
+![INT false-positive rate by conversation type](figures/int-fp-by-type.png)
 
-```
-Casual         ██████████████████████████████████████████████████████  0.54
-Task-Oriented  ██████████████████████████████████████████████████████  0.54
-Narrative      █████████████████████████████████████████████           0.45
-Instructional  ███████████████████████████████████████████             0.43
-Collaborative  ███████████████████████████████████████                 0.39
-Argumentative  ██████████████████████████████████████                  0.38
-```
-
-Same U-shape holds for `rms_vad` (Casual 0.52 / Task 0.55, Argumentative 0.39) — the peak is
-where the small talk is, the trough is where the real interruptions are.
+Reading down the heatmap the whole column pattern is consistent: for **every** model the
+Casual and Task-Oriented columns are the reddest and Argumentative/Collaborative the palest.
+The peak is where the small talk is, the trough is where the real interruptions are.
+Regenerate with `plot_by_metadata.py` (see §6).
 
 ## 4. Candidate gender effect on interruption detection (needs confirmation)
 Several **independent** models detect interruptions worse on **female–female** pairs — lower
@@ -77,7 +70,14 @@ recall and/or higher fp — with **no comparable gap on EOT**:
 | espnet_turntaking_perchannel | 0.81 / 0.30 fp | 0.75 / 0.21 |
 | causal_wavlm_predictor/large | 0.73 / 0.21 fp | 0.74 / 0.14 |
 
-That it appears across acoustic, semantic, and learned models — and only on INT — makes it
+![INT recall FF vs MM by model](figures/int-recall-by-gender.png)
+
+Sorted by the MM−FF gap: the top rows (`smart_turn_v3`, `openai_semantic_vad`,
+`wavlm_large_anchor`) are the models with the largest female-female recall deficit. Note the
+effect is *not* universal — the two `espnet` variants actually invert it (higher FF recall,
+but at higher FF fp), which is why the caveat below matters.
+
+That the gap appears across acoustic, semantic, and learned models — and only on INT — makes it
 more than noise. **Caveats before claiming it:** small samples (FF=37, MM=26, mixed=53), and
 gender pairing may correlate with conversation type. Needs a controlled check (hold type fixed)
 before it goes in the paper.
@@ -93,6 +93,13 @@ All numbers below are the raw `scores_by_metadata.py` output on
 `mundo-ai/turn-benchmark-test-golden`. By-type cells are `recall / fp_rate` (latency
 dropped — it is ~model-constant across types); by-pairing cells are
 `recall / fp_rate / median-latency-ms`. **fp over the 0.10 budget is in bold.**
+
+The two figures above (§3, §4) regenerate from the same scoring pass with:
+
+```bash
+HF_TOKEN=<gold-token> uv run --extra eval --extra plot python data_analysis/plot_by_metadata.py \
+    --dataset mundo-ai/turn-benchmark-test-golden
+```
 
 ### EOT by conversation type — `recall / fp`
 
