@@ -127,24 +127,39 @@ def _num(x: float) -> float | None:
     return None if x is None or math.isnan(x) else round(x, 6)
 
 
-def write_json(scored: dict, out: Path, dataset: str, split: str) -> None:
+def write_json(scored: dict, out: Path, dataset: str, split: str,
+               dev_scored: dict | None = None) -> None:
     """Emit the same rows the table shows as a committable artifact the website
-    renders. Sorted by EOT recall (NaN last), so the file order is the ranking."""
+    renders. Sorted by EOT recall (NaN last), so the file order is the ranking.
+
+    The fp budget is a DEV-side selection constraint: each task carries
+    `dev_fp_rate` when `dev_scored` is given. Test fp_rate is an unconstrained
+    out-of-sample measurement — expected to drift around the budget for ops
+    tuned to its boundary on dev; rankings should gate on
+    `dev_fp_rate <= fp_budget`, not on test fp."""
     models = []
     for label, r in sorted(
         scored.items(),
         key=lambda kv: (kv[1]["EOT"][0] if not math.isnan(kv[1]["EOT"][0]) else -1.0),
         reverse=True,
     ):
-        def task(recall: float, fp: float, lat) -> dict:
-            return {
+        def task(recall: float, fp: float, lat, dev_fp: float | None) -> dict:
+            entry = {
                 "recall": _num(recall),
                 "fp_rate": _num(fp),
                 "latency_ms": {"p10": _num(lat.p10), "p50": _num(lat.p50), "p90": _num(lat.p90)},
             }
+            if dev_fp is not None:
+                entry["dev_fp_rate"] = _num(dev_fp)
+            return entry
 
+        dev = dev_scored.get(label) if dev_scored else None
         (er, ef, el), (ir, iff, il) = r["EOT"], r["INT"]
-        models.append({"model": label, "eot": task(er, ef, el), "int": task(ir, iff, il)})
+        models.append({
+            "model": label,
+            "eot": task(er, ef, el, dev["EOT"][1] if dev else None),
+            "int": task(ir, iff, il, dev["INT"][1] if dev else None),
+        })
     payload = {"split": split, "dataset": dataset, "fp_budget": BUDGET, "models": models}
     out.write_text(json.dumps(payload, indent=2) + "\n")
     print(f"wrote leaderboard -> {out} ({len(models)} models)")
@@ -163,7 +178,11 @@ def main() -> None:
     tag = f"{args.dataset.split('/')[-1]} · {split}"
     print_table(scored, tag)
     if args.json_out:
-        write_json(scored, args.json_out, args.dataset, split)
+        # qualification (dev fp ≤ budget) comes from each model's dev submission —
+        # the split the operating point was selected on.
+        dev_scored = (score_all(resolve_dataset(source=DEV_DATASET, skip_audio=True), "dev")
+                      if split == "test" else scored)
+        write_json(scored, args.json_out, args.dataset, split, dev_scored=dev_scored)
     if args.figure:
         figure(scored, args.figure, tag)
 
