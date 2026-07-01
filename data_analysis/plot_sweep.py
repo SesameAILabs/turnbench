@@ -28,12 +28,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root, fo
 from eval.data import DEV_DATASET, resolve_dataset  # noqa: E402
 from eval.sweep import SweepRow, load_probs, operating_point, sweep  # noqa: E402
 
-# Paper figure: white surface, black text. The three curve colors are the only
-# hues — they are functional (they tell latency / recall / FP rate apart in a
-# static figure), not theme decoration.
-OLIVE = "#5b652a"    # latency (left axis)
+# Paper figure: white surface, black text. Curve colors from the Okabe–Ito
+# colorblind-safe palette (blue / black / vermillion); marker shapes differ
+# too, so the series stay separable under any color-vision deficiency.
+OLIVE = "#0072B2"    # latency (left axis) — Okabe–Ito blue
 STEEL = "#000000"    # recall (right axis)
-CRIMSON = "#b91c1c"  # fp_rate (right axis)
+CRIMSON = "#D55E00"  # fp_rate (right axis) — Okabe–Ito vermillion
 BG = "#ffffff"       # plot surface
 INK = "#000000"      # foreground
 
