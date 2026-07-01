@@ -223,23 +223,14 @@ def sweep(probs: ProbsFile, dataset, thetas: list[float] = DEFAULT_GRID, *, refr
 
 
 def operating_point(rows: list[SweepRow], *, fp_budget: float = 0.1) -> SweepRow | None:
-    """Fair operating point: the highest-recall theta whose fp_rate is within
-    budget — operate as aggressively as the false-positive budget allows, catching
-    as many events as possible. None if no threshold reaches the budget (a model
-    too conservative to ever fire cleanly).
+    """Highest-recall theta with fp_rate ≤ budget — operate as aggressively as the
+    false-positive budget allows. None if no threshold reaches the budget.
 
-    This replaces an earlier "lowest latency at fp_rate ≤ budget" rule, which was
-    degenerate: a near-silent threshold has fp_rate ≈ 0 and whatever latency its
-    handful of fires happen to have, so minimizing latency rewarded firing almost
-    never (recall ≈ 0). Maximizing recall under the budget cannot pick that corner.
-
-    Note recall is NOT guaranteed monotone in theta: under the rising-edge commit
-    rule, a well-calibrated (mostly-low, spiky) probability track gives recall that
-    falls with theta, so this picks the lowest qualifying theta — but a
-    mis-calibrated, mostly-high track can make recall non-monotone, and then the
-    highest-recall qualifying theta can sit anywhere in the grid, including its
-    edge. A boundary pick is a signal the probs are poorly calibrated, not a
-    failure of this rule."""
+    Maximizing recall (not minimizing latency) avoids the degenerate near-silent
+    point: a threshold that almost never fires has fp_rate ≈ 0 and an arbitrary
+    latency, so a latency objective would reward recall ≈ 0. A boundary pick (edge
+    of the theta grid) signals the probs are poorly calibrated — recall need not be
+    monotone in theta under the rising-edge commit rule."""
     qualifying = [r for r in rows if r.fp_rate == r.fp_rate and r.fp_rate <= fp_budget]
     return max(qualifying, key=lambda r: r.recall) if qualifying else None
 
