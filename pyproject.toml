@@ -1,6 +1,8 @@
 [project]
 name = "tt-benchmark"
 version = "0.0.0"
+description = "TurnBench — a turn-taking benchmark for end-of-turn and interruption detection in two-channel conversations."
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "numpy==2.4.6",
