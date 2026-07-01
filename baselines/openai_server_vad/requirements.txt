@@ -1,0 +1,6 @@
+# Model-side deps for producing predictions with this baseline.
+# (The scorer's own deps — incl. soundfile for audio decode — come from the
+# repo's `eval` extra in pyproject.toml.)
+openai[realtime]==2.11.0
+numpy==2.4.6
+librosa==0.11.0

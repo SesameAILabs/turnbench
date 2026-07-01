@@ -346,7 +346,7 @@ def main(
     ] = None,
 ) -> None:
     submission = load_submission(predictions)
-    dataset = resolve_dataset(source=source, revision=revision)
+    dataset = resolve_dataset(source=source, revision=revision, skip_audio=True)
     task_ids = conversation_ids(dataset)
 
     console = Console()

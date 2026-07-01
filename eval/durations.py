@@ -24,6 +24,10 @@ from huggingface_hub import snapshot_download
 _DIR = Path(__file__).resolve().parent
 SPLITS = {"dev": "mundo-ai/turn-benchmark-dev", "test": "mundo-ai/turn-benchmark-test"}
 
+# The private gold repo holds the same conversations as the public test set (with
+# labels), so it reuses the test durations artifact — same conversation ids.
+SOURCE_ALIASES = {"mundo-ai/turn-benchmark-test-golden": "test"}
+
 
 def path_for(split: str) -> Path:
     return _DIR / f"durations-{split}.json"
@@ -32,6 +36,14 @@ def path_for(split: str) -> Path:
 def load_durations(split: str) -> dict[str, float]:
     """{conversation_id: duration_s} for a split, from the committed JSON."""
     return json.loads(path_for(split).read_text(encoding="utf-8"))["durations"]
+
+
+def load_durations_for_source(source: str) -> dict[str, float]:
+    """{conversation_id: duration_s} for the split whose repo id is `source`, or an
+    empty dict for a source without a committed artifact (e.g. a local directory)."""
+    split_by_source = {repo: split for split, repo in SPLITS.items()}
+    split = split_by_source.get(source) or SOURCE_ALIASES.get(source)
+    return load_durations(split) if split else {}
 
 
 def _compute(source: str, revision: str | None) -> dict[str, float]:

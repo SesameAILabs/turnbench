@@ -88,7 +88,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    dataset = resolve_dataset(source=args.dataset)
+    dataset = resolve_dataset(source=args.dataset, skip_audio=True)
     submission = gold_submission(dataset)
 
     if args.out is not None:

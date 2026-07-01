@@ -87,7 +87,7 @@ def main() -> int:
     args = ap.parse_args()
     cache_dir = Path(args.cache_dir)
 
-    dataset = resolve_dataset(source=args.dataset)
+    dataset = resolve_dataset(source=args.dataset, skip_audio=True)
     convs = []
     for cid in conversation_ids(dataset):
         conv = conversation(dataset, cid)

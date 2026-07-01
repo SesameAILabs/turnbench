@@ -222,6 +222,14 @@ def sweep(probs: ProbsFile, dataset, thetas: list[float] = DEFAULT_GRID, *, refr
     return rows
 
 
+def format_latency(row: SweepRow) -> str:
+    """`p10/p50/p90` latency in ms, or an em-dash when the threshold fired
+    nothing (no TPs → NaN percentiles)."""
+    if math.isnan(row.lat_p50):
+        return "—"
+    return f"{row.lat_p10:.0f}/{row.lat_p50:.0f}/{row.lat_p90:.0f}"
+
+
 def operating_point(rows: list[SweepRow], *, fp_budget: float = 0.1) -> SweepRow | None:
     """Highest-recall theta with fp_rate ≤ budget — operate as aggressively as the
     false-positive budget allows. None if no threshold reaches the budget.
@@ -245,25 +253,48 @@ def main(
     metrics + the operating point (highest recall at fp_rate ≤ budget). In-memory
     only — the figure is rendered straight from the probs files by
     data_analysis/plot_sweep.py."""
+    from rich.console import Console
+    from rich.table import Table
+
     from eval.data import DEV_DATASET, resolve_dataset
+    from eval.score import rate
 
     probs = load_probs(probs_path)
     validate_probs(probs, load_durations("dev"))
-    rows = sweep(probs, resolve_dataset(source=DEV_DATASET))
-    for r in rows:
-        typer.echo(
-            f"θ={r.theta:.2f}  recall={r.recall:.3f}  fp={r.fp_rate:.3f}  "
-            f"false_int={r.false_int_rate:.3f}  lat_p50={r.lat_p50:.0f}ms"
-        )
+    rows = sweep(probs, resolve_dataset(source=DEV_DATASET, skip_audio=True))
     op = operating_point(rows, fp_budget=fp_budget)
+
+    console = Console()
+    table = Table(
+        title=f"{probs_path} — {probs.task.upper()} dev threshold sweep",
+        title_justify="left",
+        caption=f"● operating point = highest recall at fp_rate ≤ {fp_budget}",
+        caption_justify="left",
+    )
+    table.add_column("θ", justify="right")
+    table.add_column("recall", justify="right")
+    table.add_column("fp_rate", justify="right")
+    table.add_column("lat ms p10/50/90", justify="right")
+    table.add_column("", justify="left")
+    for row in rows:
+        is_op = op is not None and row is op
+        table.add_row(
+            f"{row.theta:.2f}",
+            rate(row.recall),
+            rate(row.fp_rate),
+            format_latency(row),
+            "● op" if is_op else "",
+            style="bold green" if is_op else None,
+        )
+    console.print(table)
+
     if op is not None:
-        typer.secho(
-            f"operating point: θ={op.theta:.2f}  recall={op.recall:.3f}  "
-            f"fp_rate={op.fp_rate:.3f} ≤ {fp_budget}  lat_p50={op.lat_p50:.0f}ms",
-            fg="green",
+        console.print(
+            f"[bold green]operating point: θ={op.theta:.2f}  recall={op.recall:.3f}  "
+            f"fp_rate={op.fp_rate:.3f} ≤ {fp_budget}  lat_p50={op.lat_p50:.0f}ms[/]"
         )
     else:
-        typer.secho(f"no threshold reaches fp_rate ≤ {fp_budget}", fg="yellow")
+        console.print(f"[bold yellow]no threshold reaches fp_rate ≤ {fp_budget}[/]")
 
 
 if __name__ == "__main__":

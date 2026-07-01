@@ -128,7 +128,7 @@ def main():
     lo, hi, step = (float(x) for x in args.grid.split(":"))
     thetas = [round(lo + i * step, 3) for i in range(int(round((hi - lo) / step)) + 1)]
 
-    dataset = resolve_dataset(source=args.dataset)
+    dataset = resolve_dataset(source=args.dataset, skip_audio=True)
     ids = conversation_ids(dataset)
     eot_lat, int_fpr, eot_recall = sweep(dataset, Path(args.cache_dir), ids, thetas)
 

@@ -502,7 +502,7 @@ def stats() -> None:
     """Sanity-check the gold: per-conversation and aggregate event-set counts.
     Mid-turn-pause negatives should vastly outnumber real EOTs; both INT sets
     should be populated."""
-    dataset = resolve_dataset()
+    dataset = resolve_dataset(skip_audio=True)
     task_ids = conversation_ids(dataset)
 
     print(
@@ -548,7 +548,7 @@ def export() -> None:
     the scorer commit and dataset revision that fully determine it, so
     consumers never read audio, SRTs, or this repo's constants.
     """
-    dataset = resolve_dataset()
+    dataset = resolve_dataset(skip_audio=True)
     conversations = {}
     for task_id in conversation_ids(dataset):
         conv = conversation(dataset, task_id)

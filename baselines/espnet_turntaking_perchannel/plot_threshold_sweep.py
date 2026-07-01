@@ -137,7 +137,7 @@ def main():
     ap.add_argument("--csv", default=None)
     args = ap.parse_args()
 
-    dataset = resolve_dataset(source=args.dataset)
+    dataset = resolve_dataset(source=args.dataset, skip_audio=True)
     ids = conversation_ids(dataset)
     rows = sweep(dataset, Path(args.cache_dir), ids)
     print_table(rows)

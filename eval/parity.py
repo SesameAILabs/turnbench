@@ -100,7 +100,7 @@ def export(
 ) -> None:
     """Write dev-gold.json + the parity test vectors to OUT_DIR."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    dataset = resolve_dataset()
+    dataset = resolve_dataset(skip_audio=True)
 
     (out_dir / "dev-gold.json").write_text(run_module("eval.gold", "export"), encoding="utf-8")
     run_module("baselines.rms_vad.predict", "--out", str(out_dir / "vad_predictions.json"))
