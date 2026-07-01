@@ -1,323 +1,309 @@
-#!/usr/bin/env python3
-"""Smart Turn v3 — Whisper-Tiny + linear classifier for end-of-turn detection.
+# Author: Sathvik Udupa (2026)
+# Email:  udupa@fit.vutbr.cz
 
-Adapts the VAD+accumulate+predict pipeline from smart_turn/record_and_predict.py
-for offline multi-turn evaluation of dual-channel audio.
+"""Smart Turn v3 — prediction entry point for TurnBench.
 
-Pipeline (per channel, both processed simultaneously):
-  1. Silero VAD (ONNX, stateful): 512-sample chunks at 16kHz (32ms)
-  2. Speech accumulated in a rolling 8s buffer (oldest chunks dropped when full)
-  3. On 1s trailing silence: classify, then enter a 2s settling window where the
-     classifier re-runs each chunk — P(complete) can rise as silence grows
-  4. Speech during settling resets score and starts a new segment
-  5. Scores forward-filled at 12.5Hz
+VAD+accumulate+settling pipeline over Whisper-Tiny + linear classifier (ONNX).
+Scores both channels in parallel threads at 12.5 Hz.
 
-Model: pipecat-ai/smart-turn-v3 (~8M params, ONNX fp32 GPU)
-
-Setup:
-    git submodule update --init baselines/smart_turn_v3/smart_turn
-    pip install onnxruntime-gpu transformers torch torchaudio soundfile huggingface_hub
+Score mapping:
+  score      = P(turn complete)
+  probs-eot  = score          (high ↔ speaker releasing floor)
+  probs-int  = 1 − score      (high ↔ speaker actively talking / taking floor)
 """
 from __future__ import annotations
 
+import concurrent.futures
 import math
 import os
 import sys
 import time
+import types
 from collections import deque
 from pathlib import Path
 
 import numpy as np
-import soundfile as sf
 import torch
 import torchaudio
-from huggingface_hub import hf_hub_download
+from tqdm import tqdm
 
 _HERE = Path(__file__).resolve().parent
+_REPO = _HERE.parent.parent
 _SMART_TURN = _HERE / "smart_turn"
 
-# Download ONNX weights into smart_turn/ before importing inference.py,
-# which loads the model at module level from a relative path.
-HF_REPO   = "pipecat-ai/smart-turn-v3"
-ONNX_FILE = "smart-turn-v3.1-gpu.onnx"
-# inference.py hardcodes "smart-turn-v3.1.onnx" at module level
-_onnx_dst = _SMART_TURN / "smart-turn-v3.1.onnx"
-if not _onnx_dst.exists():
-    print("Downloading Smart Turn v3 ONNX weights...", flush=True)
-    _src = hf_hub_download(HF_REPO, ONNX_FILE)
-    os.symlink(_src, _onnx_dst)
+# Save caller cwd before chdir — used to resolve relative --out paths.
+_CALLER_CWD = Path(os.getcwd()).resolve()
 
-# Now inference.py can find the model at its expected relative path.
+# inference.py loads the ONNX model from a hardcoded relative path; chdir first.
 os.chdir(_SMART_TURN)
+sys.path.insert(0, str(_REPO))
 sys.path.insert(0, str(_SMART_TURN))
-from inference import predict_endpoint          # noqa: E402
-# record_and_predict imports pyaudio at module level (for live mic recording).
-# Stub it out — SileroVAD and ensure_model don't use it.
-import types as _types
-_pyaudio_stub = _types.ModuleType("pyaudio")
+
+# record_and_predict.py imports pyaudio at module level; stub it out.
+_pyaudio_stub = types.ModuleType("pyaudio")
 _pyaudio_stub.paInt16 = 0
 sys.modules.setdefault("pyaudio", _pyaudio_stub)
-from record_and_predict import SileroVAD, ensure_model  # noqa: E402
 
-sys.path.insert(0, str(_HERE.parent))
-from runner import run  # noqa: E402
+import inference as _inference_mod                                            # noqa: E402
+from record_and_predict import SileroVAD, ensure_model                       # noqa: E402
 
-SR         = 16000
-CHUNK      = 512
-OUT_HZ     = 12.5
-VAD_THRESH = 0.5
-PRE_SPEECH_MS = 200
-STOP_MS    = 1000
+import onnxruntime as _ort
+_cuda      = "CUDAExecutionProvider" in _ort.get_available_providers()
+_providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if _cuda else ["CPUExecutionProvider"]
+_model_file = "smart-turn-v3.1-gpu.onnx" if _cuda else "smart-turn-v3.1.onnx"
+print(f"ONNX provider: {_providers[0]}  model: {_model_file}", flush=True, file=sys.stderr)
+_inference_mod.session = _inference_mod.build_session(_model_file)
 
-_silero_model_path: str | None = None
+def predict_endpoint(audio_array):                                            # noqa: E402
+    return _inference_mod.predict_endpoint(audio_array)
+
+from eval.data import (                                                       # noqa: E402
+    DEV_DATASET,
+    conversation,
+    conversation_ids,
+    resolve_dataset,
+)
+from eval.submission import (                                                 # noqa: E402
+    SCHEMA_VERSION,
+    ConversationPrediction,
+    SpeakerEvents,
+    Submission,
+)
+from eval.sweep import (                                                      # noqa: E402
+    ConversationProbs,
+    ProbsFile,
+    SpeakerProbs,
+    commit_events,
+    frame_count,
+    operating_point,
+    sweep,
+)
+
+SR            = 16_000
+CHUNK         = 512
+OUT_HZ        = 12.5
+VAD_THRESH    = 0.5
 
 _CHUNK_MS      = CHUNK / SR * 1000.0
-_PRE_CHUNKS    = math.ceil(PRE_SPEECH_MS / _CHUNK_MS)
-_STOP_CHUNKS   = math.ceil(STOP_MS / _CHUNK_MS)
-_SETTLE_CHUNKS = math.ceil(2000.0 / _CHUNK_MS)   # 2s settling window after 1s silence
-_MAX_CHUNKS    = math.ceil(8000.0 / _CHUNK_MS)    # rolling 8s cap on seg during accumulation
+_PRE_CHUNKS    = math.ceil(200.0  / _CHUNK_MS)
+_STOP_CHUNKS   = math.ceil(1000.0 / _CHUNK_MS)
+_SETTLE_CHUNKS = math.ceil(2000.0 / _CHUNK_MS)
+_MAX_CHUNKS    = math.ceil(8000.0 / _CHUNK_MS)
+_SETTLE_STRIDE = 8
+
+# Default (eot_thr, int_thr) in probs space.
+# score = P(turn complete); probs-eot = score, probs-int = 1 - score.
+# Old eot_thr=0.05 maps directly; old int_thr=0.05 inverts to 1-0.05=0.95.
+CHECKPOINT_DEFAULTS: dict[str, tuple[float, float]] = {
+    "pretrained": (0.05, 0.95),
+}
 
 
-def _load_models():
-    global _silero_model_path
-    if _silero_model_path is not None:
-        return
-    print("Loading Silero VAD...", flush=True)
-    _silero_model_path = ensure_model()
-    print("Models loaded.", flush=True)
+def _load_wav(wav: np.ndarray, sr: int) -> np.ndarray:
+    if sr != SR:
+        wav = torchaudio.functional.resample(torch.from_numpy(wav), sr, SR).numpy()
+    return wav
 
 
-def _vad_and_predict_joint(
-    wav1: np.ndarray, wav2: np.ndarray
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Simulate real-time streaming: process both speaker channels chunk by chunk
-    simultaneously, maintaining independent VAD+accumulate state for each.
-    Returns (scores1, scores2, vad_probs1, vad_probs2)."""
-    n_out1 = int(len(wav1) / SR * OUT_HZ) + 1
-    n_out2 = int(len(wav2) / SR * OUT_HZ) + 1
-    scores1 = np.zeros(n_out1, dtype=np.float32)
-    scores2 = np.zeros(n_out2, dtype=np.float32)
-    vad_probs1 = np.zeros(n_out1, dtype=np.float32)
-    vad_probs2 = np.zeros(n_out2, dtype=np.float32)
+def _score_channel(wav: np.ndarray, silero_path: str) -> np.ndarray:
+    """VAD+accumulate+settling pipeline for a single channel. Returns scores at OUT_HZ."""
+    n = int(len(wav) / SR * OUT_HZ) + 1
+    scores = np.zeros(n, dtype=np.float32)
+    vad = SileroVAD(silero_path)
+    pre = deque(maxlen=_PRE_CHUNKS)
+    seg = []
+    active = False
+    sil = extra = 0
+    cur = 0.0
 
-    vad1 = SileroVAD(_silero_model_path)
-    vad2 = SileroVAD(_silero_model_path)
+    for i in range(0, len(wav) - CHUNK + 1, CHUNK):
+        c = wav[i:i + CHUNK].astype(np.float32)
+        sp = vad.prob(c) > VAD_THRESH
+        out_idx = int(i / SR * OUT_HZ)
 
-    pre1, pre2 = deque(maxlen=_PRE_CHUNKS), deque(maxlen=_PRE_CHUNKS)
-    seg1, seg2 = [], []
-    active1 = active2 = False
-    sil1 = sil2 = 0
-    extra1 = extra2 = 0  # settling window counter (0 = not settling, 1-10 = settling)
-    cur1 = cur2 = 0.0
+        if not active:
+            pre.append(c)
+            if sp:
+                cur = 0.0; seg = list(pre) + [c]; active = True; sil = 0; extra = 0
+        elif extra == 0:
+            seg.append(c)
+            if len(seg) > _MAX_CHUNKS:
+                seg.pop(0)
+            sil = 0 if sp else sil + 1
+            if sil >= _STOP_CHUNKS:
+                extra = 1
+                cur = predict_endpoint(np.concatenate(seg))["probability"]
+        else:
+            if sp:
+                cur = 0.0; seg = [c]; active = True; sil = 0; extra = 0
+            else:
+                seg.append(c); extra += 1
+                if extra % _SETTLE_STRIDE == 1:
+                    cur = predict_endpoint(np.concatenate(seg))["probability"]
+                if extra >= _SETTLE_CHUNKS:
+                    active = False; sil = 0; extra = 0; pre.clear()
+        scores[min(out_idx, n - 1)] = cur
 
+    return scores
+
+
+def _score_conversation(wav1: np.ndarray, wav2: np.ndarray, silero_path: str) -> tuple[np.ndarray, np.ndarray]:
+    """Run both channels in parallel threads (ONNX Runtime is thread-safe)."""
     T = max(len(wav1), len(wav2))
     wav1 = np.pad(wav1, (0, max(0, T - len(wav1))))
     wav2 = np.pad(wav2, (0, max(0, T - len(wav2))))
-
-    for i in range(0, T - CHUNK + 1, CHUNK):
-        c1 = wav1[i:i + CHUNK].astype(np.float32)
-        c2 = wav2[i:i + CHUNK].astype(np.float32)
-        p1 = vad1.prob(c1)
-        p2 = vad2.prob(c2)
-        sp1 = p1 > VAD_THRESH
-        sp2 = p2 > VAD_THRESH
-        out_idx = int(i / SR * OUT_HZ)
-
-        vad_probs1[min(out_idx, n_out1 - 1)] = p1
-        vad_probs2[min(out_idx, n_out2 - 1)] = p2
-
-        # --- channel 1 ---
-        if not active1:
-            pre1.append(c1)
-            if sp1:
-                cur1 = 0.0
-                seg1 = list(pre1); seg1.append(c1)
-                active1 = True; sil1 = 0; extra1 = 0
-        elif extra1 == 0:                         # active, accumulating
-            seg1.append(c1)
-            if len(seg1) > _MAX_CHUNKS:           # rolling 8s window — drop oldest
-                seg1.pop(0)
-            sil1 = 0 if sp1 else sil1 + 1
-            if sil1 >= _STOP_CHUNKS:
-                extra1 = 1
-                audio = np.concatenate(seg1, dtype=np.float32)
-                cur1 = predict_endpoint(audio)["probability"]
-                print(f"  spk1 settle@1  t={i/SR:.1f}s  seg={len(audio)/SR:.2f}s  P={cur1:.3f}", flush=True)
-        else:                                     # settling window
-            if sp1:
-                cur1 = 0.0
-                seg1 = [c1]; active1 = True; sil1 = 0; extra1 = 0
-            else:
-                seg1.append(c1); extra1 += 1
-                audio = np.concatenate(seg1, dtype=np.float32)
-                cur1 = predict_endpoint(audio)["probability"]
-                print(f"  spk1 settle@{extra1}  t={i/SR:.1f}s  seg={len(audio)/SR:.2f}s  P={cur1:.3f}", flush=True)
-                if extra1 >= _SETTLE_CHUNKS:
-                    active1 = False; sil1 = 0; extra1 = 0; pre1.clear()
-        scores1[min(out_idx, n_out1 - 1)] = cur1
-
-        # --- channel 2 ---
-        if not active2:
-            pre2.append(c2)
-            if sp2:
-                cur2 = 0.0
-                seg2 = list(pre2); seg2.append(c2)
-                active2 = True; sil2 = 0; extra2 = 0
-        elif extra2 == 0:                         # active, accumulating
-            seg2.append(c2)
-            if len(seg2) > _MAX_CHUNKS:           # rolling 8s window — drop oldest
-                seg2.pop(0)
-            sil2 = 0 if sp2 else sil2 + 1
-            if sil2 >= _STOP_CHUNKS:
-                extra2 = 1
-                audio = np.concatenate(seg2, dtype=np.float32)
-                cur2 = predict_endpoint(audio)["probability"]
-                print(f"  spk2 settle@1  t={i/SR:.1f}s  seg={len(audio)/SR:.2f}s  P={cur2:.3f}", flush=True)
-        else:                                     # settling window
-            if sp2:
-                cur2 = 0.0
-                seg2 = [c2]; active2 = True; sil2 = 0; extra2 = 0
-            else:
-                seg2.append(c2); extra2 += 1
-                audio = np.concatenate(seg2, dtype=np.float32)
-                cur2 = predict_endpoint(audio)["probability"]
-                print(f"  spk2 settle@{extra2}  t={i/SR:.1f}s  seg={len(audio)/SR:.2f}s  P={cur2:.3f}", flush=True)
-                if extra2 >= _SETTLE_CHUNKS:
-                    active2 = False; sil2 = 0; extra2 = 0; pre2.clear()
-        scores2[min(out_idx, n_out2 - 1)] = cur2
-
-    return scores1, scores2, vad_probs1, vad_probs2
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as ex:
+        f1 = ex.submit(_score_channel, wav1, silero_path)
+        f2 = ex.submit(_score_channel, wav2, silero_path)
+        return f1.result(), f2.result()
 
 
-def predict_scores(sample_dir: Path) -> dict:
-    t0 = time.time()
-    _load_models()
-
-    def load_wav(path):
-        wav, sr = sf.read(path, dtype="float32")
-        if sr != SR:
-            wav = torchaudio.functional.resample(
-                torch.from_numpy(wav), sr, SR
-            ).numpy()
-        return wav
-
-    wav1 = load_wav(sample_dir / "speaker_1_audio.wav")
-    wav2 = load_wav(sample_dir / "speaker_2_audio.wav")
-
-    scores1, scores2, _, _ = _vad_and_predict_joint(wav1, wav2)
-
-    T = min(len(scores1), len(scores2))
-
-    duration = len(wav1) / SR
-    elapsed  = time.time() - t0
-    print(f"{sample_dir.name}: {duration:.1f}s audio → {elapsed:.1f}s ({duration/elapsed:.1f}x RT)", flush=True)
-
-    return {
-        "frame_rate_hz":                OUT_HZ,
-        "eot_score_speaker_1":          scores1[:T],
-        "eot_score_speaker_2":          scores2[:T],
-        "interruption_score_speaker_1": 1 - scores1[:T],
-        "interruption_score_speaker_2": 1 - scores2[:T],
-    }
+def _build_probs_file(conv_scores: list, task: str) -> ProbsFile:
+    entries = []
+    for conv_id, s1, s2, duration_s in conv_scores:
+        n = frame_count(duration_s, OUT_HZ)
+        if task == "eot":
+            prob1 = s1[:n].tolist()
+            prob2 = s2[:n].tolist()
+        else:
+            prob1 = (1.0 - s1[:n]).tolist()
+            prob2 = (1.0 - s2[:n]).tolist()
+        entries.append(ConversationProbs(
+            conversation_id=conv_id,
+            speaker_1=SpeakerProbs(prob=prob1),
+            speaker_2=SpeakerProbs(prob=prob2),
+        ))
+    return ProbsFile(schema_version=1, task=task, frame_rate_hz=OUT_HZ, probs=entries)
 
 
-def _inspect(sample_dir: Path) -> None:
-    """TEMPORARY: run predict_scores on one sample and plot waveforms + VAD probs + scores."""
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    import soundfile as _sf
+def _make_submission(
+    thr_eot: float,
+    thr_int: float,
+    conv_scores: list,
+) -> Submission:
+    predictions = []
+    for conv_id, s1, s2, duration_s in conv_scores:
+        n = frame_count(duration_s, OUT_HZ)
+        predictions.append(ConversationPrediction(
+            conversation_id=conv_id,
+            speaker_1=SpeakerEvents(
+                eot=         commit_events(s1[:n].tolist(),         OUT_HZ, thr_eot),
+                interruption=commit_events((1.0 - s1[:n]).tolist(), OUT_HZ, thr_int),
+            ),
+            speaker_2=SpeakerEvents(
+                eot=         commit_events(s2[:n].tolist(),         OUT_HZ, thr_eot),
+                interruption=commit_events((1.0 - s2[:n]).tolist(), OUT_HZ, thr_int),
+            ),
+        ))
+    return Submission(schema_version=SCHEMA_VERSION, predictions=predictions)
 
-    _load_models()
-    wav1 = np.array([], dtype=np.float32)
-    wav2 = np.array([], dtype=np.float32)
 
-    def load_wav(path):
-        import torchaudio as _ta, torch as _torch
-        w, sr = _sf.read(path, dtype="float32")
-        if sr != SR:
-            w = _ta.functional.resample(_torch.from_numpy(w), sr, SR).numpy()
-        return w
+def _print_sweep_table(rows, op, task: str) -> None:
+    print(f"\n{task.upper()} sweep:")
+    header = f"  {'theta':>5}  {'recall':>7}  {'fp_rate':>7}  {'lat_p50':>7}"
+    print(header)
+    print("  " + "-" * (len(header) - 2))
+    for r in rows:
+        marker = " ←" if op is not None and r.theta == op.theta else ""
+        print(f"  {r.theta:5.2f}  {r.recall:7.3f}  {r.fp_rate:7.3f}  {r.lat_p50:7.0f}ms{marker}")
 
-    wav1 = load_wav(sample_dir / "speaker_1_audio.wav")
-    wav2 = load_wav(sample_dir / "speaker_2_audio.wav")
-    scores1, scores2, vad1, vad2 = _vad_and_predict_joint(wav1, wav2)
 
-    T = min(len(scores1), len(scores2))
-    scores1, scores2 = scores1[:T], scores2[:T]
-    vad1, vad2 = vad1[:T], vad2[:T]
+def _infer_one(
+    conv_id: str, dataset, silero_path: str
+) -> tuple[str, np.ndarray, np.ndarray, float]:
+    conv = conversation(dataset, conv_id)
+    wav1 = _load_wav(*conv.audio(1))
+    wav2 = _load_wav(*conv.audio(2))
+    s1, s2 = _score_conversation(wav1, wav2, silero_path)
+    return conv_id, s1, s2, conv.duration_s
 
-    hz = OUT_HZ
-    t = np.arange(T) / hz
-    duration = t[-1]
-    vlines = np.arange(1, int(duration) + 1)
-    tick_locs = np.arange(0, int(duration) + 1, 5)
 
-    score_keys = ["eot_score_speaker_1", "eot_score_speaker_2",
-                  "interruption_score_speaker_1", "interruption_score_speaker_2"]
-    score_arrays = [scores1, scores2, 1 - scores1, 1 - scores2]
-    score_colors = ["#2196F3", "#F44336", "#4CAF50", "#FF9800"]
-    score_labels = ["EOT spk1", "EOT spk2", "INT spk1", "INT spk2"]
+def main(
+    run_name: str = "pretrained",
+    dataset_source: str = DEV_DATASET,
+    out: Path | None = None,
+    threshold_eot: float | None = None,
+    threshold_int: float | None = None,
+    probs_only: bool = False,
+    workers: int = 8,
+) -> None:
+    is_dev = (dataset_source == DEV_DATASET)
+    split  = "dev" if is_dev else "test"
 
-    fig, axes = plt.subplots(8, 1, figsize=(max(duration / 10, 20), 12),
-                             gridspec_kw={"hspace": 0.05})
+    if not is_dev and not probs_only and threshold_eot is None:
+        raise ValueError("--threshold-eot and --threshold-int required for non-dev split")
 
-    # rows 0-1: waveforms
-    for spk_idx, ax in enumerate(axes[:2]):
-        p = sample_dir / f"speaker_{spk_idx+1}_audio.wav"
-        if p.exists():
-            wav, sr = _sf.read(p, dtype="float32")
-            ax.plot(np.arange(len(wav)) / sr, wav, lw=0.3, color="#555", alpha=0.7)
-            peak = float(np.abs(wav).max()) or 1.0
-            ax.set_ylim(-peak * 1.1, peak * 1.1)
-        for vl in vlines:
-            ax.axvline(vl, color="#ccc", lw=0.4, zorder=0)
-        ax.set_ylabel(f"Spk {spk_idx+1}\nwav", fontsize=7)
-        ax.set_xlim(0, duration); ax.set_xticks(tick_locs); ax.tick_params(labelbottom=False)
+    silero_path = ensure_model(str(_SMART_TURN / "silero_vad.onnx"))
+    print(f"Silero VAD: {silero_path}  run: {run_name}  split: {split}  workers: {workers}", flush=True)
 
-    # rows 2-3: Silero VAD probs
-    for spk_idx, (vad_arr, ax) in enumerate(zip([vad1, vad2], axes[2:4])):
-        ax.plot(t, vad_arr, lw=0.6, color="#9C27B0")
-        ax.fill_between(t, vad_arr, alpha=0.15, color="#9C27B0")
-        ax.axhline(VAD_THRESH, color="#9C27B0", lw=0.5, ls="--", alpha=0.5)
-        ax.set_ylim(-0.05, 1.05)
-        for vl in vlines:
-            ax.axvline(vl, color="#ccc", lw=0.4, zorder=0)
-        ax.set_ylabel(f"VAD spk{spk_idx+1}", fontsize=7)
-        ax.set_xlim(0, duration); ax.set_xticks(tick_locs); ax.tick_params(labelbottom=False)
+    dataset = resolve_dataset(source=dataset_source)
+    ids = conversation_ids(dataset)
+    results: dict[str, tuple[str, np.ndarray, np.ndarray, float]] = {}
 
-    # rows 4-7: EOT/interruption scores
-    for i, (arr, label, color, ax) in enumerate(zip(score_arrays, score_labels, score_colors, axes[4:])):
-        ax.plot(t, arr, lw=0.6, color=color)
-        ax.fill_between(t, arr, alpha=0.15, color=color)
-        ax.set_ylim(-0.05, 1.05)
-        for vl in vlines:
-            ax.axvline(vl, color="#ccc", lw=0.4, zorder=0)
-        ax.set_ylabel(label, fontsize=7)
-        ax.set_xlim(0, duration); ax.set_xticks(tick_locs)
-        if i < 3:
-            ax.tick_params(labelbottom=False)
+    with tqdm(total=len(ids), desc="inference", unit="conv") as bar:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+            futs = {pool.submit(_infer_one, cid, dataset, silero_path): cid for cid in ids}
+            for fut in concurrent.futures.as_completed(futs):
+                result = fut.result()
+                results[result[0]] = result
+                bar.update(1)
+                bar.set_postfix(id=result[0])
 
-    axes[-1].set_xlabel("Time (s)", fontsize=9)
-    fig.suptitle(f"smart_turn_v3  task={sample_dir.name}  {hz}Hz", fontsize=10)
-    out = Path(__file__).parent / f"inspect_{sample_dir.name}.png"
-    fig.savefig(out, dpi=100, bbox_inches="tight")
-    print(f"Saved → {out}")
-    for label, arr in zip(["VAD spk1", "VAD spk2"] + score_labels, [vad1, vad2] + score_arrays):
-        print(f"  {label:<40s}  min={arr.min():.4f}  max={arr.max():.4f}  mean={arr.mean():.4f}")
+    conv_scores = [results[cid] for cid in ids]  # restore submission order
+
+    if is_dev or probs_only:
+        for task in ("eot", "int"):
+            pf = _build_probs_file(conv_scores, task)
+            path = _HERE / f"probs-{task}.json"
+            path.write_text(pf.model_dump_json(indent=2))
+            print(f"Wrote {path}", flush=True)
+
+    if probs_only:
+        return
+
+    if is_dev:
+        fb_eot, fb_int = CHECKPOINT_DEFAULTS.get(run_name, (0.5, 0.5))
+
+        eot_pf  = _build_probs_file(conv_scores, "eot")
+        eot_rows = sweep(eot_pf, dataset)
+        op_eot  = operating_point(eot_rows)
+        thr_eot = op_eot.theta if op_eot is not None else fb_eot
+
+        int_pf  = _build_probs_file(conv_scores, "int")
+        int_rows = sweep(int_pf, dataset)
+        op_int  = operating_point(int_rows)
+        thr_int = op_int.theta if op_int is not None else fb_int
+
+        _print_sweep_table(eot_rows, op_eot, "eot")
+        _print_sweep_table(int_rows, op_int, "int")
+        print(f"\nOperating point: eot_thr={thr_eot}  int_thr={thr_int}", flush=True)
+    else:
+        thr_eot, thr_int = threshold_eot, threshold_int  # type: ignore[assignment]
+
+    submission = _make_submission(thr_eot, thr_int, conv_scores)
+    out_path = out if out is not None else _HERE / f"predictions-{split}.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(submission.model_dump_json(indent=2))
+    print(f"\nWrote {out_path}", flush=True)
 
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--split",    default=None)
-    parser.add_argument("--run-name", default="smart_turn_v3")
-    parser.add_argument("--inspect",  default=None, help="Inspect single sample dir and plot")
+    parser.add_argument("--run-name",      default="pretrained")
+    parser.add_argument("--dataset",       default=DEV_DATASET)
+    parser.add_argument("--out",           type=Path, default=None)
+    parser.add_argument("--threshold-eot", type=float, default=None)
+    parser.add_argument("--threshold-int", type=float, default=None)
+    parser.add_argument("--probs-only",    action="store_true")
+    parser.add_argument("--workers",       type=int, default=8)
     args = parser.parse_args()
-
-    if args.inspect:
-        _load_models()
-        _inspect(Path(args.inspect))
-    else:
-        split_file = Path(args.split) if args.split else None
-        sys.exit(run("smart_turn_v3", predict_scores, run_name=args.run_name, split_file=split_file))
+    main(
+        run_name=args.run_name,
+        dataset_source=args.dataset,
+        out=args.out,
+        threshold_eot=args.threshold_eot,
+        threshold_int=args.threshold_int,
+        probs_only=args.probs_only,
+        workers=args.workers,
+    )
