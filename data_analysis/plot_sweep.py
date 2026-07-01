@@ -56,21 +56,19 @@ def plot_single(rows: list[SweepRow], task: str, out: Path, *, fp_budget: float,
     fig, axL = plt.subplots(figsize=(7.2, 5.0))
     fig.patch.set_facecolor(BG)  # white
     axL.set_facecolor(BG)
-    line_lat, = axL.plot(theta, _latency_masked(rows, recall_floor), "o-", color=OLIVE, lw=2, ms=5, label=f"{task} latency")
+    line_lat, = axL.plot(theta, _latency_masked(rows, recall_floor), "s-", color=OLIVE, lw=2, ms=5, label=f"{task} latency")
     axL.set_xlabel("Decision threshold", labelpad=10)
     axL.set_ylabel(f"{task} median latency (ms)", labelpad=10)
     axL.set_xlim(0.0, theta_max)
-    axL.tick_params(axis="y", colors=OLIVE)
-    axL.yaxis.label.set_color(OLIVE)
 
     axR = axL.twinx()
     line_rec, = axR.plot(theta, [r.recall for r in rows], "o-", color=STEEL, lw=2, ms=5, label="recall")
-    line_fp, = axR.plot(theta, [r.fp_rate for r in rows], "s-", color=CRIMSON, lw=2, ms=5, label="FP rate")
+    line_fp, = axR.plot(theta, [r.fp_rate for r in rows], "^-", color=CRIMSON, lw=2, ms=6, label="FP rate")
     axR.set_ylabel("recall / FP rate", labelpad=10)
     axR.set_ylim(0.0, 1.0)
     axR.axhline(fp_budget, ls=":", lw=1.2, color=CRIMSON, alpha=0.7)  # FP-rate budget
     axR.text(0.72, fp_budget - 0.015, f"FP budget = {fp_budget:g}", transform=axR.get_yaxis_transform(),
-             ha="center", va="top", fontsize=11, color=CRIMSON)
+             ha="center", va="top", fontsize=11, color=INK)
 
     if op is not None:
         axL.axvline(op.theta, ls="--", lw=1.2, color=INK)
