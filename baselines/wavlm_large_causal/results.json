@@ -1,0 +1,23 @@
+{
+  "eot": {
+    "recall": 0.40756302521008403,
+    "fp_rate": 0.08466603951081844,
+    "latency_p10": 33.000000000008356,
+    "latency_p50": 597.500000000025,
+    "latency_p90": 2301.999999999978
+  },
+  "interruption": {
+    "recall": 0.6138328530259366,
+    "fp_rate": 0.0696490758103402,
+    "latency_p10": 227.60000000000034,
+    "latency_p50": 1185.9999999999786,
+    "latency_p90": 2391.399999999988
+  },
+  "thresholds": {
+    "eot_tau_high": 0.85,
+    "eot_tau_low": 0.34,
+    "int_tau_high": 0.2,
+    "int_tau_low": 0.08,
+    "refractory_s": 2.0
+  }
+}

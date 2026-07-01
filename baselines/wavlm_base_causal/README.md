@@ -20,12 +20,23 @@ sliding windows. Each frame's prediction depends only on audio up to that
 frame. Frame rate: 25 Hz (40 ms stride), first prediction at 200 ms.
 Declared lookahead: **0 ms**.
 
+## Probability signals
+
+- **EOT:** P(NA) + P(T) — end-of-turn is detected as a transition to silence.
+  P(T) alone is too sparse; combining it with P(Silence) captures the signal
+  that the speaker is finishing.
+- **INT:** P(I) — interruption probability directly.
+
 ## Operating point (rule 2: lowest latency at fp_rate ≤ 0.1)
 
 ```
-θ_eot = 0.50   (from eval.sweep on probs-eot.json)
+θ_eot = 0.95   (from eval.sweep on probs-eot.json)
 θ_int = 0.20   (from eval.sweep on probs-int.json)
 ```
+
+Dev results at operating point:
+- EOT: recall=0.410, fp_rate=0.071, latency p50=770ms
+- INT: recall=0.305, fp_rate=0.012, latency p50=845ms
 
 Commitment: online hysteresis detector (tau_low = 0.4 × tau_high, refractory 2.0 s).
 
@@ -83,7 +94,7 @@ P(I) for INT) using the frame grid from `eval/durations-dev.json`.
 ### 4. Get operating point
 
 ```bash
-uv run python -m eval.sweep baselines/wavlm_base_causal/probs-eot.json   # → θ_eot = 0.50
+uv run python -m eval.sweep baselines/wavlm_base_causal/probs-eot.json   # → θ_eot = 0.95
 uv run python -m eval.sweep baselines/wavlm_base_causal/probs-int.json   # → θ_int = 0.20
 ```
 
@@ -95,9 +106,9 @@ each speaker channel.
 
 ## Files
 
-- `predictions-dev.json` — committed events at θ_eot=0.50, θ_int=0.20.
+- `predictions-dev.json` — committed events at θ_eot=0.95, θ_int=0.20.
 - `predictions-test.json` — same operating point, test split.
-- `probs-eot.json` — per-frame P(T) on dev (25 Hz grid).
+- `probs-eot.json` — per-frame P(NA)+P(T) on dev (25 Hz grid).
 - `probs-int.json` — per-frame P(I) on dev (25 Hz grid).
 - `predict.py` — prediction stub.
 - `README.md` — this file.
