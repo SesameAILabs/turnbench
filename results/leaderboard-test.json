@@ -315,14 +315,13 @@
         "dev_fp_rate": 0.065851
       },
       "int": {
-        "recall": 0.119403,
-        "fp_rate": 0.042532,
+        "recall": null,
+        "fp_rate": null,
         "latency_ms": {
-          "p10": -12.0,
-          "p50": 48.0,
-          "p90": 759.0
-        },
-        "dev_fp_rate": 0.046611
+          "p10": null,
+          "p50": null,
+          "p90": null
+        }
       }
     }
   ]
