@@ -171,9 +171,10 @@ def read_columns_projected(source: str, revision: str | None, columns: list[str]
     downloading the rest of the shard (the audio is ~99.96% of it). Shards are
     read in parallel, and the tiny result is cached locally per
     (source, revision, columns) so repeat runs are instant. When `revision` is
-    None the source's pinned revision is used; caching is skipped when no
-    revision is known, since 'latest' is not a stable cache key."""
-    revision = revision or PINNED_REVISIONS.get(source)
+    None the source's pinned revision is used, falling back to the repo's
+    current commit sha (one cheap API call) — a stable cache key that
+    invalidates itself when the dataset is updated."""
+    revision = revision or PINNED_REVISIONS.get(source) or HfApi().dataset_info(source).sha
     cache = _projected_cache_path(source, revision, columns) if revision else None
     if cache is not None and cache.exists():
         return pq.read_table(cache)
