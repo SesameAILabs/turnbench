@@ -27,6 +27,13 @@ metadata axis needs no gold token — only scoring does.
     uv run --extra eval python data_analysis/results_by_conversation_type.py \
         --dataset mundo-ai/turn-benchmark-test-golden --latex
 
+    # the website artifact: results/leaderboard-test.json (from leaderboard.py
+    # --json, run that first) with a per-model `by_type` block and top-level
+    # `types` (n + gold event density) merged in — copy to the site's
+    # src/lib/leaderboard.json.
+    uv run --extra eval python data_analysis/results_by_conversation_type.py \
+        --dataset mundo-ai/turn-benchmark-test-golden --json results/leaderboard-test.json
+
 The three-axis regime (acoustic high-recall/high-fp, semantic low/low, learned
 balanced) holds within every type; the interesting movement is in *where* each
 model's false positives concentrate — see the accompanying findings note.
@@ -342,6 +349,54 @@ def latex_table(ms: MetadataScores) -> str:
     ])
 
 
+def write_json(ms: MetadataScores, out: Path) -> None:
+    """Merge the per-type breakdown into the leaderboard artifact at `out`
+    (produced by leaderboard.py --json) and rewrite it in place: each model row
+    gains `by_type` — {type: {eot, int}} in the same {recall, fp_rate,
+    latency_ms} shape as the overall row, pooled within the type — and the
+    payload gains top-level `types` with n_conversations + gold event density.
+    A track that is null on the overall row (not supported by the model) stays
+    null per type, so the website's dash convention carries over."""
+    import json
+    import math
+
+    def num(x: float) -> float | None:
+        return None if math.isnan(x) else round(x, 6)
+
+    def task_entry(ts: TaskScore) -> dict:
+        lat = ts.latency()
+        return {
+            "recall": num(ts.recall),
+            "fp_rate": num(ts.fp_rate),
+            "latency_ms": {"p10": num(lat.p10), "p50": num(lat.p50), "p90": num(lat.p90)},
+        }
+
+    null_entry = {"recall": None, "fp_rate": None,
+                  "latency_ms": {"p10": None, "p50": None, "p90": None}}
+
+    payload = json.loads(out.read_text())
+    for m in payload["models"]:
+        label = m["model"]
+        m["by_type"] = {
+            t: {
+                task_key: (null_entry if m[task_key]["recall"] is None
+                           else task_entry(ms.pooled[(label, "type", t, task)]))
+                for task_key, task in (("eot", "EOT"), ("int", "INT"))
+            }
+            for t in ms.types
+        }
+    payload["types"] = {
+        t: {
+            "n_conversations": ms.n_type[t],
+            "eot_positives": ms.density[t][0], "eot_negatives": ms.density[t][1],
+            "int_positives": ms.density[t][2], "int_negatives": ms.density[t][3],
+        }
+        for t in ms.types
+    }
+    out.write_text(json.dumps(payload, indent=2) + "\n")
+    print(f"merged by_type into -> {out} ({len(ms.types)} types, {len(payload['models'])} models)")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--dataset", default=DEV_DATASET, help="gold source (HF repo or local dir)")
@@ -349,10 +404,15 @@ def main() -> None:
                     help="which predictions-<split>.json to score (default: inferred from --dataset)")
     ap.add_argument("--latex", action="store_true",
                     help="print the paper's tab:by-type LaTeX rows instead of the rich tables")
+    ap.add_argument("--json", type=Path, default=None, dest="json_out",
+                    help="merge `by_type` + `types` into this leaderboard.py --json artifact")
     args = ap.parse_args()
     split = args.split or ("test" if ("test" in args.dataset or "golden" in args.dataset) else "dev")
 
     scores = compute(args.dataset, split)
+    if args.json_out:
+        write_json(scores, args.json_out)
+        return
     if args.latex:
         print(latex_table(scores))
         return
