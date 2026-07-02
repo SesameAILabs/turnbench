@@ -25,6 +25,128 @@
           "p90": 411.5
         },
         "dev_fp_rate": 0.508438
+      },
+      "by_type": {
+        "Argumentative/Deliberative": {
+          "eot": {
+            "recall": 0.955429,
+            "fp_rate": 0.472628,
+            "latency_ms": {
+              "p10": 92.0,
+              "p50": 294.0,
+              "p90": 396.0
+            }
+          },
+          "int": {
+            "recall": 0.988806,
+            "fp_rate": 0.382181,
+            "latency_ms": {
+              "p10": 118.4,
+              "p50": 196.0,
+              "p90": 394.2
+            }
+          }
+        },
+        "Casual/Spontaneous": {
+          "eot": {
+            "recall": 0.944743,
+            "fp_rate": 0.503987,
+            "latency_ms": {
+              "p10": 43.0,
+              "p50": 280.0,
+              "p90": 400.0
+            }
+          },
+          "int": {
+            "recall": 0.978873,
+            "fp_rate": 0.540704,
+            "latency_ms": {
+              "p10": 120.0,
+              "p50": 189.0,
+              "p90": 391.2
+            }
+          }
+        },
+        "Collaborative/Problem-Solving": {
+          "eot": {
+            "recall": 0.954176,
+            "fp_rate": 0.598214,
+            "latency_ms": {
+              "p10": 58.0,
+              "p50": 278.0,
+              "p90": 400.0
+            }
+          },
+          "int": {
+            "recall": 0.992958,
+            "fp_rate": 0.38855,
+            "latency_ms": {
+              "p10": 116.0,
+              "p50": 168.0,
+              "p90": 310.0
+            }
+          }
+        },
+        "Instructional": {
+          "eot": {
+            "recall": 0.962372,
+            "fp_rate": 0.497917,
+            "latency_ms": {
+              "p10": 72.3,
+              "p50": 277.0,
+              "p90": 392.1
+            }
+          },
+          "int": {
+            "recall": 0.989474,
+            "fp_rate": 0.433604,
+            "latency_ms": {
+              "p10": 124.0,
+              "p50": 217.0,
+              "p90": 487.1
+            }
+          }
+        },
+        "Narrative/Storytelling": {
+          "eot": {
+            "recall": 0.963265,
+            "fp_rate": 0.56872,
+            "latency_ms": {
+              "p10": 51.2,
+              "p50": 269.0,
+              "p90": 370.3
+            }
+          },
+          "int": {
+            "recall": 1.0,
+            "fp_rate": 0.453306,
+            "latency_ms": {
+              "p10": 110.1,
+              "p50": 201.5,
+              "p90": 498.0
+            }
+          }
+        },
+        "Task-Oriented/Transactional": {
+          "eot": {
+            "recall": 0.954488,
+            "fp_rate": 0.51444,
+            "latency_ms": {
+              "p10": 75.6,
+              "p50": 292.0,
+              "p90": 393.6
+            }
+          },
+          "int": {
+            "recall": 1.0,
+            "fp_rate": 0.540021,
+            "latency_ms": {
+              "p10": 108.4,
+              "p50": 149.0,
+              "p90": 427.8
+            }
+          }
+        }
       }
     },
     {
@@ -48,6 +170,128 @@
           "p90": 2107.4
         },
         "dev_fp_rate": 0.09992
+      },
+      "by_type": {
+        "Argumentative/Deliberative": {
+          "eot": {
+            "recall": 0.880065,
+            "fp_rate": 0.043796,
+            "latency_ms": {
+              "p10": -51.5,
+              "p50": 407.0,
+              "p90": 1448.5
+            }
+          },
+          "int": {
+            "recall": 0.951493,
+            "fp_rate": 0.093476,
+            "latency_ms": {
+              "p10": 403.2,
+              "p50": 1083.0,
+              "p90": 2160.4
+            }
+          }
+        },
+        "Casual/Spontaneous": {
+          "eot": {
+            "recall": 0.820414,
+            "fp_rate": 0.073365,
+            "latency_ms": {
+              "p10": -79.2,
+              "p50": 306.0,
+              "p90": 1622.4
+            }
+          },
+          "int": {
+            "recall": 0.93662,
+            "fp_rate": 0.128308,
+            "latency_ms": {
+              "p10": 183.8,
+              "p50": 997.0,
+              "p90": 2130.2
+            }
+          }
+        },
+        "Collaborative/Problem-Solving": {
+          "eot": {
+            "recall": 0.837398,
+            "fp_rate": 0.0625,
+            "latency_ms": {
+              "p10": -73.8,
+              "p50": 375.0,
+              "p90": 1575.4
+            }
+          },
+          "int": {
+            "recall": 0.943662,
+            "fp_rate": 0.115267,
+            "latency_ms": {
+              "p10": 171.4,
+              "p50": 866.0,
+              "p90": 2211.5
+            }
+          }
+        },
+        "Instructional": {
+          "eot": {
+            "recall": 0.850627,
+            "fp_rate": 0.029167,
+            "latency_ms": {
+              "p10": -24.0,
+              "p50": 367.0,
+              "p90": 1497.5
+            }
+          },
+          "int": {
+            "recall": 0.926316,
+            "fp_rate": 0.089883,
+            "latency_ms": {
+              "p10": 305.1,
+              "p50": 886.0,
+              "p90": 1671.6
+            }
+          }
+        },
+        "Narrative/Storytelling": {
+          "eot": {
+            "recall": 0.817687,
+            "fp_rate": 0.07346,
+            "latency_ms": {
+              "p10": -60.0,
+              "p50": 331.0,
+              "p90": 1490.0
+            }
+          },
+          "int": {
+            "recall": 0.932432,
+            "fp_rate": 0.087834,
+            "latency_ms": {
+              "p10": 246.6,
+              "p50": 1182.0,
+              "p90": 2071.0
+            }
+          }
+        },
+        "Task-Oriented/Transactional": {
+          "eot": {
+            "recall": 0.859671,
+            "fp_rate": 0.048736,
+            "latency_ms": {
+              "p10": -27.1,
+              "p50": 428.5,
+              "p90": 1514.5
+            }
+          },
+          "int": {
+            "recall": 0.975904,
+            "fp_rate": 0.120062,
+            "latency_ms": {
+              "p10": 134.0,
+              "p50": 890.0,
+              "p90": 1746.0
+            }
+          }
+        }
       }
     },
     {
@@ -71,6 +315,128 @@
           "p90": 1334.0
         },
         "dev_fp_rate": 0.091347
+      },
+      "by_type": {
+        "Argumentative/Deliberative": {
+          "eot": {
+            "recall": 0.830632,
+            "fp_rate": 0.087591,
+            "latency_ms": {
+              "p10": 402.8,
+              "p50": 843.0,
+              "p90": 1841.2
+            }
+          },
+          "int": {
+            "recall": 0.597015,
+            "fp_rate": 0.076923,
+            "latency_ms": {
+              "p10": 93.6,
+              "p50": 196.5,
+              "p90": 1173.4
+            }
+          }
+        },
+        "Casual/Spontaneous": {
+          "eot": {
+            "recall": 0.805065,
+            "fp_rate": 0.07496,
+            "latency_ms": {
+              "p10": 375.8,
+              "p50": 865.0,
+              "p90": 1977.4
+            }
+          },
+          "int": {
+            "recall": 0.56338,
+            "fp_rate": 0.110888,
+            "latency_ms": {
+              "p10": 102.8,
+              "p50": 227.0,
+              "p90": 1392.3
+            }
+          }
+        },
+        "Collaborative/Problem-Solving": {
+          "eot": {
+            "recall": 0.824834,
+            "fp_rate": 0.092857,
+            "latency_ms": {
+              "p10": 396.5,
+              "p50": 903.0,
+              "p90": 2019.5
+            }
+          },
+          "int": {
+            "recall": 0.5,
+            "fp_rate": 0.057634,
+            "latency_ms": {
+              "p10": 78.0,
+              "p50": 193.0,
+              "p90": 1334.0
+            }
+          }
+        },
+        "Instructional": {
+          "eot": {
+            "recall": 0.846066,
+            "fp_rate": 0.064583,
+            "latency_ms": {
+              "p10": 381.1,
+              "p50": 845.0,
+              "p90": 1837.9
+            }
+          },
+          "int": {
+            "recall": 0.578947,
+            "fp_rate": 0.071816,
+            "latency_ms": {
+              "p10": 95.4,
+              "p50": 228.0,
+              "p90": 1265.0
+            }
+          }
+        },
+        "Narrative/Storytelling": {
+          "eot": {
+            "recall": 0.806803,
+            "fp_rate": 0.080569,
+            "latency_ms": {
+              "p10": 405.4,
+              "p50": 847.0,
+              "p90": 1974.8
+            }
+          },
+          "int": {
+            "recall": 0.689189,
+            "fp_rate": 0.080262,
+            "latency_ms": {
+              "p10": 97.0,
+              "p50": 215.0,
+              "p90": 1247.0
+            }
+          }
+        },
+        "Task-Oriented/Transactional": {
+          "eot": {
+            "recall": 0.854614,
+            "fp_rate": 0.064982,
+            "latency_ms": {
+              "p10": 420.5,
+              "p50": 836.0,
+              "p90": 1856.5
+            }
+          },
+          "int": {
+            "recall": 0.53012,
+            "fp_rate": 0.073805,
+            "latency_ms": {
+              "p10": 82.3,
+              "p50": 160.5,
+              "p90": 1504.2
+            }
+          }
+        }
       }
     },
     {
@@ -94,6 +460,128 @@
           "p90": 2435.1
         },
         "dev_fp_rate": 0.042325
+      },
+      "by_type": {
+        "Argumentative/Deliberative": {
+          "eot": {
+            "recall": 0.809562,
+            "fp_rate": 0.074818,
+            "latency_ms": {
+              "p10": 458.6,
+              "p50": 1180.0,
+              "p90": 1783.2
+            }
+          },
+          "int": {
+            "recall": 0.88806,
+            "fp_rate": 0.056962,
+            "latency_ms": {
+              "p10": 365.4,
+              "p50": 1393.5,
+              "p90": 2367.3
+            }
+          }
+        },
+        "Casual/Spontaneous": {
+          "eot": {
+            "recall": 0.768227,
+            "fp_rate": 0.033493,
+            "latency_ms": {
+              "p10": 205.0,
+              "p50": 1015.0,
+              "p90": 1862.0
+            }
+          },
+          "int": {
+            "recall": 0.859155,
+            "fp_rate": 0.085092,
+            "latency_ms": {
+              "p10": 352.4,
+              "p50": 1374.5,
+              "p90": 2416.7
+            }
+          }
+        },
+        "Collaborative/Problem-Solving": {
+          "eot": {
+            "recall": 0.79527,
+            "fp_rate": 0.0625,
+            "latency_ms": {
+              "p10": 236.0,
+              "p50": 1058.5,
+              "p90": 1781.0
+            }
+          },
+          "int": {
+            "recall": 0.859155,
+            "fp_rate": 0.056489,
+            "latency_ms": {
+              "p10": 405.7,
+              "p50": 1384.0,
+              "p90": 2529.1
+            }
+          }
+        },
+        "Instructional": {
+          "eot": {
+            "recall": 0.826682,
+            "fp_rate": 0.06875,
+            "latency_ms": {
+              "p10": 291.8,
+              "p50": 1044.0,
+              "p90": 1703.6
+            }
+          },
+          "int": {
+            "recall": 0.884211,
+            "fp_rate": 0.037037,
+            "latency_ms": {
+              "p10": 639.5,
+              "p50": 1547.5,
+              "p90": 2568.9
+            }
+          }
+        },
+        "Narrative/Storytelling": {
+          "eot": {
+            "recall": 0.8,
+            "fp_rate": 0.049763,
+            "latency_ms": {
+              "p10": 179.8,
+              "p50": 1035.0,
+              "p90": 1890.3
+            }
+          },
+          "int": {
+            "recall": 0.851351,
+            "fp_rate": 0.03685,
+            "latency_ms": {
+              "p10": 327.4,
+              "p50": 1457.0,
+              "p90": 2607.6
+            }
+          }
+        },
+        "Task-Oriented/Transactional": {
+          "eot": {
+            "recall": 0.814159,
+            "fp_rate": 0.037906,
+            "latency_ms": {
+              "p10": 262.8,
+              "p50": 1097.0,
+              "p90": 1777.2
+            }
+          },
+          "int": {
+            "recall": 0.831325,
+            "fp_rate": 0.039501,
+            "latency_ms": {
+              "p10": 470.0,
+              "p50": 1405.0,
+              "p90": 2423.2
+            }
+          }
+        }
       }
     },
     {
@@ -117,6 +605,128 @@
           "p90": 2269.0
         },
         "dev_fp_rate": 0.09992
+      },
+      "by_type": {
+        "Argumentative/Deliberative": {
+          "eot": {
+            "recall": 0.774716,
+            "fp_rate": 0.05292,
+            "latency_ms": {
+              "p10": 60.5,
+              "p50": 718.0,
+              "p90": 1776.0
+            }
+          },
+          "int": {
+            "recall": 0.891791,
+            "fp_rate": 0.081305,
+            "latency_ms": {
+              "p10": 241.6,
+              "p50": 1128.0,
+              "p90": 2231.2
+            }
+          }
+        },
+        "Casual/Spontaneous": {
+          "eot": {
+            "recall": 0.760553,
+            "fp_rate": 0.087719,
+            "latency_ms": {
+              "p10": 41.0,
+              "p50": 635.0,
+              "p90": 1728.0
+            }
+          },
+          "int": {
+            "recall": 0.915493,
+            "fp_rate": 0.130988,
+            "latency_ms": {
+              "p10": 245.5,
+              "p50": 797.5,
+              "p90": 2107.2
+            }
+          }
+        },
+        "Collaborative/Problem-Solving": {
+          "eot": {
+            "recall": 0.807095,
+            "fp_rate": 0.085714,
+            "latency_ms": {
+              "p10": 42.3,
+              "p50": 613.0,
+              "p90": 1685.0
+            }
+          },
+          "int": {
+            "recall": 0.915493,
+            "fp_rate": 0.1,
+            "latency_ms": {
+              "p10": 261.6,
+              "p50": 1000.0,
+              "p90": 2303.2
+            }
+          }
+        },
+        "Instructional": {
+          "eot": {
+            "recall": 0.805017,
+            "fp_rate": 0.0625,
+            "latency_ms": {
+              "p10": 7.5,
+              "p50": 578.5,
+              "p90": 1472.5
+            }
+          },
+          "int": {
+            "recall": 0.905263,
+            "fp_rate": 0.086269,
+            "latency_ms": {
+              "p10": 322.5,
+              "p50": 894.5,
+              "p90": 2029.0
+            }
+          }
+        },
+        "Narrative/Storytelling": {
+          "eot": {
+            "recall": 0.763265,
+            "fp_rate": 0.116114,
+            "latency_ms": {
+              "p10": 7.0,
+              "p50": 613.0,
+              "p90": 1641.0
+            }
+          },
+          "int": {
+            "recall": 0.837838,
+            "fp_rate": 0.120141,
+            "latency_ms": {
+              "p10": 256.1,
+              "p50": 1195.0,
+              "p90": 2423.3
+            }
+          }
+        },
+        "Task-Oriented/Transactional": {
+          "eot": {
+            "recall": 0.780025,
+            "fp_rate": 0.066787,
+            "latency_ms": {
+              "p10": 69.2,
+              "p50": 692.0,
+              "p90": 1710.6
+            }
+          },
+          "int": {
+            "recall": 0.915663,
+            "fp_rate": 0.112266,
+            "latency_ms": {
+              "p10": 226.5,
+              "p50": 1004.5,
+              "p90": 2262.0
+            }
+          }
+        }
       }
     },
     {
@@ -140,6 +750,128 @@
           "p90": 1578.0
         },
         "dev_fp_rate": 0.084918
+      },
+      "by_type": {
+        "Argumentative/Deliberative": {
+          "eot": {
+            "recall": 0.787682,
+            "fp_rate": 0.080292,
+            "latency_ms": {
+              "p10": 268.1,
+              "p50": 1160.5,
+              "p90": 1721.7
+            }
+          },
+          "int": {
+            "recall": 0.902985,
+            "fp_rate": 0.059883,
+            "latency_ms": {
+              "p10": 213.7,
+              "p50": 520.0,
+              "p90": 1515.0
+            }
+          }
+        },
+        "Casual/Spontaneous": {
+          "eot": {
+            "recall": 0.731389,
+            "fp_rate": 0.043062,
+            "latency_ms": {
+              "p10": 193.2,
+              "p50": 1000.0,
+              "p90": 1717.6
+            }
+          },
+          "int": {
+            "recall": 0.901408,
+            "fp_rate": 0.120603,
+            "latency_ms": {
+              "p10": 223.8,
+              "p50": 604.5,
+              "p90": 1654.9
+            }
+          }
+        },
+        "Collaborative/Problem-Solving": {
+          "eot": {
+            "recall": 0.784922,
+            "fp_rate": 0.076786,
+            "latency_ms": {
+              "p10": 216.1,
+              "p50": 1025.5,
+              "p90": 1689.7
+            }
+          },
+          "int": {
+            "recall": 0.866197,
+            "fp_rate": 0.072901,
+            "latency_ms": {
+              "p10": 357.0,
+              "p50": 577.0,
+              "p90": 1585.2
+            }
+          }
+        },
+        "Instructional": {
+          "eot": {
+            "recall": 0.791334,
+            "fp_rate": 0.0625,
+            "latency_ms": {
+              "p10": 167.5,
+              "p50": 807.5,
+              "p90": 1766.3
+            }
+          },
+          "int": {
+            "recall": 0.915789,
+            "fp_rate": 0.068202,
+            "latency_ms": {
+              "p10": 350.0,
+              "p50": 554.0,
+              "p90": 1584.4
+            }
+          }
+        },
+        "Narrative/Storytelling": {
+          "eot": {
+            "recall": 0.763265,
+            "fp_rate": 0.054502,
+            "latency_ms": {
+              "p10": 169.0,
+              "p50": 1009.0,
+              "p90": 1760.0
+            }
+          },
+          "int": {
+            "recall": 0.905405,
+            "fp_rate": 0.076729,
+            "latency_ms": {
+              "p10": 173.8,
+              "p50": 550.0,
+              "p90": 1960.2
+            }
+          }
+        },
+        "Task-Oriented/Transactional": {
+          "eot": {
+            "recall": 0.786346,
+            "fp_rate": 0.037906,
+            "latency_ms": {
+              "p10": 225.0,
+              "p50": 984.0,
+              "p90": 1743.6
+            }
+          },
+          "int": {
+            "recall": 0.903614,
+            "fp_rate": 0.071726,
+            "latency_ms": {
+              "p10": 250.2,
+              "p50": 617.0,
+              "p90": 1463.6
+            }
+          }
+        }
       }
     },
     {
@@ -163,6 +895,128 @@
           "p90": 465.5
         },
         "dev_fp_rate": 0.095901
+      },
+      "by_type": {
+        "Argumentative/Deliberative": {
+          "eot": {
+            "recall": 0.764182,
+            "fp_rate": 0.051095,
+            "latency_ms": {
+              "p10": 766.6,
+              "p50": 1023.0,
+              "p90": 1181.8
+            }
+          },
+          "int": {
+            "recall": 0.115672,
+            "fp_rate": 0.090068,
+            "latency_ms": {
+              "p10": 55.0,
+              "p50": 160.0,
+              "p90": 450.0
+            }
+          }
+        },
+        "Casual/Spontaneous": {
+          "eot": {
+            "recall": 0.732924,
+            "fp_rate": 0.028708,
+            "latency_ms": {
+              "p10": 691.0,
+              "p50": 1022.0,
+              "p90": 1240.4
+            }
+          },
+          "int": {
+            "recall": 0.035211,
+            "fp_rate": 0.105528,
+            "latency_ms": {
+              "p10": -13.2,
+              "p50": 112.0,
+              "p90": 336.0
+            }
+          }
+        },
+        "Collaborative/Problem-Solving": {
+          "eot": {
+            "recall": 0.751663,
+            "fp_rate": 0.044643,
+            "latency_ms": {
+              "p10": 700.2,
+              "p50": 1012.0,
+              "p90": 1142.0
+            }
+          },
+          "int": {
+            "recall": 0.112676,
+            "fp_rate": 0.058015,
+            "latency_ms": {
+              "p10": 59.0,
+              "p50": 135.0,
+              "p90": 272.5
+            }
+          }
+        },
+        "Instructional": {
+          "eot": {
+            "recall": 0.783352,
+            "fp_rate": 0.054167,
+            "latency_ms": {
+              "p10": 719.8,
+              "p50": 1005.0,
+              "p90": 1145.0
+            }
+          },
+          "int": {
+            "recall": 0.168421,
+            "fp_rate": 0.130533,
+            "latency_ms": {
+              "p10": 89.5,
+              "p50": 146.5,
+              "p90": 354.5
+            }
+          }
+        },
+        "Narrative/Storytelling": {
+          "eot": {
+            "recall": 0.72517,
+            "fp_rate": 0.063981,
+            "latency_ms": {
+              "p10": 743.8,
+              "p50": 1008.0,
+              "p90": 1252.6
+            }
+          },
+          "int": {
+            "recall": 0.121622,
+            "fp_rate": 0.079758,
+            "latency_ms": {
+              "p10": 129.2,
+              "p50": 168.0,
+              "p90": 647.0
+            }
+          }
+        },
+        "Task-Oriented/Transactional": {
+          "eot": {
+            "recall": 0.752212,
+            "fp_rate": 0.046931,
+            "latency_ms": {
+              "p10": 745.0,
+              "p50": 1023.0,
+              "p90": 1213.6
+            }
+          },
+          "int": {
+            "recall": 0.108434,
+            "fp_rate": 0.097713,
+            "latency_ms": {
+              "p10": 81.0,
+              "p50": 166.0,
+              "p90": 494.8
+            }
+          }
+        }
       }
     },
     {
@@ -186,6 +1040,128 @@
           "p90": 330.0
         },
         "dev_fp_rate": 0.389767
+      },
+      "by_type": {
+        "Argumentative/Deliberative": {
+          "eot": {
+            "recall": 0.709887,
+            "fp_rate": 0.640511,
+            "latency_ms": {
+              "p10": -227.0,
+              "p50": -123.0,
+              "p90": 1459.5
+            }
+          },
+          "int": {
+            "recall": 1.0,
+            "fp_rate": 0.385589,
+            "latency_ms": {
+              "p10": 54.7,
+              "p50": 125.0,
+              "p90": 323.3
+            }
+          }
+        },
+        "Casual/Spontaneous": {
+          "eot": {
+            "recall": 0.777437,
+            "fp_rate": 0.695375,
+            "latency_ms": {
+              "p10": -223.8,
+              "p50": -106.0,
+              "p90": 1817.4
+            }
+          },
+          "int": {
+            "recall": 1.0,
+            "fp_rate": 0.521608,
+            "latency_ms": {
+              "p10": 59.1,
+              "p50": 130.0,
+              "p90": 324.4
+            }
+          }
+        },
+        "Collaborative/Problem-Solving": {
+          "eot": {
+            "recall": 0.659276,
+            "fp_rate": 0.583929,
+            "latency_ms": {
+              "p10": -222.9,
+              "p50": -109.5,
+              "p90": 2127.2
+            }
+          },
+          "int": {
+            "recall": 1.0,
+            "fp_rate": 0.375954,
+            "latency_ms": {
+              "p10": 58.1,
+              "p50": 115.5,
+              "p90": 268.1
+            }
+          }
+        },
+        "Instructional": {
+          "eot": {
+            "recall": 0.63512,
+            "fp_rate": 0.510417,
+            "latency_ms": {
+              "p10": -225.4,
+              "p50": -115.0,
+              "p90": 2045.8
+            }
+          },
+          "int": {
+            "recall": 0.989474,
+            "fp_rate": 0.416893,
+            "latency_ms": {
+              "p10": 62.0,
+              "p50": 152.0,
+              "p90": 364.1
+            }
+          }
+        },
+        "Narrative/Storytelling": {
+          "eot": {
+            "recall": 0.752381,
+            "fp_rate": 0.701422,
+            "latency_ms": {
+              "p10": -225.0,
+              "p50": -131.0,
+              "p90": 1681.4
+            }
+          },
+          "int": {
+            "recall": 0.972973,
+            "fp_rate": 0.414437,
+            "latency_ms": {
+              "p10": 59.6,
+              "p50": 139.5,
+              "p90": 460.5
+            }
+          }
+        },
+        "Task-Oriented/Transactional": {
+          "eot": {
+            "recall": 0.790139,
+            "fp_rate": 0.655235,
+            "latency_ms": {
+              "p10": -222.0,
+              "p50": -125.0,
+              "p90": 1607.6
+            }
+          },
+          "int": {
+            "recall": 1.0,
+            "fp_rate": 0.547817,
+            "latency_ms": {
+              "p10": 55.0,
+              "p50": 96.0,
+              "p90": 270.0
+            }
+          }
+        }
       }
     },
     {
@@ -209,6 +1185,128 @@
           "p90": 2321.0
         },
         "dev_fp_rate": 0.096437
+      },
+      "by_type": {
+        "Argumentative/Deliberative": {
+          "eot": {
+            "recall": 0.702593,
+            "fp_rate": 0.078467,
+            "latency_ms": {
+              "p10": 121.2,
+              "p50": 721.0,
+              "p90": 2093.4
+            }
+          },
+          "int": {
+            "recall": 0.600746,
+            "fp_rate": 0.124148,
+            "latency_ms": {
+              "p10": 88.0,
+              "p50": 644.0,
+              "p90": 2120.0
+            }
+          }
+        },
+        "Casual/Spontaneous": {
+          "eot": {
+            "recall": 0.745971,
+            "fp_rate": 0.090909,
+            "latency_ms": {
+              "p10": 53.1,
+              "p50": 723.5,
+              "p90": 1886.5
+            }
+          },
+          "int": {
+            "recall": 0.711268,
+            "fp_rate": 0.187605,
+            "latency_ms": {
+              "p10": 123.0,
+              "p50": 861.0,
+              "p90": 2326.0
+            }
+          }
+        },
+        "Collaborative/Problem-Solving": {
+          "eot": {
+            "recall": 0.693274,
+            "fp_rate": 0.078571,
+            "latency_ms": {
+              "p10": 73.0,
+              "p50": 724.0,
+              "p90": 1936.2
+            }
+          },
+          "int": {
+            "recall": 0.584507,
+            "fp_rate": 0.125191,
+            "latency_ms": {
+              "p10": 65.4,
+              "p50": 1120.0,
+              "p90": 2617.8
+            }
+          }
+        },
+        "Instructional": {
+          "eot": {
+            "recall": 0.684151,
+            "fp_rate": 0.075,
+            "latency_ms": {
+              "p10": 113.2,
+              "p50": 749.5,
+              "p90": 1858.1
+            }
+          },
+          "int": {
+            "recall": 0.442105,
+            "fp_rate": 0.092141,
+            "latency_ms": {
+              "p10": 123.0,
+              "p50": 836.0,
+              "p90": 2313.7
+            }
+          }
+        },
+        "Narrative/Storytelling": {
+          "eot": {
+            "recall": 0.696599,
+            "fp_rate": 0.092417,
+            "latency_ms": {
+              "p10": 92.0,
+              "p50": 759.5,
+              "p90": 2039.4
+            }
+          },
+          "int": {
+            "recall": 0.702703,
+            "fp_rate": 0.113074,
+            "latency_ms": {
+              "p10": 110.1,
+              "p50": 1043.0,
+              "p90": 2210.9
+            }
+          }
+        },
+        "Task-Oriented/Transactional": {
+          "eot": {
+            "recall": 0.73957,
+            "fp_rate": 0.068592,
+            "latency_ms": {
+              "p10": 83.0,
+              "p50": 712.0,
+              "p90": 1990.2
+            }
+          },
+          "int": {
+            "recall": 0.626506,
+            "fp_rate": 0.152287,
+            "latency_ms": {
+              "p10": 50.4,
+              "p50": 619.0,
+              "p90": 1927.1
+            }
+          }
+        }
       }
     },
     {
@@ -230,6 +1328,128 @@
           "p10": null,
           "p50": null,
           "p90": null
+        }
+      },
+      "by_type": {
+        "Argumentative/Deliberative": {
+          "eot": {
+            "recall": 0.706645,
+            "fp_rate": 0.021898,
+            "latency_ms": {
+              "p10": 930.2,
+              "p50": 1273.0,
+              "p90": 1967.9
+            }
+          },
+          "int": {
+            "recall": null,
+            "fp_rate": null,
+            "latency_ms": {
+              "p10": null,
+              "p50": null,
+              "p90": null
+            }
+          }
+        },
+        "Casual/Spontaneous": {
+          "eot": {
+            "recall": 0.615503,
+            "fp_rate": 0.015949,
+            "latency_ms": {
+              "p10": 709.3,
+              "p50": 1196.0,
+              "p90": 1836.8
+            }
+          },
+          "int": {
+            "recall": null,
+            "fp_rate": null,
+            "latency_ms": {
+              "p10": null,
+              "p50": null,
+              "p90": null
+            }
+          }
+        },
+        "Collaborative/Problem-Solving": {
+          "eot": {
+            "recall": 0.677753,
+            "fp_rate": 0.032143,
+            "latency_ms": {
+              "p10": 784.0,
+              "p50": 1217.0,
+              "p90": 1978.0
+            }
+          },
+          "int": {
+            "recall": null,
+            "fp_rate": null,
+            "latency_ms": {
+              "p10": null,
+              "p50": null,
+              "p90": null
+            }
+          }
+        },
+        "Instructional": {
+          "eot": {
+            "recall": 0.654504,
+            "fp_rate": 0.020833,
+            "latency_ms": {
+              "p10": 909.0,
+              "p50": 1231.5,
+              "p90": 1871.2
+            }
+          },
+          "int": {
+            "recall": null,
+            "fp_rate": null,
+            "latency_ms": {
+              "p10": null,
+              "p50": null,
+              "p90": null
+            }
+          }
+        },
+        "Narrative/Storytelling": {
+          "eot": {
+            "recall": 0.614966,
+            "fp_rate": 0.028436,
+            "latency_ms": {
+              "p10": 886.3,
+              "p50": 1237.0,
+              "p90": 1983.6
+            }
+          },
+          "int": {
+            "recall": null,
+            "fp_rate": null,
+            "latency_ms": {
+              "p10": null,
+              "p50": null,
+              "p90": null
+            }
+          }
+        },
+        "Task-Oriented/Transactional": {
+          "eot": {
+            "recall": 0.651075,
+            "fp_rate": 0.01444,
+            "latency_ms": {
+              "p10": 890.8,
+              "p50": 1253.0,
+              "p90": 1961.6
+            }
+          },
+          "int": {
+            "recall": null,
+            "fp_rate": null,
+            "latency_ms": {
+              "p10": null,
+              "p50": null,
+              "p90": null
+            }
+          }
         }
       }
     },
@@ -254,6 +1474,128 @@
           "p90": 2191.4
         },
         "dev_fp_rate": 0.098312
+      },
+      "by_type": {
+        "Argumentative/Deliberative": {
+          "eot": {
+            "recall": 0.372771,
+            "fp_rate": 0.069343,
+            "latency_ms": {
+              "p10": -20.5,
+              "p50": 769.0,
+              "p90": 2378.5
+            }
+          },
+          "int": {
+            "recall": 0.604478,
+            "fp_rate": 0.057936,
+            "latency_ms": {
+              "p10": 97.5,
+              "p50": 774.0,
+              "p90": 2044.4
+            }
+          }
+        },
+        "Casual/Spontaneous": {
+          "eot": {
+            "recall": 0.373753,
+            "fp_rate": 0.044657,
+            "latency_ms": {
+              "p10": -48.2,
+              "p50": 743.0,
+              "p90": 2416.8
+            }
+          },
+          "int": {
+            "recall": 0.598592,
+            "fp_rate": 0.138693,
+            "latency_ms": {
+              "p10": 82.0,
+              "p50": 988.0,
+              "p90": 2323.4
+            }
+          }
+        },
+        "Collaborative/Problem-Solving": {
+          "eot": {
+            "recall": 0.429416,
+            "fp_rate": 0.064286,
+            "latency_ms": {
+              "p10": -82.0,
+              "p50": 683.0,
+              "p90": 2301.0
+            }
+          },
+          "int": {
+            "recall": 0.669014,
+            "fp_rate": 0.100382,
+            "latency_ms": {
+              "p10": 2.0,
+              "p50": 858.0,
+              "p90": 2338.2
+            }
+          }
+        },
+        "Instructional": {
+          "eot": {
+            "recall": 0.464082,
+            "fp_rate": 0.05,
+            "latency_ms": {
+              "p10": -87.4,
+              "p50": 650.0,
+              "p90": 2326.6
+            }
+          },
+          "int": {
+            "recall": 0.684211,
+            "fp_rate": 0.059621,
+            "latency_ms": {
+              "p10": 160.4,
+              "p50": 938.0,
+              "p90": 2023.2
+            }
+          }
+        },
+        "Narrative/Storytelling": {
+          "eot": {
+            "recall": 0.431293,
+            "fp_rate": 0.042654,
+            "latency_ms": {
+              "p10": -49.6,
+              "p50": 686.0,
+              "p90": 2276.8
+            }
+          },
+          "int": {
+            "recall": 0.581081,
+            "fp_rate": 0.097426,
+            "latency_ms": {
+              "p10": 59.6,
+              "p50": 918.0,
+              "p90": 1926.8
+            }
+          }
+        },
+        "Task-Oriented/Transactional": {
+          "eot": {
+            "recall": 0.395702,
+            "fp_rate": 0.048736,
+            "latency_ms": {
+              "p10": -70.4,
+              "p50": 523.0,
+              "p90": 2425.2
+            }
+          },
+          "int": {
+            "recall": 0.746988,
+            "fp_rate": 0.090956,
+            "latency_ms": {
+              "p10": 51.5,
+              "p50": 806.5,
+              "p90": 2021.0
+            }
+          }
+        }
       }
     },
     {
@@ -277,6 +1619,128 @@
           "p90": 2149.4
         },
         "dev_fp_rate": 0.09992
+      },
+      "by_type": {
+        "Argumentative/Deliberative": {
+          "eot": {
+            "recall": 0.357374,
+            "fp_rate": 0.063869,
+            "latency_ms": {
+              "p10": -109.0,
+              "p50": 798.0,
+              "p90": 2394.0
+            }
+          },
+          "int": {
+            "recall": 0.772388,
+            "fp_rate": 0.083252,
+            "latency_ms": {
+              "p10": -15.6,
+              "p50": 537.0,
+              "p90": 2224.0
+            }
+          }
+        },
+        "Casual/Spontaneous": {
+          "eot": {
+            "recall": 0.387567,
+            "fp_rate": 0.055821,
+            "latency_ms": {
+              "p10": -137.2,
+              "p50": 808.0,
+              "p90": 2473.6
+            }
+          },
+          "int": {
+            "recall": 0.802817,
+            "fp_rate": 0.168174,
+            "latency_ms": {
+              "p10": -4.5,
+              "p50": 727.0,
+              "p90": 2321.5
+            }
+          }
+        },
+        "Collaborative/Problem-Solving": {
+          "eot": {
+            "recall": 0.440503,
+            "fp_rate": 0.067857,
+            "latency_ms": {
+              "p10": -166.0,
+              "p50": 758.5,
+              "p90": 2446.5
+            }
+          },
+          "int": {
+            "recall": 0.866197,
+            "fp_rate": 0.109542,
+            "latency_ms": {
+              "p10": -67.4,
+              "p50": 443.0,
+              "p90": 2073.4
+            }
+          }
+        },
+        "Instructional": {
+          "eot": {
+            "recall": 0.423033,
+            "fp_rate": 0.064583,
+            "latency_ms": {
+              "p10": -172.0,
+              "p50": 480.0,
+              "p90": 2338.0
+            }
+          },
+          "int": {
+            "recall": 0.863158,
+            "fp_rate": 0.086269,
+            "latency_ms": {
+              "p10": -17.6,
+              "p50": 771.5,
+              "p90": 1851.3
+            }
+          }
+        },
+        "Narrative/Storytelling": {
+          "eot": {
+            "recall": 0.420408,
+            "fp_rate": 0.066351,
+            "latency_ms": {
+              "p10": -142.0,
+              "p50": 693.0,
+              "p90": 2305.2
+            }
+          },
+          "int": {
+            "recall": 0.783784,
+            "fp_rate": 0.095406,
+            "latency_ms": {
+              "p10": -32.5,
+              "p50": 512.5,
+              "p90": 2050.7
+            }
+          }
+        },
+        "Task-Oriented/Transactional": {
+          "eot": {
+            "recall": 0.393173,
+            "fp_rate": 0.052347,
+            "latency_ms": {
+              "p10": -172.0,
+              "p50": 610.0,
+              "p90": 2427.0
+            }
+          },
+          "int": {
+            "recall": 0.903614,
+            "fp_rate": 0.101871,
+            "latency_ms": {
+              "p10": -33.0,
+              "p50": 588.0,
+              "p90": 1931.8
+            }
+          }
+        }
       }
     },
     {
@@ -300,6 +1764,128 @@
           "p90": 477.8
         },
         "dev_fp_rate": 0.319582
+      },
+      "by_type": {
+        "Argumentative/Deliberative": {
+          "eot": {
+            "recall": 0.269854,
+            "fp_rate": 0.021898,
+            "latency_ms": {
+              "p10": 523.6,
+              "p50": 834.0,
+              "p90": 2227.2
+            }
+          },
+          "int": {
+            "recall": 0.503731,
+            "fp_rate": 0.236611,
+            "latency_ms": {
+              "p10": 118.4,
+              "p50": 200.0,
+              "p90": 406.6
+            }
+          }
+        },
+        "Casual/Spontaneous": {
+          "eot": {
+            "recall": 0.292402,
+            "fp_rate": 0.009569,
+            "latency_ms": {
+              "p10": 386.0,
+              "p50": 825.0,
+              "p90": 2307.0
+            }
+          },
+          "int": {
+            "recall": 0.366197,
+            "fp_rate": 0.285092,
+            "latency_ms": {
+              "p10": 114.5,
+              "p50": 167.0,
+              "p90": 663.0
+            }
+          }
+        },
+        "Collaborative/Problem-Solving": {
+          "eot": {
+            "recall": 0.350333,
+            "fp_rate": 0.019643,
+            "latency_ms": {
+              "p10": 388.3,
+              "p50": 787.5,
+              "p90": 2106.1
+            }
+          },
+          "int": {
+            "recall": 0.457746,
+            "fp_rate": 0.237786,
+            "latency_ms": {
+              "p10": 112.0,
+              "p50": 175.0,
+              "p90": 417.8
+            }
+          }
+        },
+        "Instructional": {
+          "eot": {
+            "recall": 0.302166,
+            "fp_rate": 0.027083,
+            "latency_ms": {
+              "p10": 484.0,
+              "p50": 739.0,
+              "p90": 2182.4
+            }
+          },
+          "int": {
+            "recall": 0.610526,
+            "fp_rate": 0.269196,
+            "latency_ms": {
+              "p10": 124.7,
+              "p50": 217.0,
+              "p90": 525.2
+            }
+          }
+        },
+        "Narrative/Storytelling": {
+          "eot": {
+            "recall": 0.319728,
+            "fp_rate": 0.028436,
+            "latency_ms": {
+              "p10": 446.2,
+              "p50": 768.0,
+              "p90": 2232.0
+            }
+          },
+          "int": {
+            "recall": 0.527027,
+            "fp_rate": 0.283695,
+            "latency_ms": {
+              "p10": 123.0,
+              "p50": 223.0,
+              "p90": 716.6
+            }
+          }
+        },
+        "Task-Oriented/Transactional": {
+          "eot": {
+            "recall": 0.273072,
+            "fp_rate": 0.00361,
+            "latency_ms": {
+              "p10": 499.5,
+              "p50": 830.5,
+              "p90": 2097.5
+            }
+          },
+          "int": {
+            "recall": 0.481928,
+            "fp_rate": 0.318607,
+            "latency_ms": {
+              "p10": 99.7,
+              "p50": 188.0,
+              "p90": 460.3
+            }
+          }
+        }
       }
     },
     {
@@ -322,7 +1908,173 @@
           "p50": null,
           "p90": null
         }
+      },
+      "by_type": {
+        "Argumentative/Deliberative": {
+          "eot": {
+            "recall": 0.207455,
+            "fp_rate": 0.036496,
+            "latency_ms": {
+              "p10": -132.5,
+              "p50": 335.5,
+              "p90": 2394.0
+            }
+          },
+          "int": {
+            "recall": null,
+            "fp_rate": null,
+            "latency_ms": {
+              "p10": null,
+              "p50": null,
+              "p90": null
+            }
+          }
+        },
+        "Casual/Spontaneous": {
+          "eot": {
+            "recall": 0.237913,
+            "fp_rate": 0.033493,
+            "latency_ms": {
+              "p10": -134.0,
+              "p50": 828.5,
+              "p90": 2549.1
+            }
+          },
+          "int": {
+            "recall": null,
+            "fp_rate": null,
+            "latency_ms": {
+              "p10": null,
+              "p50": null,
+              "p90": null
+            }
+          }
+        },
+        "Collaborative/Problem-Solving": {
+          "eot": {
+            "recall": 0.228381,
+            "fp_rate": 0.041071,
+            "latency_ms": {
+              "p10": -121.2,
+              "p50": 887.0,
+              "p90": 2380.8
+            }
+          },
+          "int": {
+            "recall": null,
+            "fp_rate": null,
+            "latency_ms": {
+              "p10": null,
+              "p50": null,
+              "p90": null
+            }
+          }
+        },
+        "Instructional": {
+          "eot": {
+            "recall": 0.290764,
+            "fp_rate": 0.064583,
+            "latency_ms": {
+              "p10": -138.8,
+              "p50": 629.0,
+              "p90": 2471.4
+            }
+          },
+          "int": {
+            "recall": null,
+            "fp_rate": null,
+            "latency_ms": {
+              "p10": null,
+              "p50": null,
+              "p90": null
+            }
+          }
+        },
+        "Narrative/Storytelling": {
+          "eot": {
+            "recall": 0.198639,
+            "fp_rate": 0.066351,
+            "latency_ms": {
+              "p10": -152.0,
+              "p50": 634.0,
+              "p90": 2684.0
+            }
+          },
+          "int": {
+            "recall": null,
+            "fp_rate": null,
+            "latency_ms": {
+              "p10": null,
+              "p50": null,
+              "p90": null
+            }
+          }
+        },
+        "Task-Oriented/Transactional": {
+          "eot": {
+            "recall": 0.241466,
+            "fp_rate": 0.030686,
+            "latency_ms": {
+              "p10": -125.0,
+              "p50": 718.0,
+              "p90": 2453.0
+            }
+          },
+          "int": {
+            "recall": null,
+            "fp_rate": null,
+            "latency_ms": {
+              "p10": null,
+              "p50": null,
+              "p90": null
+            }
+          }
+        }
       }
     }
-  ]
+  ],
+  "types": {
+    "Argumentative/Deliberative": {
+      "n_conversations": 24,
+      "eot_positives": 1234,
+      "eot_negatives": 548,
+      "int_positives": 268,
+      "int_negatives": 2054
+    },
+    "Casual/Spontaneous": {
+      "n_conversations": 22,
+      "eot_positives": 1303,
+      "eot_negatives": 627,
+      "int_positives": 142,
+      "int_negatives": 2985
+    },
+    "Collaborative/Problem-Solving": {
+      "n_conversations": 20,
+      "eot_positives": 1353,
+      "eot_negatives": 560,
+      "int_positives": 142,
+      "int_negatives": 2620
+    },
+    "Instructional": {
+      "n_conversations": 19,
+      "eot_positives": 877,
+      "eot_negatives": 480,
+      "int_positives": 95,
+      "int_negatives": 2214
+    },
+    "Narrative/Storytelling": {
+      "n_conversations": 15,
+      "eot_positives": 735,
+      "eot_negatives": 422,
+      "int_positives": 74,
+      "int_negatives": 1981
+    },
+    "Task-Oriented/Transactional": {
+      "n_conversations": 16,
+      "eot_positives": 791,
+      "eot_negatives": 554,
+      "int_positives": 83,
+      "int_negatives": 1924
+    }
+  }
 }
