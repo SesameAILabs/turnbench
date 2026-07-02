@@ -18,30 +18,42 @@ Per direction K ∈ {1, 2} (Moshi conversing with dataset speaker K):
 ```
 eot_speaker_K          = agent VAD onsets while user_K is VAD-inactive.
                          Committed at the onset.
-interruption_speaker_K = user_K VAD onsets inside an agent VAD region
-                         (a barge-in). Committed at the user onset — the
-                         same onset-anchored convention as every other
-                         baseline (cf. baselines/openai_realtime.py).
 ```
 
-Unlike `gemini_vad`, INT is in scope: the onset-anchored barge-in rule
-above mirrors `baselines/moshi`'s ASR-side INT rule (user onset inside an
-agent speech region), swapping word timings for VAD regions. The
-offset-anchored readout `gemini_vad` rules out is not used.
+**EOT only — the interruption lists are committed empty**, as in
+`gemini_vad`. An onset-anchored "user onset inside an agent VAD region"
+readout is possible (it mirrors `baselines/moshi`'s ASR-side rule), but
+for a generative model it measures *passive floor-overlap*, not
+interruption **detection**: the model's only contribution to each event
+is "was I speaking there". The detection signal a full-duplex model
+could actually exhibit — yielding after a barge-in — is measurable, and
+Moshi shows none:
 
-## Operating points (swept on dev, per the repo protocol)
+| After a user barge-in… | median time-to-stop | stops within 1 s |
+| --- | --- | --- |
+| Moshi (1,927 test barge-ins) | 1.38 s | 37% |
+| Moshi counterfactual (random moment, same region) | 1.44 s | 39% |
+| Gemini (7,294 test barge-ins) | **0.46 s** | **71%** |
+| Gemini counterfactual | 1.43 s | 40% |
+
+Gemini's pipeline demonstrably self-cancels on barge-ins; Moshi's speech
+ends when it was going to end anyway. Since the yield itself cannot be
+scored under the benchmark's causal rules (offset-anchored timestamps,
+or lookahead at commit time), the INT track is out of scope for VAD
+readouts of generative models.
+
+## Operating point (swept on dev, per the repo protocol)
 
 Moshi holds the floor only ~4–8% of frames when fed one side of a
 human-human conversation, so the stock pyannote thresholds sit far from
 its optimum. The VAD threshold is this prob-less baseline's θ: we swept
 onset × offset × merge-gap on dev (segmentation scores extracted once
-per file; thresholds applied offline) and froze, per task, the setting
-with the highest recall at fp_rate ≤ 0.1:
+per file; thresholds applied offline) and froze the setting with the
+highest recall at fp_rate ≤ 0.1:
 
 | Task | onset | offset | merge gap |
 | --- | --- | --- | --- |
 | EOT | 0.88 | 0.862 | 0.15 s |
-| INT | 0.88 | 0.836 | 0.15 s |
 
 The optimum is high-onset / narrow-hysteresis / small-gap — it fragments
 Moshi's brief, quiet floor-taking into many crisp onsets. Recall falls
@@ -53,17 +65,15 @@ it (regions merge; the user-side gate also over-triggers).
 | Split | Track | recall | fp_rate | latency p10/p50/p90 (ms) |
 | --- | --- | --- | --- | --- |
 | dev | EOT | 0.212 | 0.066 | −125 / 771 / 2371 |
-| dev | INT | 0.147 | 0.047 | −22 / 55 / 1630 |
 | **test** | EOT | **0.233** | **0.044** | −132 / 702 / 2489 |
-| **test** | INT | **0.119** | **0.043** | −12 / 48 / 759 |
 
-Test rows scored against `mundo-ai/turn-benchmark-test-golden` at the
-dev-frozen operating points; the dev→test transfer is clean (EOT recall
+Test row scored against `mundo-ai/turn-benchmark-test-golden` at the
+dev-frozen operating point; the dev→test transfer is clean (EOT recall
 +0.021 at lower fp).
 
 For reference, the ASR readout in PR #58 scored dev EOT 0.243 at
 fp_rate 0.119 — **over the 0.1 budget**, hence not a valid operating
-point — and INT 0.141/0.056 (this readout beats it on both INT axes).
+point.
 
 The honest headline: even with a generous acoustic readout at its swept
 optimum, Moshi rarely takes the floor at the right moments in
@@ -142,11 +152,11 @@ your CLI login.
 ## Files
 
 - `predict.py` — self-contained predictor (pyannote segmentation scores
-  + per-task hysteresis thresholds + boundary readout).
+  + hysteresis threshold + boundary readout).
 - `predictions-dev.json` — committed dev predictions at the swept
-  operating points above.
+  operating point above.
 - `predictions-test.json` — committed test predictions at the same
-  frozen operating points (116 conversations × 2 directions, recorded by
+  frozen operating point (116 conversations × 2 directions, recorded by
   the fleet in one pass, 232/232 complete).
 
 ## Notes

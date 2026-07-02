@@ -14,17 +14,22 @@ Events, per direction K ∈ {1, 2} (Moshi conversing with dataset speaker K):
                              VAD-inactive at that time. Committed at the onset
                              (no lookahead in the readout rules; pyannote
                              itself is ~2 s non-causal, as in gemini_vad).
-    interruption_speaker_K = user_K VAD onsets that land inside an agent VAD
-                             region: the user barging in while the agent holds
-                             the floor. Committed at the user onset — the same
-                             onset-anchored convention every other baseline
-                             uses (cf. baselines/openai_realtime.py), unlike
-                             the offset-anchored readout gemini_vad rules out.
-                             This mirrors the ASR-side INT rule in
-                             baselines/moshi, swapping word timings for VAD.
 
-Operating points (PARAMS below) were swept on dev per the repo's protocol —
-highest recall subject to fp_rate ≤ 0.1, per task. Moshi holds the floor only
+EOT only — the interruption lists are committed empty, as in gemini_vad. A
+"user onset inside an agent VAD region" readout is onset-anchored and was
+previously committed here, but for a generative model it measures passive
+floor-overlap, not interruption *detection*: the model contributes only
+"was I speaking there". The detection signal a full-duplex model could
+exhibit — yielding after a barge-in — is measurable and Moshi shows none:
+across 1,927 test barge-ins its time-to-stop after a user onset (median
+1.38 s, 37% within 1 s) is indistinguishable from the counterfactual
+time-to-stop at a random moment in the same speech region (1.44 s, 39%).
+Scoring that yield is also outside the benchmark's causal readout rules
+(offset-anchored timestamps, or lookahead at commit time), so the INT track
+is out of scope for VAD readouts of generative models.
+
+Operating point (PARAMS below) swept on dev per the repo's protocol —
+highest recall subject to fp_rate ≤ 0.1. Moshi holds the floor only
 ~4–8% of frames, so unlike Gemini the stock pyannote thresholds sit far from
 its optimum: the best readout fragments its brief, quiet floor-taking into
 many crisp onsets (high onset, narrow hysteresis, small merge gap).
@@ -65,11 +70,10 @@ from eval.submission import (  # noqa: E402
 
 FRAME_RATE_HZ = 12.5
 
-# Per-task operating points, swept on dev (recall at fp_rate <= 0.1):
-#   EOT 0.212/0.066, INT 0.147/0.047 on dev at these settings.
+# Operating point, swept on dev (recall at fp_rate <= 0.1):
+#   EOT 0.212/0.066 on dev at these settings.
 PARAMS = {
     "eot": {"onset": 0.88, "offset": 0.862, "merge_gap_s": 0.15},
-    "int": {"onset": 0.88, "offset": 0.836, "merge_gap_s": 0.15},
 }
 
 _HERE = Path(__file__).resolve().parent
@@ -325,26 +329,21 @@ def predict_conversation(
             )
 
     eot: dict[int, set[float]] = {1: set(), 2: set()}
-    intr: dict[int, set[float]] = {1: set(), 2: set()}
     for k in (1, 2):
-        for task, sink in (("eot", eot), ("int", intr)):
-            agent_r = cache.regions_for(agent_wavs[k], f"{task_id}_agent{k}", PARAMS[task])
-            user_r = cache.regions_for(user_wavs[k], f"{task_id}_user{k}", PARAMS[task])
-            if task == "eot":
-                # EOT[K]: agent onset while user_K is VAD-inactive there.
-                sink[k].update(on for on, _ in agent_r if not _active_at(user_r, on))
-            else:
-                # INT[K]: user_K onset inside an agent VAD region (barge-in).
-                sink[k].update(on for on, _ in user_r if _active_at(agent_r, on))
+        # EOT[K]: agent onset while user_K is VAD-inactive there.
+        agent_r = cache.regions_for(agent_wavs[k], f"{task_id}_agent{k}", PARAMS["eot"])
+        user_r = cache.regions_for(user_wavs[k], f"{task_id}_user{k}", PARAMS["eot"])
+        eot[k].update(on for on, _ in agent_r if not _active_at(user_r, on))
 
     # temp user wavs are only needed for pyannote; drop them once scores exist
     user1_wav.unlink(missing_ok=True)
     user2_wav.unlink(missing_ok=True)
 
+    # INT is out of scope for this readout (see module docstring): committed empty.
     return ConversationPrediction(
         conversation_id=task_id,
-        speaker_1=SpeakerEvents(eot=_quantize(eot[1], dur_s), interruption=_quantize(intr[1], dur_s)),
-        speaker_2=SpeakerEvents(eot=_quantize(eot[2], dur_s), interruption=_quantize(intr[2], dur_s)),
+        speaker_1=SpeakerEvents(eot=_quantize(eot[1], dur_s), interruption=[]),
+        speaker_2=SpeakerEvents(eot=_quantize(eot[2], dur_s), interruption=[]),
     )
 
 
