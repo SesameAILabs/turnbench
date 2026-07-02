@@ -85,6 +85,7 @@ PAPER_ROWS: list[tuple[str, str] | None] = [
     ("wavlm_large_anchor", "WavLM-Large (anchor)"),
     None,
     ("gemini_vad", "Gemini 3.1 Live"),
+    ("moshi_vad", "Moshi"),
 ]
 
 
@@ -258,17 +259,6 @@ def latex_table(ms: MetadataScores) -> str:
             }
             if recalls:
                 best[(t, task)] = max(recalls, key=lambda k: recalls[k])
-    # Per Δt column: the budget-qualified model with the smallest |median Δt|.
-    lat_best = {
-        task: min(cands, key=lambda k: cands[k])
-        for task, i in (("EOT", 0), ("INT", 1))
-        if (cands := {
-            label: abs(p50[label][i])
-            for label in ms.baselines
-            if qualified(label, task) and p50[label][i] is not None
-        })
-    }
-
     mapped = [r[0] for r in PAPER_ROWS if r]
     rows: list[tuple[str, str] | None] = [
         r for r in PAPER_ROWS if r is None or r[0] in ms.baselines
@@ -290,11 +280,7 @@ def latex_table(ms: MetadataScores) -> str:
                 text = cell(ms.pooled[(label, "type", t, task)])
                 cells.append(f"\\textbf{{{text}}}" if best.get((t, task)) == label else text)
         le, li = p50.get(label, (None, None))
-        lat_cells = [
-            f"\\textbf{{{lat(v)}}}" if lat_best.get(task) == label else lat(v)
-            for task, v in (("EOT", le), ("INT", li))
-        ]
-        lines.append(f"{name:<{width}} & " + " & ".join(cells) + f" & {lat_cells[0]} & {lat_cells[1]} \\\\")
+        lines.append(f"{name:<{width}} & " + " & ".join(cells) + f" & {lat(le)} & {lat(li)} \\\\")
 
     n = len(ms.types)
     type_heads = " & ".join(
@@ -312,7 +298,7 @@ def latex_table(ms: MetadataScores) -> str:
         "EOT and INT (Interruption) report recall\\,/\\,fpr (leading zeros omitted); the "
         "\\textsc{Overall} column reports median latency (ms), "
         "$\\Delta t = t_\\text{pred}-t_\\text{gold}$, for each track. fpr is the false-positive rate; "
-        "--- marks a track the baseline does not support. Bold: best recall (or smallest $|\\Delta t|$) "
+        "--- marks a track the baseline does not support. Bold: best recall "
         "per column among models within the 0.1 dev false-positive budget.}",
         "\\label{tab:by-type}",
         "\\begin{tabular*}{\\textwidth}{@{\\extracolsep{\\fill}}l" + "|cc" * (n + 1) + "@{}}",
