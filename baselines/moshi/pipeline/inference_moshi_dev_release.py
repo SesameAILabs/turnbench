@@ -185,6 +185,8 @@ Example:
     if failed_count > 0:
         print(f"  Check {error_log} for errors.")
     print("==========================================")
+    if failed_count > 0:
+        sys.exit(1)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -412,7 +414,13 @@ class MoshiClient:
     async def _run(self):
         print(f"[{format_time()}] Input duration: {self.input_duration_sec:.2f}s")
         async with websockets.connect(self.url, max_size=None) as ws:
-            await asyncio.gather(self._send(ws), self._recv(ws), return_exceptions=True)
+            results = await asyncio.gather(self._send(ws), self._recv(ws), return_exceptions=True)
+        for result in results:
+            # A swallowed mid-stream failure (e.g. dropped websocket while
+            # sending) would otherwise yield a zero-padded, complete-looking
+            # recording; surface it so run() reports failure.
+            if isinstance(result, BaseException):
+                raise result
         output_duration = sf.info(self.out).duration
         print(f"[{format_time()}] [DONE] input len = {self.input_duration_sec:.2f}s | output len = {output_duration:.2f}s")
 

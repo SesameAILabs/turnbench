@@ -108,4 +108,6 @@ handed-in predictions):
   model, which expose decisions, not confidences.
 - ASR-as-VAD is "semantic": non-lexical vocalizations (backchannel
   hums, laughter) in the output audio do not produce words and therefore
-  do not count as the agent holding the floor.
+  do not count as the agent holding the floor. For a VAD-based readout
+  of Moshi recordings — which catches non-lexical output — see
+  [`../moshi_vad`](../moshi_vad/README.md).
