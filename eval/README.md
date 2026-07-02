@@ -145,11 +145,14 @@ false-alarms-per-hour measure over all behaviour.
 
 ### Ranking
 
-`fp_rate` is a **budget ceiling** and `recall` is a **quality floor**: keep
-models with `fp_rate ≤ budget` AND `recall ≥ floor`, then rank qualifiers by
-**latency** (`qualifies()` / `rank_key()`). EOT is a latency-vs-false-fire
-tradeoff, not a detection problem — a model that never fires has
-`fp_rate = 0` but infinite latency.
+The leaderboard gates on `fp_rate ≤ 0.1` on **dev** — the split the operating
+point is selected on — and ranks in-budget submissions by test **recall**. A
+test `fp_rate` above **1.5× the budget (0.15)** rejects the submission as
+miscalibrated: dev is publicly labeled, so the dev gate alone cannot bound
+test-side over-firing. EOT remains a latency-vs-false-fire tradeoff, not a
+detection problem — a model that never fires has `fp_rate = 0` but infinite
+latency. (`qualifies()` / `rank_key()` are generic helpers for the older
+budget + recall-floor / latency-ranked view.)
 
 ## Pipeline
 

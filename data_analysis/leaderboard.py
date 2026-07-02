@@ -31,6 +31,12 @@ from eval.submission import load_submission  # noqa: E402
 
 BASELINES_DIR = Path(__file__).resolve().parent.parent / "baselines"
 BUDGET = 0.1
+# Test-side validity bound (1.5 × BUDGET). The dev gate alone is gameable —
+# dev annotations are public, so dev predictions can be fabricated — and the
+# refractory permits dense test firing. A submission whose test fp_rate
+# exceeds this bound is rejected as miscalibrated. The slack absorbs honest
+# dev→test calibration drift (max observed among in-budget baselines: 0.135).
+TEST_FP_BOUND = 0.15
 IN_C, OVER_C = "#2b7a3d", "#b23a48"
 
 
@@ -149,10 +155,11 @@ def write_json(scored: dict, out: Path, dataset: str, split: str,
     renders. Sorted by EOT recall (NaN last), so the file order is the ranking.
 
     The fp budget is a DEV-side selection constraint: each task carries
-    `dev_fp_rate` when `dev_scored` is given. Test fp_rate is an unconstrained
-    out-of-sample measurement — expected to drift around the budget for ops
-    tuned to its boundary on dev; rankings should gate on
-    `dev_fp_rate <= fp_budget`, not on test fp."""
+    `dev_fp_rate` when `dev_scored` is given. Test fp_rate is an out-of-sample
+    measurement — expected to drift around the budget for ops tuned to its
+    boundary on dev; rankings gate on `dev_fp_rate <= fp_budget`, with test
+    fp_rate above `test_fp_bound` (1.5 × budget) rejecting the submission as
+    miscalibrated."""
     models = []
     for label, r in sorted(
         scored.items(),
@@ -180,7 +187,8 @@ def write_json(scored: dict, out: Path, dataset: str, split: str,
             "eot": task(er, ef, el, dev["EOT"][1] if dev else None, r["supported"]["EOT"]),
             "int": task(ir, iff, il, dev["INT"][1] if dev else None, r["supported"]["INT"]),
         })
-    payload = {"split": split, "dataset": dataset, "fp_budget": BUDGET, "models": models}
+    payload = {"split": split, "dataset": dataset, "fp_budget": BUDGET,
+               "test_fp_bound": TEST_FP_BOUND, "models": models}
     out.write_text(json.dumps(payload, indent=2) + "\n")
     print(f"wrote leaderboard -> {out} ({len(models)} models)")
 

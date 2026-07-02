@@ -2,6 +2,7 @@
   "split": "test",
   "dataset": "mundo-ai/turn-benchmark-test-golden",
   "fp_budget": 0.1,
+  "test_fp_bound": 0.15,
   "models": [
     {
       "model": "openai_server_vad",

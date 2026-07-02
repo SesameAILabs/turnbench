@@ -72,9 +72,11 @@ Full methodology: [eval/README.md](../eval/README.md). In brief:
 - Your event lists are your operating point. There are no confidence scores
   or thresholds — emit an event exactly when your deployed system would
   commit to acting on one.
-- Per task: recall, false-positive rate, latency p10/p50/p90. Ranking gates
-  on a false-positive budget and a recall floor, then ranks by median
-  latency.
+- Per task: recall, false-positive rate, latency p10/p50/p90. The leaderboard
+  gates on a false-positive budget of 0.1 evaluated on **dev** (the split the
+  operating point is selected on) and ranks in-budget submissions by test
+  recall. A test false-positive rate above 1.5× the budget (0.15) rejects the
+  submission as miscalibrated.
 
 ## Score on the dev set
 
