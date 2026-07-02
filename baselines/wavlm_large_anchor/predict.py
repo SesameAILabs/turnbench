@@ -71,6 +71,10 @@ def _load_model(device: str):
     from huggingface_hub import hf_hub_download
     from espnet2.tasks.universa import UniversaTask
 
+    if os.environ.get("TT_TF32", "0") == "1":  # ~1.3-2x on H100 tensor cores; gate on a
+        torch.backends.cuda.matmul.allow_tf32 = True   # probs-delta check before trusting:
+        torch.backends.cudnn.allow_tf32 = True         # the AR decode is discrete.
+
     # Download checkpoint + config + tokenizer data
     model_dir = Path(hf_hub_download(HF_REPO, f"{CKPT_DIR}/valid.loss.best.pth")).parent
     for f in ["config.yaml", "data/metric2id", "data/metric2type", "data/tokens.json"]:

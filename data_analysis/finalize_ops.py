@@ -55,6 +55,7 @@ TEST_PROBS_SRC = {
     "smart_turn_v3": "predictions/smart_turn_test_probs",
     "wavlm_base_causal": "predictions/wavlm_probs/wavlm_base_causal_test",
     "wavlm_large_causal": "predictions/wavlm_probs/wavlm_large_causal_test",
+    "wavlm_large_anchor": "predictions/wavlm_probs/wavlm_large_anchor_test",
 }
 
 

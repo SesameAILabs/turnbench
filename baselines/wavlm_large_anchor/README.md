@@ -28,31 +28,67 @@ prediction at 200 ms. Declared lookahead: **0 ms**.
   probability. P(I) alone is too sparse for this model; 1-P(C) captures the
   same event more reliably.
 
-## Operating point (rule 2: lowest latency at fp_rate ≤ 0.1)
+## Operating point (rule 2: highest recall at fp_rate ≤ 0.1)
 
 ```
-θ_eot = 0.90   (from eval.sweep on probs-eot.json)
-θ_int = 0.20   (from eval.sweep on probs-int.json)
+θ_eot ≈ 0.89     (eval.sweep on probs-eot.json — score-quantile candidates)
+θ_int ≈ 0.1214   (eval.sweep on probs-int.json)
 ```
 
-Dev results at operating point:
-- EOT: recall=0.813, fp_rate=0.081, latency p50=1141ms
-- INT: recall=0.833, fp_rate=0.096, latency p50=992ms
+| task | split | recall | fp_rate |
+| --- | --- | --- | --- |
+| EOT | dev | 0.825 | 0.100 |
+| EOT | test | 0.800 | 0.054 |
+| INT | dev | 0.899 | 0.042 |
+| INT | test | 0.868 | 0.054 |
+
+`probs-{eot,int}.json` (dev) and `probs-test-{eot,int}.json` are emitted by
+`predict.py --probs-out-dir` (sharded via `--shard K N`, merged with
+`data_analysis/merge_prob_shards.py`); predictions are committed centrally from
+those files (`data_analysis/finalize_ops.py`).
 
 ## How to reproduce
 
 ### 1. Environment
 
-```bash
-pip install espnet s3prl soundfile numpy huggingface_hub
-```
-
-`CausalS3prlFrontend` is **not** in stock ESPnet — install it from the HF repo:
+The ANCHOR model is built on ESPnet's **Universa** framework, which lives on an
+open upstream PR (espnet/espnet#5959) plus author-fork modules published in the
+HF repo. The working recipe (verified end-to-end):
 
 ```bash
-wget -P $(python -c "import espnet2; print(espnet2.__path__[0])")/asr/frontend/ \
-    https://huggingface.co/ZhuoyanTao/causal-wavlm-turn-taking/resolve/main/espnet2/asr/frontend/causal_s3prl.py
+pip install espnet soundfile numpy huggingface_hub h5py g2p_en jamo espnet_tts_frontend
+# s3prl: espnet's pinned fork + route masked WavLM attention to the reference slow
+# path (every public s3prl asserts attn_mask is None on the fast path; see the
+# wavlm_base_causal README for the exact 2-line guard change)
+pip install "git+https://github.com/espnet/s3prl.git@6553a49"
+
+# universa framework (the branch behind espnet/espnet#5959)
+git clone --depth 1 -b uni_versa.sh https://github.com/ftshijt/espnet.git espnet-universa
+
+# overlay the author's fork modules from the HF repo (ar_universa model class,
+# task registry with causal_s3prl + defer_full_meta, tokenizer, base classes) —
+# copy DEREFERENCED (the HF cache stores symlinks):
+python - <<'EOF'
+from huggingface_hub import snapshot_download
+import shutil, subprocess
+p = snapshot_download("ZhuoyanTao/causal-wavlm-turn-taking", allow_patterns=["espnet2/**"])
+subprocess.run(f"cd {p} && find espnet2 -type l -o -type f | while read f; do "
+               "mkdir -p espnet-universa/$(dirname $f); cp -L $f espnet-universa/$f; done",
+               shell=True, check=True, cwd=".")
+EOF
+
+# two fork-only classes are imported by the task registry but never instantiated
+# by this checkpoint — satisfy the imports with raise-if-instantiated stubs:
+#   espnet2/universa/base_flexible_type.py   (UniversaBaseFlexibleType)
+#   espnet/nets/pytorch_backend/transformer/embedding.py  (append RoPEPositionalEncoding stub)
+# (see PR #59 discussion for the stub bodies)
+
+# run everything with the universa tree shadowing the installed espnet:
+export PYTHONPATH=/abs/path/to/espnet-universa
 ```
+
+`TT_TF32=1` enables TF32 (~1.5× on H100; gated numerics check showed max prob
+delta 0.0034 on this checkpoint — used for the committed test probs; dev is fp32).
 
 ### 2. Checkpoint
 
