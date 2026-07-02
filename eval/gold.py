@@ -10,9 +10,8 @@ commit is fully determined by this file.
 Stage 1 — consensus. An event is consensus iff at least MIN_AGREEMENT of the
 three annotators (a, b, c) emit the same canonical label with (start, end)
 intervals agreeing within TIME_TOLERANCE_S on both endpoints; the gold boundary
-is the median across the agreeing annotators (MIN_AGREEMENT = 2, a majority;
-matching algorithm ported from `cmu-sesame/tt-benchmark` `eval/consensus.py`
-+ `eval/label_map.yaml`, tolerances kept identical). Agreement is judged at
+is the median across the agreeing annotators (MIN_AGREEMENT = 2, a majority).
+LABEL_MAP below is the authoritative fine→canonical mapping. Agreement is judged at
 the granularity each task needs — the taxonomy is hierarchical, "Turn" being
 the coarser level above the interruption labels:
 
@@ -86,7 +85,7 @@ from eval.data import (
 LABEL_MAP: dict[str, tuple[str, ...]] = {
     "Turn": (
         "Normal Turn",
-        "Regular Turn",
+        "Regular Turn",  # defensive alias; occurs in neither released split
         "Strong Floor Hold",
         "Bounded Response",
         "Filler",

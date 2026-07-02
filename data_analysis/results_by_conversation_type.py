@@ -70,8 +70,8 @@ LEADERBOARD_JSON = Path(__file__).resolve().parent.parent / "results" / "leaderb
 PAPER_ROWS: list[tuple[str, str] | None] = [
     ("rms_vad", "RMS VAD"),
     None,
-    ("openai_server_vad", "OpenAI Server VAD"),
-    ("openai_semantic_vad", "OpenAI Semantic VAD"),
+    ("openai_server_vad", "OpenAI Realtime (Server VAD)"),
+    ("openai_semantic_vad", "OpenAI Realtime (Semantic VAD)"),
     ("kyutai_semantic_vad", "Kyutai SVAD"),
     ("smart_turn_v3", "SmartTurn v3"),
     None,
@@ -83,6 +83,8 @@ PAPER_ROWS: list[tuple[str, str] | None] = [
     ("wavlm_base_causal", "WavLM-Base (causal)"),
     ("wavlm_large_causal", "WavLM-Large (causal)"),
     ("wavlm_large_anchor", "WavLM-Large (anchor)"),
+    None,
+    ("gemini_vad", "Gemini 3.1 Live"),
 ]
 
 
@@ -206,9 +208,16 @@ def latex_table(ms: MetadataScores) -> str:
     results/leaderboard-test.json so the two committed artifacts cannot disagree."""
     import json
 
+    leaderboard = {m["model"]: m for m in json.loads(LEADERBOARD_JSON.read_text())["models"]}
     p50 = {
-        m["model"]: (m["eot"]["latency_ms"]["p50"], m["int"]["latency_ms"]["p50"])
-        for m in json.loads(LEADERBOARD_JSON.read_text())["models"]
+        label: (m["eot"]["latency_ms"]["p50"], m["int"]["latency_ms"]["p50"])
+        for label, m in leaderboard.items()
+    }
+    # A track a model does not support (e.g. an EOT-only baseline) is null in
+    # the leaderboard; render its cells as em-dashes rather than 0-recall.
+    supported = {
+        label: {task for task in ("EOT", "INT") if m[task.lower()]["recall"] is not None}
+        for label, m in leaderboard.items()
     }
 
     def num(x: float) -> str:
@@ -218,7 +227,9 @@ def latex_table(ms: MetadataScores) -> str:
     def cell(ts: TaskScore) -> str:
         return f"{num(ts.tp / (ts.tp + ts.fn))}/{num(ts.fp / (ts.fp + ts.tn))}"
 
-    def lat(x: float) -> str:
+    def lat(x: float | None) -> str:
+        if x is None:
+            return "---"
         v = round(x)
         return f"$-${abs(v)}" if v < 0 else str(v)
 
@@ -235,7 +246,7 @@ def latex_table(ms: MetadataScores) -> str:
             continue
         label, name = row
         cells = [
-            cell(ms.pooled[(label, "type", t, task)])
+            cell(ms.pooled[(label, "type", t, task)]) if task in supported[label] else "---"
             for t in ms.types
             for task in ("EOT", "INT")
         ]
@@ -257,7 +268,8 @@ def latex_table(ms: MetadataScores) -> str:
         "\\caption{Per-conversation-type results, per baseline (test set). Per-type sub-columns "
         "EOT and INT (Interruption) report recall\\,/\\,fpr (leading zeros omitted); the "
         "\\textsc{Overall} column reports median latency (ms), "
-        "$\\Delta t = t_\\text{pred}-t_\\text{gold}$, for each track. fpr is the false-positive rate.}",
+        "$\\Delta t = t_\\text{pred}-t_\\text{gold}$, for each track. fpr is the false-positive rate; "
+        "--- marks a track the baseline does not support.}",
         "\\label{tab:by-type}",
         "\\begin{tabular*}{\\textwidth}{@{\\extracolsep{\\fill}}l" + "|cc" * (n + 1) + "@{}}",
         "\\toprule",
