@@ -208,11 +208,21 @@ def latex_table(ms: MetadataScores) -> str:
     results/leaderboard-test.json so the two committed artifacts cannot disagree."""
     import json
 
-    leaderboard = {m["model"]: m for m in json.loads(LEADERBOARD_JSON.read_text())["models"]}
+    payload = json.loads(LEADERBOARD_JSON.read_text())
+    leaderboard = {m["model"]: m for m in payload["models"]}
+    fp_budget = payload["fp_budget"]
     p50 = {
         label: (m["eot"]["latency_ms"]["p50"], m["int"]["latency_ms"]["p50"])
         for label, m in leaderboard.items()
     }
+
+    # Bold winners are picked among budget-qualified models only (dev fp_rate
+    # within the budget — the same gate the leaderboard ranks by), so degenerate
+    # high-recall/high-fp operating points are never highlighted.
+    def qualified(label: str, task: str) -> bool:
+        row = leaderboard[label][task.lower()]
+        fp = row.get("dev_fp_rate", row["fp_rate"])
+        return row["recall"] is not None and fp is not None and fp <= fp_budget
     # A track a model does not support (e.g. an EOT-only baseline) is null in
     # the leaderboard; render its cells as em-dashes rather than 0-recall.
     supported = {
@@ -233,6 +243,19 @@ def latex_table(ms: MetadataScores) -> str:
         v = round(x)
         return f"$-${abs(v)}" if v < 0 else str(v)
 
+    # Per (type, task): the budget-qualified model with the highest recall.
+    best: dict[tuple[str, str], str] = {}
+    for t in ms.types:
+        for task in ("EOT", "INT"):
+            recalls = {
+                label: ts.tp / (ts.tp + ts.fn)
+                for label in ms.baselines
+                if qualified(label, task)
+                for ts in [ms.pooled[(label, "type", t, task)]]
+                if ts.tp + ts.fn
+            }
+            if recalls:
+                best[(t, task)] = max(recalls, key=lambda k: recalls[k])
     mapped = [r[0] for r in PAPER_ROWS if r]
     rows: list[tuple[str, str] | None] = [
         r for r in PAPER_ROWS if r is None or r[0] in ms.baselines
@@ -245,11 +268,14 @@ def latex_table(ms: MetadataScores) -> str:
             lines.append("\\midrule")
             continue
         label, name = row
-        cells = [
-            cell(ms.pooled[(label, "type", t, task)]) if task in supported[label] else "---"
-            for t in ms.types
-            for task in ("EOT", "INT")
-        ]
+        cells = []
+        for t in ms.types:
+            for task in ("EOT", "INT"):
+                if task not in supported[label]:
+                    cells.append("---")
+                    continue
+                text = cell(ms.pooled[(label, "type", t, task)])
+                cells.append(f"\\textbf{{{text}}}" if best.get((t, task)) == label else text)
         le, li = p50[label]
         lines.append(f"{name:<{width}} & " + " & ".join(cells) + f" & {lat(le)} & {lat(li)} \\\\")
 
@@ -269,7 +295,8 @@ def latex_table(ms: MetadataScores) -> str:
         "EOT and INT (Interruption) report recall\\,/\\,fpr (leading zeros omitted); the "
         "\\textsc{Overall} column reports median latency (ms), "
         "$\\Delta t = t_\\text{pred}-t_\\text{gold}$, for each track. fpr is the false-positive rate; "
-        "--- marks a track the baseline does not support.}",
+        "--- marks a track the baseline does not support. Bold: best recall per column "
+        "among models within the 0.1 dev false-positive budget.}",
         "\\label{tab:by-type}",
         "\\begin{tabular*}{\\textwidth}{@{\\extracolsep{\\fill}}l" + "|cc" * (n + 1) + "@{}}",
         "\\toprule",
