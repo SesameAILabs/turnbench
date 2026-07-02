@@ -11,17 +11,28 @@ produces.
 Three stages; stages 1–2 are expensive (API streaming in real time) and
 cached on disk, stage 3 is what `predict.py` runs.
 
-### 1. Inference — `pipeline/` (LiveKit client)
+### 1. Inference — `pipeline/`
 
-For every task and each direction (speaker 1 as user, then speaker 2):
-`lk_audio_client.py` streams `speaker_K_audio` into a Gemini Live session
-through LiveKit (`lk_agent.py` hosts the realtime model; `run_batch.sh` /
-`run_worker.sh` drive the batch). The agent's output audio is recorded on
-a wall-clock timeline and saved **sample-aligned with the input** (output
-duration == input duration). System prompt: `pipeline/system_prompt.txt`.
-Credentials via `pipeline/.env.local.example` → `.env.local`.
+Two interchangeable recorders; both stream `speaker_K_audio` into a
+Gemini Live session in real time and save output audio **sample-aligned
+with the input** (output duration == input duration). System prompt:
+`pipeline/system_prompt.txt`. Credentials via
+`pipeline/.env.local.example` → `.env.local`.
 
-Produces `<AUDIO_OUT>/gemini/<model>/<task_id>/speaker_K/{speaker_K_audio.flac,output.wav,output.flac}`.
+**LiveKit client** — `lk_audio_client.py` (client) + `lk_agent.py`
+(realtime model host); `run_batch.sh` / `run_worker.sh` drive the batch.
+
+**Direct google-genai client** — `pipeline/direct_gemini_client.py`
+bypasses LiveKit and talks to the Gemini Live websocket directly (single
+`google-genai` dep). `pipeline/run_batch_direct.sh` fans out across
+tasks with `xargs -P`. Use this when a LiveKit deployment isn't
+available. For whole-split runs, `pipeline/run_split.py` is the
+recommended driver: it streams the HF parquet lazily (no local delivery
+needed), runs directions in parallel, and is resume-safe at direction
+granularity (`.done` marker written only after a confirmed-complete
+send) — it recorded the committed test split.
+
+Both recorders produce `<AUDIO_OUT>/gemini/<model>/<task_id>/speaker_K/{speaker_K_audio.flac,output.wav,output.flac}`.
 
 ### 2. ASR — `pipeline/asr_generic.py` (driver: `pipeline/asr_batch.sh`)
 
@@ -87,4 +98,10 @@ handed-in predictions):
   model, which expose decisions, not confidences.
 - ASR-as-VAD is "semantic": non-lexical vocalizations in the output audio
   do not produce words and therefore do not count as the agent holding
-  the floor.
+  the floor. For a VAD-based readout of the *same* Gemini recordings —
+  which catches non-lexical output — see
+  [`../gemini_vad`](../gemini_vad/README.md).
+- `build_local_dataset.py` bakes a local parquet shard of the dev split
+  from a Mundo delivery directory. Useful when running the scorer without
+  hitting the gated HF dataset each time
+  (`--dataset baselines/gemini/.local_dev_parquet`).

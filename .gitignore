@@ -16,3 +16,9 @@ eval/clips/
 baselines/kyutai_semantic_vad/sge_launch.sh
 baselines/kyutai_semantic_vad/partial/
 baselines/vap/VoiceActivityProjection/
+
+# Gemini baseline local artifacts (recorded audio, VAD cache, local parquet).
+baselines/gemini/sample_runs/
+baselines/gemini/.vad_cache/
+baselines/gemini/.local_dev_parquet/
+baselines/gemini_vad/.vad_cache/
