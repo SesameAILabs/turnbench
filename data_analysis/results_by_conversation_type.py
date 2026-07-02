@@ -220,6 +220,8 @@ def latex_table(ms: MetadataScores) -> str:
     # within the budget — the same gate the leaderboard ranks by), so degenerate
     # high-recall/high-fp operating points are never highlighted.
     def qualified(label: str, task: str) -> bool:
+        if label not in leaderboard:  # e.g. oracle_annotator on a dev run
+            return False
         row = leaderboard[label][task.lower()]
         fp = row.get("dev_fp_rate", row["fp_rate"])
         return row["recall"] is not None and fp is not None and fp <= fp_budget
@@ -282,12 +284,12 @@ def latex_table(ms: MetadataScores) -> str:
         cells = []
         for t in ms.types:
             for task in ("EOT", "INT"):
-                if task not in supported[label]:
+                if task not in supported.get(label, {"EOT", "INT"}):
                     cells.append("---")
                     continue
                 text = cell(ms.pooled[(label, "type", t, task)])
                 cells.append(f"\\textbf{{{text}}}" if best.get((t, task)) == label else text)
-        le, li = p50[label]
+        le, li = p50.get(label, (None, None))
         lat_cells = [
             f"\\textbf{{{lat(v)}}}" if lat_best.get(task) == label else lat(v)
             for task, v in (("EOT", le), ("INT", li))

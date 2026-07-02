@@ -1,0 +1,228 @@
+"""Regenerate the paper's tab:type-overview "Consensus gold" columns.
+
+The table's left half (raw per-annotator dynamics: Events/min, WPM, ...) comes
+from the raw-annotation pipeline outside this repo. This script generates the
+right half — dev/test dialogue counts, Kept (%), N, Turn, INT, BC — from the
+released annotator tracks via eval.gold, so the printed numbers always match
+the shipped scorer. Never hand-edit those cells; rerun this and paste.
+
+Definitions (state them in the table caption):
+- N: total consensus events across all canonical labels, including
+  NonContent, Laughter, and Non-floor-taking Interruption.
+- Kept (%): share of individual annotator events (after the canonical
+  collapse) whose span matches a same-label consensus event within
+  TIME_TOLERANCE_S at both endpoints — the same tolerance the consensus
+  filter itself uses.
+
+Usage:
+    uv run python data_analysis/consensus_by_type.py           # aligned text
+    uv run python data_analysis/consensus_by_type.py --latex   # paper cells
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from collections import Counter, defaultdict
+from dataclasses import dataclass, field
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root
+
+from eval.data import (  # noqa: E402
+    DEV_DATASET,
+    GOLD_DATASET,
+    SPEAKERS,
+    conversation,
+    conversation_ids,
+    read_columns_projected,
+    resolve_dataset,
+)
+from eval.gold import CANONICAL, TIME_TOLERANCE_S, find_consensus, map_events  # noqa: E402
+
+# (metadata repo, gold repo, split) — golden test publishes no metadata column,
+# so conversation types are read from the public test parquet (same ids).
+SOURCES: tuple[tuple[str, str, str], ...] = (
+    (DEV_DATASET, DEV_DATASET, "dev"),
+    ("mundo-ai/turn-benchmark-test", GOLD_DATASET, "test"),
+)
+
+# The table's left half comes from the raw-annotation dynamics pipeline outside
+# this repo (WPM needs transcripts); carried verbatim, keyed by full type name.
+# Columns: Events/min, WPM, Turn len, Changes, BC/min, INT/min, Ovlp.
+DYNAMICS: dict[str, str] = {
+    "Argumentative/Deliberative": "17.0 & 206 & 10.0 & 30.5 & 3.09 & 2.48 & 20.2",
+    "Casual/Spontaneous": "20.9 & 211 &  8.1 & 44.2 & 5.20 & 2.05 & 29.7",
+    "Collaborative/Problem-Solving": "21.4 & 207 &  7.9 & 42.1 & 3.97 & 2.64 & 38.2",
+    "Instructional": "17.6 & 202 & 10.5 & 31.3 & 4.30 & 1.52 & 12.9",
+    "Narrative/Storytelling": "18.8 & 198 & 10.2 & 32.5 & 4.76 & 1.50 & 23.0",
+    "Task-Oriented/Transactional": "18.3 & 205 &  8.9 & 34.1 & 5.00 & 1.75 & 16.7",
+    "All": "19.0 & 205 & 9.2 & 36.0 & 4.32 & 2.04 & 23.7",
+}
+SWITCHBOARD_ROW = (
+    r"\textit{Switchboard}~\cite{godfrey1992switchboard} & 18.5 & 198 & 9.4 & 49.3 "
+    r"& 3.90 & 0.86 & 9.4 & -- & -- & -- & -- & -- & -- & -- \\"
+)
+
+
+@dataclass
+class TypeStats:
+    """Accumulated consensus statistics for one conversation type.
+
+    labels: consensus-event count per canonical label.
+    raw_events: individual annotator events after the canonical collapse.
+    kept_events: subset of raw_events matching a same-label consensus event
+        within TIME_TOLERANCE_S at both endpoints.
+    dialogues: dialogue count per split ("dev" / "test").
+    """
+
+    labels: Counter[str] = field(default_factory=Counter)
+    raw_events: int = 0
+    kept_events: int = 0
+    dialogues: Counter[str] = field(default_factory=Counter)
+
+    @property
+    def n(self) -> int:
+        return sum(self.labels.values())
+
+    @property
+    def kept_pct(self) -> float:
+        return 100 * self.kept_events / self.raw_events
+
+
+def conversation_types(repo: str) -> dict[str, str]:
+    """{conversation_id: conversation_type} from a repo's metadata column."""
+    table = read_columns_projected(repo, None, ["conversation_id", "metadata"])
+    return {
+        cid: meta["conversation_type"]
+        for cid, meta in zip(
+            table["conversation_id"].to_pylist(), table["metadata"].to_pylist()
+        )
+    }
+
+
+def collect() -> dict[str, TypeStats]:
+    """Consensus statistics per conversation type over dev + golden test."""
+    stats: dict[str, TypeStats] = defaultdict(TypeStats)
+    for meta_repo, gold_repo, split in SOURCES:
+        types = conversation_types(meta_repo)
+        dataset = resolve_dataset(gold_repo, skip_audio=True)
+        for cid in conversation_ids(dataset):
+            conv = conversation(dataset, cid)
+            entry = stats[types[cid]]
+            entry.dialogues[split] += 1
+            for speaker in SPEAKERS:
+                tracks = {
+                    annotator: map_events(conv.annotations[(speaker, annotator)], CANONICAL)
+                    for annotator in "abc"
+                }
+                events, _ = find_consensus(tracks, speaker)
+                for event in events:
+                    entry.labels[event.label] += 1
+                spans = [(e.start, e.end, e.label) for e in events]
+                for track in tracks.values():
+                    for start, end, label in track:
+                        entry.raw_events += 1
+                        if any(
+                            label == span_label
+                            and abs(start - span_start) <= TIME_TOLERANCE_S
+                            and abs(end - span_end) <= TIME_TOLERANCE_S
+                            for span_start, span_end, span_label in spans
+                        ):
+                            entry.kept_events += 1
+    return dict(stats)
+
+
+def total(stats: dict[str, TypeStats]) -> TypeStats:
+    """Sum of all per-type statistics (the table's All row)."""
+    out = TypeStats()
+    for entry in stats.values():
+        out.labels += entry.labels
+        out.raw_events += entry.raw_events
+        out.kept_events += entry.kept_events
+        out.dialogues += entry.dialogues
+    return out
+
+
+def cells(entry: TypeStats) -> list[str]:
+    """The consensus-gold cell block: dev, test, Kept (%), N, Turn, INT, BC."""
+    return [
+        str(entry.dialogues["dev"]),
+        str(entry.dialogues["test"]),
+        f"{entry.kept_pct:.1f}",
+        str(entry.n),
+        str(entry.labels["Turn"]),
+        str(entry.labels["Interruption"]),
+        str(entry.labels["Backchannel"]),
+    ]
+
+
+def latex_table(rows: list[tuple[str, TypeStats]]) -> str:
+    """The paper's complete tab:type-overview table* — dynamics columns carried
+    verbatim from DYNAMICS, consensus-gold columns computed by this script."""
+    lines = []
+    for name, entry in rows:
+        if name == "All":
+            lines.append(r"\midrule")
+            label = "All"
+        else:
+            label = rf"\ctype{{{name.split('/')[0]}}}"
+        lines.append(
+            f"{label:<21} & {DYNAMICS[name]} & " + " & ".join(cells(entry)) + r" \\"
+        )
+    return "\n".join([
+        r"\begin{table*}[!tbp]",
+        r"\centering",
+        r"\footnotesize",
+        r"\setlength{\tabcolsep}{3pt}",
+        r"\caption{Per-conversation-type overview. \emph{Dynamics} are computed on the "
+        r"raw per-annotator annotations; the \emph{consensus gold} columns describe the "
+        r"kept events. Events/min, BC/min, INT/min = rates; Turn len = mean turn "
+        r"duration (s); Changes = speaker changes/dialogue; Ovlp.\ = overlap "
+        r"duration/dialogue (s). Kept (\%) = share of annotator events matching a "
+        r"same-label consensus event within $\pm$200\,ms at both endpoints "
+        r"(\S\ref{sec:iaa}); dev/test = speaker-disjoint dialogue counts; $N$ = total "
+        r"consensus events across all canonical labels; Turn/INT/BC = counts of "
+        r"retained \evt{Turn}, \evt{Interruption}, \evt{Backchannel} events. "
+        r"Switchboard~\cite{godfrey1992switchboard} is a single-register, "
+        r"single-annotator reference.}",
+        r"\label{tab:type-overview}",
+        r"\begin{tabular}{l|rrrrrrr|rrrrrrr}",
+        r"\toprule",
+        r"& \multicolumn{7}{c|}{Raw per-annotator dynamics} & \multicolumn{7}{c}{Consensus gold} \\",
+        r"\cmidrule(lr){2-8}\cmidrule(lr){9-15}",
+        r"Conversation type & Events/min & WPM & Turn len & Changes & BC/min & INT/min "
+        r"& Ovlp.\ & dev & test & Kept (\%) & $N$ & Turn & INT & BC \\",
+        r"\midrule",
+        *lines,
+        SWITCHBOARD_ROW,
+        r"\bottomrule",
+        r"\vspace{-0.2in}",
+        r"\end{tabular}",
+        r"\end{table*}",
+    ])
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--latex",
+        action="store_true",
+        help="print the tab:type-overview consensus-gold cells per row",
+    )
+    args = parser.parse_args()
+
+    stats = collect()
+    rows = [*((t, stats[t]) for t in sorted(stats)), ("All", total(stats))]
+    if args.latex:
+        print(latex_table(rows))
+        return
+
+    header = ["type", "dev", "test", "Kept%", "N", "Turn", "INT", "BC"]
+    print(f"{header[0]:<16}" + "".join(f"{h:>8}" for h in header[1:]))
+    for name, entry in rows:
+        print(f"{name.split('/')[0]:<16}" + "".join(f"{c:>8}" for c in cells(entry)))
+
+
+if __name__ == "__main__":
+    main()
