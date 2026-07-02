@@ -45,10 +45,18 @@ def discover(split: str) -> dict[str, Path]:
 def score_all(dataset, split: str) -> dict[str, dict]:
     out: dict[str, dict] = {}
     for label, path in discover(split).items():
-        sc = score_submission(load_submission(path), dataset)
+        submission = load_submission(path)
+        # a track with zero committed events is NOT SUPPORTED by that model
+        # (e.g. gemini_vad ships EOT only) — report it as absent, not recall 0.
+        n_eot = sum(len(p.speaker_1.eot) + len(p.speaker_2.eot)
+                    for p in submission.predictions)
+        n_int = sum(len(p.speaker_1.interruption) + len(p.speaker_2.interruption)
+                    for p in submission.predictions)
+        sc = score_submission(submission, dataset)
         out[label] = {
             "EOT": (sc.task_eot.recall, sc.task_eot.fp_rate, sc.task_eot.latency()),
             "INT": (sc.task_int.recall, sc.task_int.fp_rate, sc.task_int.latency()),
+            "supported": {"EOT": n_eot > 0, "INT": n_int > 0},
         }
     return out
 
@@ -68,8 +76,14 @@ def print_table(scored: dict, tag: str) -> None:
     for t in ("EOT recall", "EOT fp", "EOT lat", "INT recall", "INT fp", "INT lat"):
         table.add_column(t, justify="right")
     for i, (label, r) in enumerate(sorted(scored.items(), key=lambda kv: kv[1]["EOT"][0], reverse=True), 1):
-        (er, ef, el), (ir, iff, il) = r["EOT"], r["INT"]
-        table.add_row(str(i), label, f"{er:.3f}", _fp(ef), f"{el.p50:.0f}", f"{ir:.3f}", _fp(iff), f"{il.p50:.0f}")
+        cells = []
+        for task in ("EOT", "INT"):
+            recall, fp, lat = r[task]
+            if not r["supported"][task]:
+                cells += ["[dim]—[/]"] * 3
+            else:
+                cells += [f"{recall:.3f}", _fp(fp), f"{lat.p50:.0f}"]
+        table.add_row(str(i), label, *cells)
     Console().print(table)
 
 
@@ -97,6 +111,8 @@ def figure(scored: dict, out: Path, tag: str) -> None:
     for ax, task in zip(axes, ("EOT", "INT")):
         in_budget = []
         for label, r in scored.items():
+            if not r["supported"][task]:
+                continue  # track not attempted by this model
             recall, fp, lat_obj = r[task]
             lat = lat_obj.p50
             ok = fp <= BUDGET
@@ -143,7 +159,11 @@ def write_json(scored: dict, out: Path, dataset: str, split: str,
         key=lambda kv: (kv[1]["EOT"][0] if not math.isnan(kv[1]["EOT"][0]) else -1.0),
         reverse=True,
     ):
-        def task(recall: float, fp: float, lat, dev_fp: float | None) -> dict:
+        def task(recall: float, fp: float, lat, dev_fp: float | None,
+                 supported: bool) -> dict:
+            if not supported:  # track not attempted — all-null row, renders as "—"
+                return {"recall": None, "fp_rate": None,
+                        "latency_ms": {"p10": None, "p50": None, "p90": None}}
             entry = {
                 "recall": _num(recall),
                 "fp_rate": _num(fp),
@@ -157,8 +177,8 @@ def write_json(scored: dict, out: Path, dataset: str, split: str,
         (er, ef, el), (ir, iff, il) = r["EOT"], r["INT"]
         models.append({
             "model": label,
-            "eot": task(er, ef, el, dev["EOT"][1] if dev else None),
-            "int": task(ir, iff, il, dev["INT"][1] if dev else None),
+            "eot": task(er, ef, el, dev["EOT"][1] if dev else None, r["supported"]["EOT"]),
+            "int": task(ir, iff, il, dev["INT"][1] if dev else None, r["supported"]["INT"]),
         })
     payload = {"split": split, "dataset": dataset, "fp_budget": BUDGET, "models": models}
     out.write_text(json.dumps(payload, indent=2) + "\n")

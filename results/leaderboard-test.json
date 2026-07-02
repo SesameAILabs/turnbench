@@ -211,6 +211,28 @@
       }
     },
     {
+      "model": "gemini_vad",
+      "eot": {
+        "recall": 0.656603,
+        "fp_rate": 0.021937,
+        "latency_ms": {
+          "p10": 847.0,
+          "p50": 1233.5,
+          "p90": 1950.9
+        },
+        "dev_fp_rate": 0.047037
+      },
+      "int": {
+        "recall": null,
+        "fp_rate": null,
+        "latency_ms": {
+          "p10": null,
+          "p50": null,
+          "p90": null
+        }
+      }
+    },
+    {
       "model": "wavlm_large_causal",
       "eot": {
         "recall": 0.407596,
