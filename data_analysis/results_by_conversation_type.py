@@ -205,8 +205,10 @@ def latex_table(ms: MetadataScores) -> str:
     """The paper's complete per-conversation-type table (tab:by-type): the full
     table* environment, one row per baseline in PAPER_ROWS order — per-type
     `recall/fpr` cells for EOT and INT (leading zeros stripped, 1.00 shown as
-    1.0), then the overall median-latency Δt columns read from
-    results/leaderboard-test.json so the two committed artifacts cannot disagree."""
+    1.0), then the overall pooled recall/fpr (three decimals, so the abstract's
+    headline numbers appear verbatim) and overall median-latency Δt columns,
+    both read from results/leaderboard-test.json so the two committed artifacts
+    cannot disagree."""
     import json
 
     payload = json.loads(LEADERBOARD_JSON.read_text())
@@ -237,8 +239,18 @@ def latex_table(ms: MetadataScores) -> str:
         s = f"{x:.2f}"
         return "1.0" if s == "1.00" else s.lstrip("0")
 
+    def num3(x: float) -> str:
+        s = f"{x:.3f}"
+        return "1.0" if s == "1.000" else s.lstrip("0")
+
     def cell(ts: TaskScore) -> str:
         return f"{num(ts.tp / (ts.tp + ts.fn))}/{num(ts.fp / (ts.fp + ts.tn))}"
+
+    def overall_cell(label: str, task: str) -> str:
+        row = leaderboard.get(label, {}).get(task.lower())
+        if row is None or row["recall"] is None:
+            return "---"
+        return f"{num3(row['recall'])}/{num3(row['fp_rate'])}"
 
     def lat(x: float | None) -> str:
         if x is None:
@@ -259,6 +271,17 @@ def latex_table(ms: MetadataScores) -> str:
             }
             if recalls:
                 best[(t, task)] = max(recalls, key=lambda k: recalls[k])
+
+    # Per task: the budget-qualified model with the highest overall pooled recall.
+    best_overall: dict[str, str] = {}
+    for task in ("EOT", "INT"):
+        recalls = {
+            label: leaderboard[label][task.lower()]["recall"]
+            for label in ms.baselines
+            if qualified(label, task)
+        }
+        if recalls:
+            best_overall[task] = max(recalls, key=lambda k: recalls[k])
     mapped = [r[0] for r in PAPER_ROWS if r]
     rows: list[tuple[str, str] | None] = [
         r for r in PAPER_ROWS if r is None or r[0] in ms.baselines
@@ -279,6 +302,9 @@ def latex_table(ms: MetadataScores) -> str:
                     continue
                 text = cell(ms.pooled[(label, "type", t, task)])
                 cells.append(f"\\textbf{{{text}}}" if best.get((t, task)) == label else text)
+        for task in ("EOT", "INT"):
+            text = overall_cell(label, task)
+            cells.append(f"\\textbf{{{text}}}" if best_overall.get(task) == label else text)
         le, li = p50.get(label, (None, None))
         lines.append(f"{name:<{width}} & " + " & ".join(cells) + f" & {lat(le)} & {lat(li)} \\\\")
 
@@ -287,7 +313,7 @@ def latex_table(ms: MetadataScores) -> str:
         f"\\multicolumn{{2}}{{c{'|' if i < n - 1 else '|'}}}{{\\ctype{{{t.split('/')[0]}}}}}"
         for i, t in enumerate(ms.types)
     )
-    cmidrules = "".join(f"\\cmidrule(lr){{{2 * i + 2}-{2 * i + 3}}}" for i in range(n + 1))
+    cmidrules = "".join(f"\\cmidrule(lr){{{2 * i + 2}-{2 * i + 3}}}" for i in range(n + 2))
     return "\n".join([
         "\\begin{table*}[!tbp]",
         "\\centering",
@@ -296,16 +322,18 @@ def latex_table(ms: MetadataScores) -> str:
         "\\renewcommand{\\arraystretch}{1.1}",
         "\\caption{Per-conversation-type results, per baseline (test set). Per-type sub-columns "
         "EOT and INT (Interruption) report recall\\,/\\,fpr (leading zeros omitted); the "
-        "\\textsc{Overall} column reports median latency (ms), "
-        "$\\Delta t = t_\\text{pred}-t_\\text{gold}$, for each track. fpr is the false-positive rate; "
+        "\\textsc{Overall} columns report the pooled test recall\\,/\\,fpr and the median "
+        "latency (ms), $\\Delta t = t_\\text{pred}-t_\\text{gold}$, for each track. "
+        "fpr is the false-positive rate; "
         "--- marks a track the baseline does not support. Bold: best recall "
         "per column among models within the 0.1 dev false-positive budget.}",
         "\\label{tab:by-type}",
-        "\\begin{tabular*}{\\textwidth}{@{\\extracolsep{\\fill}}l" + "|cc" * (n + 1) + "@{}}",
+        "\\begin{tabular*}{\\textwidth}{@{\\extracolsep{\\fill}}l" + "|cc" * (n + 2) + "@{}}",
         "\\toprule",
-        f"& {type_heads} & \\multicolumn{{2}}{{c}}{{Overall $\\Delta t$}} \\\\",
+        f"& {type_heads} & \\multicolumn{{2}}{{c|}}{{Overall}} "
+        f"& \\multicolumn{{2}}{{c}}{{Overall $\\Delta t$}} \\\\",
         cmidrules,
-        "Baseline & " + " & ".join(["EOT & INT"] * (n + 1)) + " \\\\",
+        "Baseline & " + " & ".join(["EOT & INT"] * (n + 2)) + " \\\\",
         "\\midrule",
         *lines,
         "\\bottomrule",
