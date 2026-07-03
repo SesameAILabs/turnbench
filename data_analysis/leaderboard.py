@@ -25,11 +25,11 @@ from rich import box  # noqa: E402
 from rich.console import Console  # noqa: E402
 from rich.table import Table  # noqa: E402
 
+from data_analysis.discovery import discover  # noqa: E402
 from eval.data import DEV_DATASET, resolve_dataset  # noqa: E402
 from eval.score import score_submission  # noqa: E402
 from eval.submission import load_submission  # noqa: E402
 
-BASELINES_DIR = Path(__file__).resolve().parent.parent / "baselines"
 BUDGET = 0.1
 # Test-side validity bound (1.5 × BUDGET). The dev gate alone is gameable —
 # dev annotations are public, so dev predictions can be fabricated — and the
@@ -40,17 +40,9 @@ TEST_FP_BOUND = 0.15
 IN_C, OVER_C = "#2b7a3d", "#b23a48"
 
 
-def discover(split: str) -> dict[str, Path]:
-    found: dict[str, Path] = {}
-    for path in sorted(BASELINES_DIR.glob(f"*/predictions-{split}*.json")):
-        variant = path.stem[len(f"predictions-{split}"):].lstrip("-")
-        found[path.parent.name + (f"/{variant}" if variant else "")] = path
-    return found
-
-
-def score_all(dataset, split: str) -> dict[str, dict]:
+def score_all(dataset, split: str, submissions: Path | None = None) -> dict[str, dict]:
     out: dict[str, dict] = {}
-    for label, path in discover(split).items():
+    for label, path in discover(split, submissions).items():
         submission = load_submission(path)
         # a track with zero committed events is NOT SUPPORTED by that model
         # (e.g. gemini_vad ships EOT only) — report it as absent, not recall 0.
@@ -199,16 +191,20 @@ def main() -> None:
     ap.add_argument("--split", default=None, choices=["dev", "test"])
     ap.add_argument("--figure", type=Path, default=None, help="also write the tradeoff scatter here")
     ap.add_argument("--json", type=Path, default=None, dest="json_out", help="also write the leaderboard as JSON here")
+    ap.add_argument("--submissions", type=Path, default=None,
+                    help="external submissions dir (same <name>/predictions-<split>.json layout)")
     args = ap.parse_args()
     split = args.split or ("test" if ("test" in args.dataset or "golden" in args.dataset) else "dev")
 
-    scored = score_all(resolve_dataset(source=args.dataset, skip_audio=True), split)
+    scored = score_all(resolve_dataset(source=args.dataset, skip_audio=True), split,
+                       submissions=args.submissions)
     tag = f"{args.dataset.split('/')[-1]} · {split}"
     print_table(scored, tag)
     if args.json_out:
         # qualification (dev fp ≤ budget) comes from each model's dev submission —
         # the split the operating point was selected on.
-        dev_scored = (score_all(resolve_dataset(source=DEV_DATASET, skip_audio=True), "dev")
+        dev_scored = (score_all(resolve_dataset(source=DEV_DATASET, skip_audio=True), "dev",
+                                submissions=args.submissions)
                       if split == "test" else scored)
         write_json(scored, args.json_out, args.dataset, split, dev_scored=dev_scored)
     if args.figure:

@@ -55,6 +55,7 @@ from rich import box  # noqa: E402
 from rich.console import Console  # noqa: E402
 from rich.table import Table  # noqa: E402
 
+from data_analysis.discovery import discover  # noqa: E402
 from eval.data import (  # noqa: E402
     DEV_DATASET,
     GOLD_DATASET,
@@ -68,7 +69,6 @@ from eval.score import TaskScore, merge, score_conversation  # noqa: E402
 from eval.submission import load_submission  # noqa: E402
 
 PAIRING = {("female", "female"): "FF", ("male", "male"): "MM"}
-BASELINES_DIR = Path(__file__).resolve().parent.parent / "baselines"
 LEADERBOARD_JSON = Path(__file__).resolve().parent.parent / "results" / "leaderboard-test.json"
 
 # Paper display names for --latex, in table order; None = \midrule group break.
@@ -125,17 +125,6 @@ def load_metadata(source: str) -> dict[str, dict[str, str]]:
     return out
 
 
-def discover(split: str) -> dict[str, Path]:
-    """{label: predictions_path} for every baseline with a committed file for `split`,
-    including `-base`/`-large`-style variants (the label carries the suffix)."""
-    found: dict[str, Path] = {}
-    for path in sorted(BASELINES_DIR.glob(f"*/predictions-{split}*.json")):
-        variant = path.stem[len(f"predictions-{split}"):].lstrip("-")
-        label = path.parent.name + (f"/{variant}" if variant else "")
-        found[label] = path
-    return found
-
-
 def fmt(ts: TaskScore, *, with_lat: bool = True) -> str:
     """Rich-markup cell `recall / fp [/ lat_ms]`; fp over the 0.10 budget shows red."""
     if ts.tp + ts.fn == 0:
@@ -172,17 +161,18 @@ class MetadataScores(NamedTuple):
     n_type: dict[str, int]
 
 
-def compute(dataset_source: str, split: str) -> MetadataScores:
-    """Score every committed baseline for `split` against the gold at `dataset_source`,
+def compute(dataset_source: str, split: str,
+            submissions: Path | None = None) -> MetadataScores:
+    """Score every discovered model for `split` against the gold at `dataset_source`,
     pooling TP/FN/FP/TN + latencies into conversation_type and gender-pairing groups.
     Returns a MetadataScores; raises SystemExit if no predictions files are found."""
     meta = load_metadata(dataset_source)
     dataset = resolve_dataset(source=dataset_source, skip_audio=True)
     ids = [c for c in conversation_ids(dataset) if c in meta]
     types = sorted({meta[c]["type"] for c in ids})
-    baselines = discover(split)
+    baselines = discover(split, submissions)
     if not baselines:
-        raise SystemExit(f"no baselines/*/predictions-{split}*.json found")
+        raise SystemExit(f"no */predictions-{split}*.json found")
 
     # gold event density per type (baseline-independent)
     density: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0, 0])
@@ -406,10 +396,12 @@ def main() -> None:
                     help="print the paper's tab:by-type LaTeX rows instead of the rich tables")
     ap.add_argument("--json", type=Path, default=None, dest="json_out",
                     help="merge `by_type` + `types` into this leaderboard.py --json artifact")
+    ap.add_argument("--submissions", type=Path, default=None,
+                    help="external submissions dir (same <name>/predictions-<split>.json layout)")
     args = ap.parse_args()
     split = args.split or ("test" if ("test" in args.dataset or "golden" in args.dataset) else "dev")
 
-    scores = compute(args.dataset, split)
+    scores = compute(args.dataset, split, submissions=args.submissions)
     if args.json_out:
         write_json(scores, args.json_out)
         return
