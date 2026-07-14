@@ -1,26 +1,28 @@
 #!/usr/bin/env python3
-"""Overall model scores split by audio status (clean vs noisy) — offline.
+"""Overall model scores split by audio status (clean vs noisy).
 
-Rebuilds the scorer's gold event sets from the committed consensus artifacts
-under `stats_out/` — no HF dataset download needed — and replays every
-`baselines/*/predictions-test.json` against them. Pools TP/FN/FP/TN and
-latencies per baseline within {clean, noisy, all} using `audio_status_metadata.csv`
-(keyed by prompt_id, which matches conversation_id).
+Scores every `baselines/*/predictions-<split>.json` against the real gold —
+built on the fly by `eval/gold.py` from the dataset's annotation tracks (the
+private golden repo for test; set HF_TOKEN) — and pools TP/FN/FP/TN and
+latencies per baseline within {clean, noisy, all} using
+`audio_status_metadata.csv` (keyed by prompt_id, which matches
+conversation_id).
 
 Committed predictions already sit at each model's tuned operating point
 (`results/leaderboard-test.json`), so no thresholds are picked here.
 
-Approximation: the true turn-view consensus (Turn segments AND the turn-view
-excluded intervals) is not committed — only the label-view is. This scorer
-reconstructs the turn view from `stats_out/turn_regions/*.jsonl` (label-view
-Turn segments) and reuses the label-view excluded intervals in the turn-view
-slot as the closest offline stand-in. As a result the overall (clean+noisy)
-numbers drift a few points below `results/leaderboard-test.json`. The
-*clean/noisy delta* is still informative — the same approximation error applies
-to both slices — but the absolute recall/fpr should not be quoted against the
-leaderboard.
+`--type` restricts to one conversation_type — this controls for the
+audio_status × conversation_type confound (noisy recordings over-index on
+argumentative/collaborative talk, and INT false positives concentrate in
+casual talk). The Instructional slice (10 clean / 9 noisy) is the
+near-balanced type used in the paper's noise-robustness paragraph; every
+number quoted there must come from this output — never hand-edit them.
 
+    # test (gold is private — set HF_TOKEN to the gold-repo token first)
     uv run --extra eval python data_analysis/results_by_audio_status.py
+
+    # the paper's slice
+    uv run --extra eval python data_analysis/results_by_audio_status.py --type Instructional
 """
 from __future__ import annotations
 
@@ -39,19 +41,20 @@ from rich import box  # noqa: E402
 from rich.console import Console  # noqa: E402
 from rich.table import Table  # noqa: E402
 
-from eval.gold import (  # noqa: E402
-    ConsensusEvent,
-    ConsensusViews,
-    Interval,
-    build_conversation_events,
+from data_analysis.results_by_conversation_type import load_metadata  # noqa: E402
+from eval.data import (  # noqa: E402
+    DEV_DATASET,
+    GOLD_DATASET,
+    conversation,
+    conversation_ids,
+    resolve_dataset,
 )
-from eval.score import TaskScore, merge, score_task  # noqa: E402
-from eval.submission import load_submission, validate_event_times  # noqa: E402
+from eval.score import TaskScore, merge, score_conversation  # noqa: E402
+from eval.submission import load_submission  # noqa: E402
 
 BASELINES_DIR = REPO / "baselines"
-STATS_DIR = REPO / "stats_out"
 AUDIO_STATUS_CSV = REPO / "audio_status_metadata.csv"
-DURATIONS_TEST = REPO / "eval" / "durations-test.json"
+SPLIT_SOURCE = {"test": GOLD_DATASET, "dev": DEV_DATASET}
 
 
 def load_audio_status() -> dict[str, str]:
@@ -61,51 +64,6 @@ def load_audio_status() -> dict[str, str]:
         for row in csv.DictReader(fh):
             out[str(row["prompt_id"]).strip()] = row["audio_status"].strip()
     return out
-
-
-def read_jsonl(path: Path) -> list[dict]:
-    if not path.exists():
-        return []
-    return [json.loads(ln) for ln in path.read_text().splitlines() if ln.strip()]
-
-
-def load_conversation_gold(cid: str):
-    """Rebuild ConversationEvents for one conversation from stats_out artifacts.
-
-    `stats_out/consensus/{cid}.jsonl`  — label-view consensus events
-    `stats_out/consensus/{cid}_excluded.jsonl` — label-view excluded intervals
-    `stats_out/turn_regions/{cid}.jsonl` — turn-view Turn segments, grouped by region
-
-    The turn-view excluded intervals aren't committed separately; we approximate
-    them with the label-view excluded intervals (see module docstring)."""
-    label_events = [
-        ConsensusEvent(
-            speaker=row["speaker"],
-            start=row["start"],
-            end=row["end"],
-            label=row["label"],
-        )
-        for row in read_jsonl(STATS_DIR / "consensus" / f"{cid}.jsonl")
-    ]
-    label_excluded = [
-        Interval(speaker=row["speaker"], start=row["start"], end=row["end"])
-        for row in read_jsonl(STATS_DIR / "consensus" / f"{cid}_excluded.jsonl")
-    ]
-    turn_events: list[ConsensusEvent] = []
-    for region in read_jsonl(STATS_DIR / "turn_regions" / f"{cid}.jsonl"):
-        speaker = region["speaker"]
-        for ev in region["events"]:
-            if ev["label"] == "Turn":
-                turn_events.append(
-                    ConsensusEvent(speaker=speaker, start=ev["start"], end=ev["end"], label="Turn")
-                )
-    views = ConsensusViews(
-        turn_events=turn_events,
-        turn_excluded=label_excluded,   # approx: see module docstring
-        events=label_events,
-        excluded=label_excluded,
-    )
-    return build_conversation_events(views)
 
 
 def discover(split: str) -> dict[str, Path]:
@@ -131,15 +89,6 @@ def fmt(ts: TaskScore) -> str:
     return f"{recall:.3f}/{fp_cell}/[dim]{lat_cell}[/]"
 
 
-def load_conversation_types() -> dict[str, str]:
-    """{conversation_id: conversation_type} from stats_out/per_conversation.csv."""
-    out: dict[str, str] = {}
-    with (STATS_DIR / "per_conversation.csv").open() as fh:
-        for row in csv.DictReader(fh):
-            out[row["task_id"]] = row["conversation_type"]
-    return out
-
-
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--split", default="test", choices=["dev", "test"])
@@ -148,18 +97,21 @@ def main() -> None:
                          "Removes the audio_status × conversation_type confound.")
     args = ap.parse_args()
 
+    source = SPLIT_SOURCE[args.split]
     status = load_audio_status()
-    types = load_conversation_types() if args.type else {}
-    durations = json.loads(DURATIONS_TEST.read_text())["durations"]
+    meta = load_metadata(source)
+    dataset = resolve_dataset(source=source, skip_audio=True)
+    durations = json.loads(
+        (REPO / "eval" / f"durations-{args.split}.json").read_text()
+    )["durations"]
     baselines = discover(args.split)
     if not baselines:
         raise SystemExit(f"no baselines/*/predictions-{args.split}*.json found")
 
-    # scored conversations = intersection of (has status entry) ∩ (has stats_out gold)
     ids = sorted(
-        {c for c in status if (STATS_DIR / "consensus" / f"{c}.jsonl").exists()
-         and c in durations
-         and (args.type is None or types.get(c) == args.type)},
+        (c for c in conversation_ids(dataset)
+         if c in status and c in durations
+         and (args.type is None or meta[c]["type"].startswith(args.type))),
         key=lambda s: int(s),
     )
     if not ids:
@@ -172,38 +124,20 @@ def main() -> None:
         "all":   sum(durations[c] for c in ids) / 3600.0,
     }
 
-    # Build gold once (cache per conversation)
-    gold_by_cid = {cid: load_conversation_gold(cid) for cid in ids}
-
     pooled: dict[tuple[str, str, str], TaskScore] = defaultdict(TaskScore)
     for label, path in baselines.items():
-        submission = load_submission(path)
-        by_conv = submission.by_conversation()
+        by_conv = load_submission(path).by_conversation()
         for cid in ids:
             if cid not in by_conv:
                 continue
-            pred = by_conv[cid]
-            validate_event_times(pred, durations[cid])
-            gold = gold_by_cid[cid]
-            eot = score_task(
-                gold.eot_positive_events,
-                gold.eot_negative_spans,
-                {1: pred.speaker_1.eot, 2: pred.speaker_2.eot},
-                gold.eot_excluded,
-            )
-            intv = score_task(
-                gold.int_positive_events,
-                gold.int_negative_spans,
-                {1: pred.speaker_1.interruption, 2: pred.speaker_2.interruption},
-                gold.int_excluded,
-            )
+            sc = score_conversation(by_conv[cid], conversation(dataset, cid))
             for group in (status[cid], "all"):
-                merge(pooled[(label, group, "EOT")], eot)
-                merge(pooled[(label, group, "INT")], intv)
+                merge(pooled[(label, group, "EOT")], sc.task_eot)
+                merge(pooled[(label, group, "INT")], sc.task_int)
 
     console = Console()
     console.rule(
-        f"[bold]offline scorer (stats_out gold)[/]  ·  {args.split}  ·  "
+        f"[bold]{source}[/]  ·  {args.split}  ·  "
         + (f"type={args.type!r}  " if args.type else "")
         + f"clean={n_clean}  noisy={n_noisy}  all={len(ids)}  ·  {len(baselines)} baselines"
     )
