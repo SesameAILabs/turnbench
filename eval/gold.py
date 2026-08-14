@@ -203,10 +203,14 @@ def map_events(
     events: list[tuple[float, float, str]],
     canonical: dict[str, str],
 ) -> list[tuple[float, float, str]]:
-    """Drop unmapped fine labels; rewrite the rest to canonical labels."""
+    """Drop unmapped fine labels; rewrite the rest to canonical labels.
+
+    Accepts (start, end, label) or (start, end, label, text) tuples; any
+    trailing fields (the eval.data.Annotation transcript text) are dropped.
+    """
     return [
         (start, end, canonical[label])
-        for start, end, label in events
+        for start, end, label, *_ in events
         if label in canonical
     ]
 

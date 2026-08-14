@@ -35,6 +35,10 @@ DEV_REVISION = "8fa18a24be51528a45397b35cbcaecd84202062b"
 GOLD_DATASET = "mundo-ai/turn-benchmark-test-golden"
 GOLD_REVISION = "7b34876db0a883fdba5d1b6d67e9c3bf3303569a"
 
+# The public splits that together reconstruct the full annotated corpus
+# (154 dialogues): dev plus the private golden test set.
+FULL_CORPUS_SOURCES = (DEV_DATASET, GOLD_DATASET)
+
 # Pinned revisions for reproducibility; sources not listed float to latest.
 # Pinning also lets the projected gold-column read cache locally (_read_gold_columns),
 # so scoring a pinned source is a one-time fetch then instant.
@@ -55,10 +59,11 @@ AUDIO_COLUMNS = [f"speaker_{speaker}_audio" for speaker in SPEAKERS]
 
 _GOLD_CACHE_DIR = Path.home() / ".cache" / "tt-benchmark" / "gold"
 
-# One annotated segment as it lives in the parquet annotation columns, reduced to
-# what consensus needs: (start_s, end_s, fine_label). The verbatim annotator label
-# is mapped to the canonical taxonomy later (eval/gold.py).
-Annotation = tuple[float, float, str]
+# One annotated segment as it lives in the parquet annotation columns:
+# (start_s, end_s, fine_label, text). The verbatim annotator label is mapped to
+# the canonical taxonomy later (eval/gold.py); the transcript text is used by
+# the corpus statistics (data_analysis/per_conversation.py).
+Annotation = tuple[float, float, str, str]
 
 
 @dataclass(frozen=True)
@@ -221,7 +226,7 @@ def conversation(dataset: Dataset, conversation_id: str) -> Conversation:
     row = dataset.rows[dataset.index[conversation_id]]
     annotations = {
         (speaker, annotator): [
-            (event["start_s"], event["end_s"], event["label"])
+            (event["start_s"], event["end_s"], event["label"], event["text"])
             for event in row[f"speaker_{speaker}_annotation_{annotator}"]
         ]
         for speaker in SPEAKERS
