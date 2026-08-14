@@ -103,10 +103,11 @@ def metadata_repo(source: str) -> str:
     return "mundo-ai/turn-benchmark-test" if source == GOLD_DATASET else source
 
 
-def load_metadata(source: str) -> dict[str, dict[str, str]]:
-    """{conversation_id: {"type": ..., "pairing": FF|MM|mixed}} from the parquet.
-    Read column-projected over HTTP range requests — never snapshotting the shards,
-    whose audio would dominate the download and memory."""
+def metadata_structs(source: str) -> dict[str, dict[str, str]]:
+    """{conversation_id: raw metadata struct} from the parquet (conversation_type,
+    speaker_{1,2}_actor_id/_actor_gender). Read column-projected over HTTP range
+    requests — never snapshotting the shards, whose audio would dominate the
+    download and memory."""
     repo = metadata_repo(source)
     if Path(repo).is_dir():
         table = pa.concat_tables([
@@ -115,8 +116,13 @@ def load_metadata(source: str) -> dict[str, dict[str, str]]:
         ])
     else:
         table = read_columns_projected(repo, None, ["conversation_id", "metadata"])
+    return dict(zip(table["conversation_id"].to_pylist(), table["metadata"].to_pylist()))
+
+
+def load_metadata(source: str) -> dict[str, dict[str, str]]:
+    """{conversation_id: {"type": ..., "pairing": FF|MM|mixed}} from the parquet."""
     out: dict[str, dict[str, str]] = {}
-    for cid, m in zip(table["conversation_id"].to_pylist(), table["metadata"].to_pylist()):
+    for cid, m in metadata_structs(source).items():
         genders = (m["speaker_1_actor_gender"], m["speaker_2_actor_gender"])
         out[cid] = {
             "type": m["conversation_type"],

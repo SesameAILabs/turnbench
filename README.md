@@ -32,12 +32,15 @@ Both HF datasets are gated and require authentication to access — run
 `huggingface-cli login`, or put `HF_TOKEN=<token>` in a repo-root `.env` (the
 scorer auto-loads it).
 
-Raw corpus (source of truth): the gated GCS bucket
-`gs://sesame-cmu-tt-benchmark-dev/full_delivery_with_metadata/` — per-`task_id`
-dirs with `combined_audio.wav` + the two channels, the six SRTs, and a
-`metadata.json`. The six types: `Argumentative/Deliberative`,
-`Casual/Spontaneous`, `Collaborative/Problem-Solving`, `Instructional`,
-`Narrative/Storytelling`, `Task-Oriented/Transactional`.
+**The HF releases are the source of truth** — all published numbers are
+computed from them at pinned revisions. The raw delivery archive is the gated
+GCS bucket `gs://sesame-cmu-tt-benchmark-dev/full_delivery_with_metadata/`
+(per-`task_id` dirs: audio, six SRTs, `metadata.json`); its SRTs carry
+un-normalized label variants (e.g. `Regular Turn` for `Normal Turn`), and only
+the scripts reading `TT_BENCHMARK_DATA` / `DATA_ROOT` from `.env` use it. The
+six types: `Argumentative/Deliberative`, `Casual/Spontaneous`,
+`Collaborative/Problem-Solving`, `Instructional`, `Narrative/Storytelling`,
+`Task-Oriented/Transactional`.
 
 ## Splits
 

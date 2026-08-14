@@ -6,9 +6,16 @@ Outputs:
     stats_out/per_type_aggregate.json       mean/median/std/min/max grouped by type
     stats_out/per_type_aggregate.csv        flat per-type summary
 
-Conversation type and speaker genders are read from each sample's
-metadata.json (fields: conversation_type, speaker_{1,2}_actor_gender).
-Samples without a conversation_type are grouped under "unknown".
+Reads the HF releases (dev + private golden test = the full 154-dialogue
+corpus): the raw three-annotator tracks with transcript text, the `metadata`
+column for conversation type and speaker genders, and the committed
+eval/durations artifact for durations. Column-projected at pinned revisions,
+no audio download; needs HF credentials (HF_TOKEN in the environment or
+repo-root `.env`).
+
+Usage:
+    uv run --extra eval python data_analysis/per_conversation.py
+    # STATS_DIR overrides the stats_out/ output directory
 
 Metrics computed per conversation (mean across annotators a/b/c unless noted):
   1  duration_min
@@ -29,20 +36,27 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import re
 import sys
 from collections import Counter
 from pathlib import Path
 
 import numpy as np
-import soundfile as sf
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-SRT_TIME = re.compile(r"(\d+):(\d{2}):(\d{2}),(\d{3})")
-LABEL = re.compile(r"\[([^\]]+)\]")
+from data_analysis.results_by_conversation_type import metadata_structs  # noqa: E402
+from eval.data import (  # noqa: E402
+    ANNOTATORS,
+    FULL_CORPUS_SOURCES,
+    SPEAKERS,
+    conversation,
+    conversation_ids,
+    resolve_dataset,
+)
+
 WORD = re.compile(r"[A-Za-z][A-Za-z'\-]*")
-ANNOTATORS = ("a", "b", "c")
-SPEAKERS = (1, 2)
 WINDOW_S = 0.1
 BOUNDARY_TOL_S = 0.2
 
@@ -69,44 +83,6 @@ for l in TURN_LABELS: CATEGORY[l] = "TURN"
 for l in OVERLAP: CATEGORY[l] = "OVL"
 for l in NON_CONTENT: CATEGORY[l] = "NC"
 for l in LAUGHTER: CATEGORY[l] = "LAUGH"
-
-
-def load_env(p: Path) -> dict[str, str]:
-    env = {}
-    for line in p.read_text().splitlines():
-        line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            k, v = line.split("=", 1)
-            env[k.strip()] = v.strip()
-    return env
-
-
-def srt_seconds(ts: str) -> float:
-    h, m, s, ms = SRT_TIME.match(ts).groups()
-    return int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 1000
-
-
-def parse_srt(path: Path) -> list[tuple[float, float, str, str]]:
-    out = []
-    for block in re.split(r"\n\s*\n", path.read_text(encoding="utf-8").strip()):
-        lines = [ln for ln in block.splitlines() if ln.strip()]
-        if len(lines) < 2:
-            continue
-        idx = 1 if lines[0].strip().isdigit() else 0
-        if idx >= len(lines) or "-->" not in lines[idx]:
-            continue
-        a, b = [t.strip() for t in lines[idx].split("-->")]
-        body = " ".join(lines[idx + 1:]).strip()
-        m = LABEL.match(body)
-        label = m.group(1) if m else ""
-        text = body[m.end():].strip() if m else body
-        out.append((srt_seconds(a), srt_seconds(b), label, text))
-    return out
-
-
-def wav_dur(path: Path) -> float:
-    info = sf.info(str(path))
-    return info.frames / float(info.samplerate)
 
 
 def union_dur(intervals: list[tuple[float, float]]) -> float:
@@ -190,31 +166,51 @@ def boundary_f1(a_on: list[float], b_on: list[float], tol: float = BOUNDARY_TOL_
     return 0.0 if (p + r) == 0 else 2 * p * r / (p + r)
 
 
-def speaker_change_ftos(events_by_speaker: dict[int, list]) -> list[float]:
+def turn_timing(events_by_speaker: dict[int, list],
+                labels: set[str] | tuple[str, ...] = None) -> tuple[list[float], list[float]]:
+    """FTOs and within-turn pauses from one annotator's floor-holding events.
+
+    events_by_speaker: {speaker: [(start, end, label, text), ...]}. labels: the
+    fine labels that count as holding the floor (default: this module's
+    TURN_LABELS; pass eval.gold.TURN_LABELS for the gold turn view, which also
+    counts floor-taking interruptions). Returns (ftos, pauses) in seconds: for
+    consecutive onset-sorted floor spans, a speaker change contributes a signed
+    FTO (+gap / -overlap), and a same-speaker pair with positive silence
+    between the spans contributes a pause (the speaker resumed without the
+    floor changing).
+    """
+    if labels is None:
+        labels = TURN_LABELS
     turns = []
     for sp, evs in events_by_speaker.items():
-        for s, e, l, _ in evs:
-            if l in TURN_LABELS:
+        for s, e, l, *_ in evs:
+            if l in labels:
                 turns.append((s, e, sp))
     turns.sort()
-    ftos = []
+    ftos, pauses = [], []
     for i in range(1, len(turns)):
-        prev_s, prev_e, prev_sp = turns[i - 1]
-        s, e, sp = turns[i]
+        _, prev_e, prev_sp = turns[i - 1]
+        s, _, sp = turns[i]
+        off = s - prev_e
         if sp != prev_sp:
-            ftos.append(s - prev_e)  # +gap / -overlap
-    return ftos
+            ftos.append(off)
+        elif off > 0:
+            pauses.append(off)
+    return ftos, pauses
 
 
-def analyze(d: Path) -> dict:
-    meta_path = d / "metadata.json"
-    meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
-    dur_s = wav_dur(d / "combined_audio.wav")
+def analyze(task_id: str, meta: dict[str, str], dur_s: float,
+            events: dict[tuple[int, str], list[tuple[float, float, str, str]]]) -> dict:
+    """Compute one conversation's metric row.
+
+    task_id: conversation id. meta: the dataset metadata struct
+    (conversation_type, speaker_{1,2}_actor_gender). dur_s: audio duration in
+    seconds (committed durations artifact). events: {(speaker, annotator):
+    [(start_s, end_s, label, text), ...]} — the six raw annotator tracks.
+    Returns the flat metric dict written as one per_conversation.csv row.
+    """
     dur_min = dur_s / 60
     n_win = int(np.ceil(dur_s / WINDOW_S))
-
-    events = {(sp, ann): parse_srt(d / f"speaker_{sp}_annotation_{ann}.srt")
-              for sp in SPEAKERS for ann in ANNOTATORS}
 
     # Means across annotators
     bc_total, bc_sub = [], {"ack": [], "cont": [], "react": []}
@@ -248,7 +244,7 @@ def analyze(d: Path) -> dict:
         q_n.append(sum(1 for s, e, _, t in evs if "?" in t))
         non_content_d.append(sum(e - s for s, e, l, _ in evs if l in NON_CONTENT))
         turn_durs_pooled.extend([e - s for s, e, l, _ in evs if l in TURN_LABELS])
-        ftos = speaker_change_ftos({1: events[(1, ann)], 2: events[(2, ann)]})
+        ftos, _ = turn_timing({1: events[(1, ann)], 2: events[(2, ann)]})
         fto_pooled.extend(ftos)
         n_speaker_changes_pooled.append(len(ftos))
         # silence: 1 - union of all events (any label except empty)
@@ -313,7 +309,7 @@ def analyze(d: Path) -> dict:
     fto_arr = np.array(fto_pooled) if fto_pooled else np.array([0.0])
 
     return {
-        "task_id": d.name,
+        "task_id": task_id,
         "conversation_type": meta.get("conversation_type", "unknown"),
         "speaker_1_gender": meta.get("speaker_1_actor_gender", ""),
         "speaker_2_gender": meta.get("speaker_2_actor_gender", ""),
@@ -390,23 +386,24 @@ def aggregate_by_type(rows: list[dict]) -> dict:
 
 def main() -> int:
     repo = Path(__file__).resolve().parent.parent
-    env = load_env(repo / ".env")
-    root = (Path(env["TT_BENCHMARK_DATA"]) if env.get("TT_BENCHMARK_DATA") else Path(env["DATA_ROOT"]) / env["BATCH"])
-    out_dir = Path(env.get("STATS_DIR", repo / "stats_out"))
+    out_dir = Path(os.environ.get("STATS_DIR", repo / "stats_out"))
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    sample_dirs = sorted([p for p in root.iterdir() if p.is_dir()],
-                         key=lambda p: int(p.name) if p.name.isdigit() else p.name)
-    print(f"Analyzing {len(sample_dirs)} conversations...", file=sys.stderr)
-
     rows = []
-    for i, d in enumerate(sample_dirs, 1):
-        try:
-            rows.append(analyze(d))
-        except Exception as e:
-            print(f"  ! {d.name}: {e}", file=sys.stderr)
-        if i % 20 == 0:
-            print(f"  {i}/{len(sample_dirs)}", file=sys.stderr)
+    for source in FULL_CORPUS_SOURCES:
+        dataset = resolve_dataset(source=source, skip_audio=True)
+        metadata = metadata_structs(source)
+        ids = conversation_ids(dataset)
+        print(f"{source}: {len(ids)} conversations...", file=sys.stderr)
+        for i, cid in enumerate(ids, 1):
+            try:
+                conv = conversation(dataset, cid)
+                rows.append(analyze(cid, metadata[cid], conv.duration_s, conv.annotations))
+            except Exception as e:
+                print(f"  ! {cid}: {e}", file=sys.stderr)
+            if i % 20 == 0:
+                print(f"  {i}/{len(ids)}", file=sys.stderr)
+    rows.sort(key=lambda r: int(r["task_id"]))
 
     fieldnames = list(rows[0].keys())
     with (out_dir / "per_conversation.csv").open("w", newline="") as f:
