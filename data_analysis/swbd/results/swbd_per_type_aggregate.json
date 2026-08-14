@@ -1,0 +1,246 @@
+{
+  "label": "Switchboard",
+  "n_conversations": 2438,
+  "n_conversations_with_questions": 1155,
+  "ipu_gap": 0.2,
+  "trp_tol": 1.0,
+  "metrics": {
+    "duration_min": {
+      "mean": 6.378,
+      "median": 4.992,
+      "std": 2.092,
+      "min": 0.847,
+      "max": 10.032,
+      "n": 2438
+    },
+    "n_events_mean": {
+      "mean": 116.634,
+      "median": 105.0,
+      "std": 57.166,
+      "min": 12.0,
+      "max": 380.0,
+      "n": 2438
+    },
+    "event_rate_per_min": {
+      "mean": 18.464,
+      "median": 17.5,
+      "std": 7.14,
+      "min": 3.405,
+      "max": 54.086,
+      "n": 2438
+    },
+    "word_rate_wpm": {
+      "mean": 197.562,
+      "median": 196.66,
+      "std": 23.314,
+      "min": 111.94,
+      "max": 292.8,
+      "n": 2438
+    },
+    "words_sp1": {
+      "mean": 641.239,
+      "median": 564.0,
+      "std": 301.855,
+      "min": 53.0,
+      "max": 2132.0,
+      "n": 2438
+    },
+    "words_sp2": {
+      "mean": 624.584,
+      "median": 560.0,
+      "std": 283.046,
+      "min": 18.0,
+      "max": 1849.0,
+      "n": 2438
+    },
+    "wpm_sp1": {
+      "mean": 99.903,
+      "median": 98.38,
+      "std": 29.396,
+      "min": 18.63,
+      "max": 213.19,
+      "n": 2438
+    },
+    "wpm_sp2": {
+      "mean": 97.659,
+      "median": 96.66,
+      "std": 28.502,
+      "min": 15.8,
+      "max": 195.54,
+      "n": 2438
+    },
+    "ttr_sp1": {
+      "mean": 0.386,
+      "median": 0.384,
+      "std": 0.067,
+      "min": 0.226,
+      "max": 0.792,
+      "n": 2438
+    },
+    "ttr_sp2": {
+      "mean": 0.389,
+      "median": 0.386,
+      "std": 0.068,
+      "min": 0.216,
+      "max": 0.889,
+      "n": 2438
+    },
+    "silence_ratio": {
+      "mean": 0.177,
+      "median": 0.174,
+      "std": 0.056,
+      "min": 0.028,
+      "max": 0.499,
+      "n": 2438
+    },
+    "turn_count": {
+      "mean": 50.288,
+      "median": 45.0,
+      "std": 26.954,
+      "min": 3.0,
+      "max": 171.0,
+      "n": 2438
+    },
+    "turn_dur_mean": {
+      "mean": 9.416,
+      "median": 7.92,
+      "std": 5.697,
+      "min": 2.296,
+      "max": 98.075,
+      "n": 2438
+    },
+    "turn_dur_median": {
+      "mean": 4.426,
+      "median": 3.154,
+      "std": 4.475,
+      "min": 0.762,
+      "max": 104.261,
+      "n": 2438
+    },
+    "turn_dur_std": {
+      "mean": 11.921,
+      "median": 10.366,
+      "std": 6.492,
+      "min": 2.328,
+      "max": 65.779,
+      "n": 2438
+    },
+    "n_speaker_changes": {
+      "mean": 49.288,
+      "median": 44.0,
+      "std": 26.954,
+      "min": 2.0,
+      "max": 170.0,
+      "n": 2438
+    },
+    "fto_mean_s": {
+      "mean": 0.069,
+      "median": 0.043,
+      "std": 0.302,
+      "min": -0.914,
+      "max": 2.646,
+      "n": 2438
+    },
+    "fto_median_s": {
+      "mean": 0.127,
+      "median": 0.116,
+      "std": 0.218,
+      "min": -0.954,
+      "max": 2.646,
+      "n": 2438
+    },
+    "fto_n": {
+      "mean": 49.288,
+      "median": 44.0,
+      "std": 26.954,
+      "min": 2.0,
+      "max": 170.0,
+      "n": 2438
+    },
+    "speaker_balance": {
+      "mean": 0.504,
+      "median": 0.502,
+      "std": 0.126,
+      "min": 0.115,
+      "max": 0.928,
+      "n": 2438
+    },
+    "bc_rate_per_min": {
+      "mean": 3.897,
+      "median": 3.806,
+      "std": 1.584,
+      "min": 0.0,
+      "max": 10.353,
+      "n": 2438
+    },
+    "bc_ack_per_min": null,
+    "bc_cont_per_min": null,
+    "bc_react_per_min": null,
+    "int_rate_per_min": {
+      "mean": 0.862,
+      "median": 0.629,
+      "std": 0.752,
+      "min": 0.0,
+      "max": 5.243,
+      "n": 2438
+    },
+    "int_competitive_per_min": null,
+    "int_cooperative_per_min": null,
+    "int_floor_taking_per_min": {
+      "mean": 0.814,
+      "median": 0.603,
+      "std": 0.678,
+      "min": 0.0,
+      "max": 4.026,
+      "n": 2438
+    },
+    "int_non_floor_per_min": {
+      "mean": 0.048,
+      "median": 0.0,
+      "std": 0.121,
+      "min": 0.0,
+      "max": 1.412,
+      "n": 2438
+    },
+    "overlap_count_per_min": {
+      "mean": 3.609,
+      "median": 3.198,
+      "std": 2.391,
+      "min": 0.0,
+      "max": 16.504,
+      "n": 2438
+    },
+    "overlap_dur_s": {
+      "mean": 9.366,
+      "median": 6.89,
+      "std": 8.216,
+      "min": 0.0,
+      "max": 68.69,
+      "n": 2438
+    },
+    "laughter_rate_per_min": {
+      "mean": 1.442,
+      "median": 1.202,
+      "std": 1.165,
+      "min": 0.0,
+      "max": 8.478,
+      "n": 2438
+    },
+    "non_content_ratio": {
+      "mean": 0.013,
+      "median": 0.009,
+      "std": 0.014,
+      "min": 0.0,
+      "max": 0.149,
+      "n": 2438
+    },
+    "question_rate_per_min": {
+      "mean": 1.306,
+      "median": 1.103,
+      "std": 0.907,
+      "min": 0.0,
+      "max": 7.204,
+      "n": 1155
+    }
+  }
+}
