@@ -30,7 +30,8 @@ Metrics per task:
     fp_rate = FP / (FP + TN)      # negative spans that fired / all negatives
     latency p10/p50/p90 over TPs
 
-Ranking: keep models with fp_rate <= budget AND recall >= floor, rank by latency.
+Ranking: qualifiers (fp_rate within the ceiling) rank by recall; over-ceiling
+submissions still show on the leaderboard, ranked below all qualifiers.
 
 Usage:
     python -m turnbench.score predictions.json
@@ -255,13 +256,14 @@ def merge(accumulator: TaskScore, addend: TaskScore) -> None:
     accumulator.latencies_ms.extend(addend.latencies_ms)
 
 
-def qualifies(score: TaskScore, *, fp_budget: float, recall_floor: float) -> bool:
-    return score.fp_rate <= fp_budget and score.recall >= recall_floor
+def qualifies(score: TaskScore, *, fp_ceiling: float) -> bool:
+    return score.fp_rate <= fp_ceiling
 
 
-def rank_key(score: TaskScore) -> float:
-    """Sort key for ranking qualifiers: lower median latency is better."""
-    return score.latency().p50
+def rank_key(score: TaskScore, *, fp_ceiling: float) -> tuple[int, float]:
+    """Sort key for the leaderboard: qualifiers (fp_rate within the ceiling)
+    rank by recall; over-ceiling submissions rank below all qualifiers."""
+    return (0 if qualifies(score, fp_ceiling=fp_ceiling) else 1, -score.recall)
 
 
 # ---- CLI: score a predictions file over the dataset ---------------------------

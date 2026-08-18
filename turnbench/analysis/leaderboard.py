@@ -2,8 +2,10 @@
 """Cross-model leaderboard + tradeoff figure — the paper's headline comparison.
 
 Scores every committed baseline (`baselines/*/predictions-<split>.json`) on one
-split and prints a leaderboard: per model, EOT and INT recall / fp_rate / latency,
-sorted by EOT recall, with fp over the 0.1 operating-point budget shown in red.
+split and prints a leaderboard: per model, EOT and INT recall / fp_rate / latency.
+Qualifiers (EOT fp_rate within the 0.15 ceiling) sort by EOT recall; over-ceiling
+entries follow, sorted the same way, never hidden. fp over the 0.1
+operating-point budget is shown in red.
 With --figure it also writes the tradeoff scatter (latency vs recall, fp encoded
 as the in/out-of-budget constraint, in-budget Pareto frontier drawn) — the figure
 that shows no baseline is simultaneously in-budget, high-recall, and low-latency.
@@ -30,10 +32,11 @@ from turnbench.score import score_submission  # noqa: E402
 from turnbench.submission import load_submission  # noqa: E402
 
 BUDGET = 0.1
-# Test-side validity bound (1.5 × BUDGET). The dev gate alone is gameable —
-# dev annotations are public, so dev predictions can be fabricated — and the
+# Ranking ceiling (1.5 × BUDGET). The dev budget alone is gameable: dev
+# annotations are public, so dev predictions can be fabricated, and the
 # refractory permits dense test firing. A submission whose test fp_rate
-# exceeds this bound is rejected as miscalibrated. The slack absorbs honest
+# exceeds this ceiling is still displayed but ranks below all qualifiers,
+# so dense firing buys recall 1.0 and last place. The slack absorbs honest
 # dev→test calibration drift (max observed among in-budget baselines: 0.135).
 TEST_FP_BOUND = 0.15
 IN_C, OVER_C = "#2b7a3d", "#b23a48"
@@ -64,15 +67,25 @@ def _fp(fp: float) -> str:
     return (f"[red]{fp:.3f}[/]" if fp > BUDGET else f"[green]{fp:.3f}[/]")
 
 
+def rank_order(scored: dict) -> list[tuple[str, dict]]:
+    """Leaderboard order: qualifiers (EOT fp_rate within TEST_FP_BOUND) by EOT
+    recall, then over-ceiling entries by recall. Displayed, never hidden."""
+    def key(kv: tuple[str, dict]):
+        recall, fp, _ = kv[1]["EOT"]
+        over = not math.isnan(fp) and fp > TEST_FP_BOUND
+        return (over, -(recall if not math.isnan(recall) else -1.0))
+    return sorted(scored.items(), key=key)
+
+
 def print_table(scored: dict, tag: str) -> None:
     table = Table(title=f"leaderboard — {tag}", box=box.SIMPLE_HEAVY, title_style="bold",
                   header_style="bold cyan",
-                  caption=f"recall / fp_rate / latency-p50-ms · [red]red fp[/] over the {BUDGET:g} budget · sorted by EOT recall")
+                  caption=f"recall / fp_rate / latency-p50-ms · [red]red fp[/] over the {BUDGET:g} budget · EOT-recall ranking, fp over {TEST_FP_BOUND:g} ranks last")
     table.add_column("#", justify="right")
     table.add_column("model", style="bold")
     for t in ("EOT recall", "EOT fp", "EOT lat", "INT recall", "INT fp", "INT lat"):
         table.add_column(t, justify="right")
-    for i, (label, r) in enumerate(sorted(scored.items(), key=lambda kv: kv[1]["EOT"][0], reverse=True), 1):
+    for i, (label, r) in enumerate(rank_order(scored), 1):
         cells = []
         for task in ("EOT", "INT"):
             recall, fp, lat = r[task]
@@ -143,20 +156,16 @@ def _num(x: float) -> float | None:
 def write_json(scored: dict, out: Path, dataset: str, split: str,
                dev_scored: dict | None = None) -> None:
     """Emit the same rows the table shows as a committable artifact the website
-    renders. Sorted by EOT recall (NaN last), so the file order is the ranking.
+    renders. The file order is the ranking: qualifiers (EOT fp_rate within
+    `test_fp_bound`) sorted by EOT recall, then over-ceiling entries sorted the
+    same way. Over-ceiling entries are displayed, never hidden.
 
     The fp budget is a DEV-side selection constraint: each task carries
-    `dev_fp_rate` when `dev_scored` is given. Test fp_rate is an out-of-sample
-    measurement — expected to drift around the budget for ops tuned to its
-    boundary on dev; rankings gate on `dev_fp_rate <= fp_budget`, with test
-    fp_rate above `test_fp_bound` (1.5 × budget) rejecting the submission as
-    miscalibrated."""
+    `dev_fp_rate` when `dev_scored` is given, so the site can show how each
+    operating point was chosen. Test fp_rate is an out-of-sample measurement,
+    expected to drift around the budget for ops tuned to its boundary on dev."""
     models = []
-    for label, r in sorted(
-        scored.items(),
-        key=lambda kv: (kv[1]["EOT"][0] if not math.isnan(kv[1]["EOT"][0]) else -1.0),
-        reverse=True,
-    ):
+    for label, r in rank_order(scored):
         def task(recall: float, fp: float, lat, dev_fp: float | None,
                  supported: bool) -> dict:
             if not supported:  # track not attempted — all-null row, renders as "—"

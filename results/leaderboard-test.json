@@ -5,151 +5,6 @@
   "test_fp_bound": 0.15,
   "models": [
     {
-      "model": "openai_server_vad",
-      "eot": {
-        "recall": 0.954712,
-        "fp_rate": 0.5246,
-        "latency_ms": {
-          "p10": 65.0,
-          "p50": 281.5,
-          "p90": 394.3
-        },
-        "dev_fp_rate": 0.5635
-      },
-      "int": {
-        "recall": 0.99005,
-        "fp_rate": 0.458267,
-        "latency_ms": {
-          "p10": 116.0,
-          "p50": 183.5,
-          "p90": 411.5
-        },
-        "dev_fp_rate": 0.508438
-      },
-      "by_type": {
-        "Argumentative/Deliberative": {
-          "eot": {
-            "recall": 0.955429,
-            "fp_rate": 0.472628,
-            "latency_ms": {
-              "p10": 92.0,
-              "p50": 294.0,
-              "p90": 396.0
-            }
-          },
-          "int": {
-            "recall": 0.988806,
-            "fp_rate": 0.382181,
-            "latency_ms": {
-              "p10": 118.4,
-              "p50": 196.0,
-              "p90": 394.2
-            }
-          }
-        },
-        "Casual/Spontaneous": {
-          "eot": {
-            "recall": 0.944743,
-            "fp_rate": 0.503987,
-            "latency_ms": {
-              "p10": 43.0,
-              "p50": 280.0,
-              "p90": 400.0
-            }
-          },
-          "int": {
-            "recall": 0.978873,
-            "fp_rate": 0.540704,
-            "latency_ms": {
-              "p10": 120.0,
-              "p50": 189.0,
-              "p90": 391.2
-            }
-          }
-        },
-        "Collaborative/Problem-Solving": {
-          "eot": {
-            "recall": 0.954176,
-            "fp_rate": 0.598214,
-            "latency_ms": {
-              "p10": 58.0,
-              "p50": 278.0,
-              "p90": 400.0
-            }
-          },
-          "int": {
-            "recall": 0.992958,
-            "fp_rate": 0.38855,
-            "latency_ms": {
-              "p10": 116.0,
-              "p50": 168.0,
-              "p90": 310.0
-            }
-          }
-        },
-        "Instructional": {
-          "eot": {
-            "recall": 0.962372,
-            "fp_rate": 0.497917,
-            "latency_ms": {
-              "p10": 72.3,
-              "p50": 277.0,
-              "p90": 392.1
-            }
-          },
-          "int": {
-            "recall": 0.989474,
-            "fp_rate": 0.433604,
-            "latency_ms": {
-              "p10": 124.0,
-              "p50": 217.0,
-              "p90": 487.1
-            }
-          }
-        },
-        "Narrative/Storytelling": {
-          "eot": {
-            "recall": 0.963265,
-            "fp_rate": 0.56872,
-            "latency_ms": {
-              "p10": 51.2,
-              "p50": 269.0,
-              "p90": 370.3
-            }
-          },
-          "int": {
-            "recall": 1.0,
-            "fp_rate": 0.453306,
-            "latency_ms": {
-              "p10": 110.1,
-              "p50": 201.5,
-              "p90": 498.0
-            }
-          }
-        },
-        "Task-Oriented/Transactional": {
-          "eot": {
-            "recall": 0.954488,
-            "fp_rate": 0.51444,
-            "latency_ms": {
-              "p10": 75.6,
-              "p50": 292.0,
-              "p90": 393.6
-            }
-          },
-          "int": {
-            "recall": 1.0,
-            "fp_rate": 0.540021,
-            "latency_ms": {
-              "p10": 108.4,
-              "p50": 149.0,
-              "p90": 427.8
-            }
-          }
-        }
-      }
-    },
-    {
       "model": "vap",
       "eot": {
         "recall": 0.844589,
@@ -1020,151 +875,6 @@
       }
     },
     {
-      "model": "rms_vad",
-      "eot": {
-        "recall": 0.717623,
-        "fp_rate": 0.632404,
-        "latency_ms": {
-          "p10": -224.5,
-          "p50": -117.0,
-          "p90": 1848.0
-        },
-        "dev_fp_rate": 0.546566
-      },
-      "int": {
-        "recall": 0.996269,
-        "fp_rate": 0.445057,
-        "latency_ms": {
-          "p10": 57.0,
-          "p50": 123.0,
-          "p90": 330.0
-        },
-        "dev_fp_rate": 0.389767
-      },
-      "by_type": {
-        "Argumentative/Deliberative": {
-          "eot": {
-            "recall": 0.709887,
-            "fp_rate": 0.640511,
-            "latency_ms": {
-              "p10": -227.0,
-              "p50": -123.0,
-              "p90": 1459.5
-            }
-          },
-          "int": {
-            "recall": 1.0,
-            "fp_rate": 0.385589,
-            "latency_ms": {
-              "p10": 54.7,
-              "p50": 125.0,
-              "p90": 323.3
-            }
-          }
-        },
-        "Casual/Spontaneous": {
-          "eot": {
-            "recall": 0.777437,
-            "fp_rate": 0.695375,
-            "latency_ms": {
-              "p10": -223.8,
-              "p50": -106.0,
-              "p90": 1817.4
-            }
-          },
-          "int": {
-            "recall": 1.0,
-            "fp_rate": 0.521608,
-            "latency_ms": {
-              "p10": 59.1,
-              "p50": 130.0,
-              "p90": 324.4
-            }
-          }
-        },
-        "Collaborative/Problem-Solving": {
-          "eot": {
-            "recall": 0.659276,
-            "fp_rate": 0.583929,
-            "latency_ms": {
-              "p10": -222.9,
-              "p50": -109.5,
-              "p90": 2127.2
-            }
-          },
-          "int": {
-            "recall": 1.0,
-            "fp_rate": 0.375954,
-            "latency_ms": {
-              "p10": 58.1,
-              "p50": 115.5,
-              "p90": 268.1
-            }
-          }
-        },
-        "Instructional": {
-          "eot": {
-            "recall": 0.63512,
-            "fp_rate": 0.510417,
-            "latency_ms": {
-              "p10": -225.4,
-              "p50": -115.0,
-              "p90": 2045.8
-            }
-          },
-          "int": {
-            "recall": 0.989474,
-            "fp_rate": 0.416893,
-            "latency_ms": {
-              "p10": 62.0,
-              "p50": 152.0,
-              "p90": 364.1
-            }
-          }
-        },
-        "Narrative/Storytelling": {
-          "eot": {
-            "recall": 0.752381,
-            "fp_rate": 0.701422,
-            "latency_ms": {
-              "p10": -225.0,
-              "p50": -131.0,
-              "p90": 1681.4
-            }
-          },
-          "int": {
-            "recall": 0.972973,
-            "fp_rate": 0.414437,
-            "latency_ms": {
-              "p10": 59.6,
-              "p50": 139.5,
-              "p90": 460.5
-            }
-          }
-        },
-        "Task-Oriented/Transactional": {
-          "eot": {
-            "recall": 0.790139,
-            "fp_rate": 0.655235,
-            "latency_ms": {
-              "p10": -222.0,
-              "p50": -125.0,
-              "p90": 1607.6
-            }
-          },
-          "int": {
-            "recall": 1.0,
-            "fp_rate": 0.547817,
-            "latency_ms": {
-              "p10": 55.0,
-              "p50": 96.0,
-              "p90": 270.0
-            }
-          }
-        }
-      }
-    },
-    {
       "model": "espnet_turntaking_perchannel",
       "eot": {
         "recall": 0.710949,
@@ -2027,6 +1737,296 @@
               "p10": null,
               "p50": null,
               "p90": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "model": "openai_server_vad",
+      "eot": {
+        "recall": 0.954712,
+        "fp_rate": 0.5246,
+        "latency_ms": {
+          "p10": 65.0,
+          "p50": 281.5,
+          "p90": 394.3
+        },
+        "dev_fp_rate": 0.5635
+      },
+      "int": {
+        "recall": 0.99005,
+        "fp_rate": 0.458267,
+        "latency_ms": {
+          "p10": 116.0,
+          "p50": 183.5,
+          "p90": 411.5
+        },
+        "dev_fp_rate": 0.508438
+      },
+      "by_type": {
+        "Argumentative/Deliberative": {
+          "eot": {
+            "recall": 0.955429,
+            "fp_rate": 0.472628,
+            "latency_ms": {
+              "p10": 92.0,
+              "p50": 294.0,
+              "p90": 396.0
+            }
+          },
+          "int": {
+            "recall": 0.988806,
+            "fp_rate": 0.382181,
+            "latency_ms": {
+              "p10": 118.4,
+              "p50": 196.0,
+              "p90": 394.2
+            }
+          }
+        },
+        "Casual/Spontaneous": {
+          "eot": {
+            "recall": 0.944743,
+            "fp_rate": 0.503987,
+            "latency_ms": {
+              "p10": 43.0,
+              "p50": 280.0,
+              "p90": 400.0
+            }
+          },
+          "int": {
+            "recall": 0.978873,
+            "fp_rate": 0.540704,
+            "latency_ms": {
+              "p10": 120.0,
+              "p50": 189.0,
+              "p90": 391.2
+            }
+          }
+        },
+        "Collaborative/Problem-Solving": {
+          "eot": {
+            "recall": 0.954176,
+            "fp_rate": 0.598214,
+            "latency_ms": {
+              "p10": 58.0,
+              "p50": 278.0,
+              "p90": 400.0
+            }
+          },
+          "int": {
+            "recall": 0.992958,
+            "fp_rate": 0.38855,
+            "latency_ms": {
+              "p10": 116.0,
+              "p50": 168.0,
+              "p90": 310.0
+            }
+          }
+        },
+        "Instructional": {
+          "eot": {
+            "recall": 0.962372,
+            "fp_rate": 0.497917,
+            "latency_ms": {
+              "p10": 72.3,
+              "p50": 277.0,
+              "p90": 392.1
+            }
+          },
+          "int": {
+            "recall": 0.989474,
+            "fp_rate": 0.433604,
+            "latency_ms": {
+              "p10": 124.0,
+              "p50": 217.0,
+              "p90": 487.1
+            }
+          }
+        },
+        "Narrative/Storytelling": {
+          "eot": {
+            "recall": 0.963265,
+            "fp_rate": 0.56872,
+            "latency_ms": {
+              "p10": 51.2,
+              "p50": 269.0,
+              "p90": 370.3
+            }
+          },
+          "int": {
+            "recall": 1.0,
+            "fp_rate": 0.453306,
+            "latency_ms": {
+              "p10": 110.1,
+              "p50": 201.5,
+              "p90": 498.0
+            }
+          }
+        },
+        "Task-Oriented/Transactional": {
+          "eot": {
+            "recall": 0.954488,
+            "fp_rate": 0.51444,
+            "latency_ms": {
+              "p10": 75.6,
+              "p50": 292.0,
+              "p90": 393.6
+            }
+          },
+          "int": {
+            "recall": 1.0,
+            "fp_rate": 0.540021,
+            "latency_ms": {
+              "p10": 108.4,
+              "p50": 149.0,
+              "p90": 427.8
+            }
+          }
+        }
+      }
+    },
+    {
+      "model": "rms_vad",
+      "eot": {
+        "recall": 0.717623,
+        "fp_rate": 0.632404,
+        "latency_ms": {
+          "p10": -224.5,
+          "p50": -117.0,
+          "p90": 1848.0
+        },
+        "dev_fp_rate": 0.546566
+      },
+      "int": {
+        "recall": 0.996269,
+        "fp_rate": 0.445057,
+        "latency_ms": {
+          "p10": 57.0,
+          "p50": 123.0,
+          "p90": 330.0
+        },
+        "dev_fp_rate": 0.389767
+      },
+      "by_type": {
+        "Argumentative/Deliberative": {
+          "eot": {
+            "recall": 0.709887,
+            "fp_rate": 0.640511,
+            "latency_ms": {
+              "p10": -227.0,
+              "p50": -123.0,
+              "p90": 1459.5
+            }
+          },
+          "int": {
+            "recall": 1.0,
+            "fp_rate": 0.385589,
+            "latency_ms": {
+              "p10": 54.7,
+              "p50": 125.0,
+              "p90": 323.3
+            }
+          }
+        },
+        "Casual/Spontaneous": {
+          "eot": {
+            "recall": 0.777437,
+            "fp_rate": 0.695375,
+            "latency_ms": {
+              "p10": -223.8,
+              "p50": -106.0,
+              "p90": 1817.4
+            }
+          },
+          "int": {
+            "recall": 1.0,
+            "fp_rate": 0.521608,
+            "latency_ms": {
+              "p10": 59.1,
+              "p50": 130.0,
+              "p90": 324.4
+            }
+          }
+        },
+        "Collaborative/Problem-Solving": {
+          "eot": {
+            "recall": 0.659276,
+            "fp_rate": 0.583929,
+            "latency_ms": {
+              "p10": -222.9,
+              "p50": -109.5,
+              "p90": 2127.2
+            }
+          },
+          "int": {
+            "recall": 1.0,
+            "fp_rate": 0.375954,
+            "latency_ms": {
+              "p10": 58.1,
+              "p50": 115.5,
+              "p90": 268.1
+            }
+          }
+        },
+        "Instructional": {
+          "eot": {
+            "recall": 0.63512,
+            "fp_rate": 0.510417,
+            "latency_ms": {
+              "p10": -225.4,
+              "p50": -115.0,
+              "p90": 2045.8
+            }
+          },
+          "int": {
+            "recall": 0.989474,
+            "fp_rate": 0.416893,
+            "latency_ms": {
+              "p10": 62.0,
+              "p50": 152.0,
+              "p90": 364.1
+            }
+          }
+        },
+        "Narrative/Storytelling": {
+          "eot": {
+            "recall": 0.752381,
+            "fp_rate": 0.701422,
+            "latency_ms": {
+              "p10": -225.0,
+              "p50": -131.0,
+              "p90": 1681.4
+            }
+          },
+          "int": {
+            "recall": 0.972973,
+            "fp_rate": 0.414437,
+            "latency_ms": {
+              "p10": 59.6,
+              "p50": 139.5,
+              "p90": 460.5
+            }
+          }
+        },
+        "Task-Oriented/Transactional": {
+          "eot": {
+            "recall": 0.790139,
+            "fp_rate": 0.655235,
+            "latency_ms": {
+              "p10": -222.0,
+              "p50": -125.0,
+              "p90": 1607.6
+            }
+          },
+          "int": {
+            "recall": 1.0,
+            "fp_rate": 0.547817,
+            "latency_ms": {
+              "p10": 55.0,
+              "p50": 96.0,
+              "p90": 270.0
             }
           }
         }

@@ -145,14 +145,16 @@ false-alarms-per-hour measure over all behaviour.
 
 ### Ranking
 
-The leaderboard gates on `fp_rate ≤ 0.1` on **dev** — the split the operating
-point is selected on — and ranks in-budget submissions by test **recall**. A
-test `fp_rate` above **1.5× the budget (0.15)** rejects the submission as
-miscalibrated: dev is publicly labeled, so the dev gate alone cannot bound
-test-side over-firing. EOT remains a latency-vs-false-fire tradeoff, not a
-detection problem — a model that never fires has `fp_rate = 0` but infinite
-latency. (`qualifies()` / `rank_key()` are generic helpers for the older
-budget + recall-floor / latency-ranked view.)
+The leaderboard ranks submissions by test **recall**, subject to a **0.15**
+`fp_rate` ceiling. A submission over the ceiling is still displayed, but it
+ranks below all qualifiers: firing densely buys recall 1.0 and last place, so
+the board cannot be gamed. The **0.1** budget is the operating-point selection
+protocol, not a leaderboard gate: each baseline's threshold is the
+highest-recall point whose **dev** `fp_rate` stays within 0.1 (dev is the
+split operating points are selected on). EOT remains a latency-vs-false-fire
+tradeoff, not a detection problem: a model that never fires has `fp_rate = 0`
+but infinite latency. (`qualifies()` / `rank_key()` in `turnbench/score.py`
+implement the ceiling-then-recall ranking.)
 
 ## Pipeline
 
@@ -165,8 +167,8 @@ predictions.json ─submission.py (validate)─▶ event times ─▶ score.py �
 
 `turnbench.score` is the shared artifact: a submitter runs it on **public dev**,
 we run the **same** code on **private test** (`--dataset <private repo>`).
-Treat everything in `eval/` as **read-only**: it is the scorer, and scores are
-only comparable across the same version of it.
+Treat everything in `turnbench/` as **read-only**: it is the scorer, and scores
+are only comparable across the same version of it.
 
 Validation is strict and loud (`submission.py`): every conversation present
 exactly once, fixed keys only, event lists strictly increasing, finite, and
@@ -207,7 +209,7 @@ uv run pytest
   no EOT events. This is a data property, not a bug.
 - **Dev set on HF**: [`mundo-ai/turn-benchmark-dev`](https://huggingface.co/datasets/mundo-ai/turn-benchmark-dev) — audio + raw annotator
   tracks + metadata, one parquet row per conversation, fetched automatically
-  into the HF cache (`eval/data.py`). The **public test set**
+  into the HF cache (`turnbench/data.py`). The **public test set**
   ([`mundo-ai/turn-benchmark-test`](https://huggingface.co/datasets/mundo-ai/turn-benchmark-test))
   ships audio only — its annotation columns are blanked. **Test labels are never
   published**: scoring runs internally against a separate private labeled set

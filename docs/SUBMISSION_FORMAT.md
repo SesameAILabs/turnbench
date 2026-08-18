@@ -73,10 +73,10 @@ Full methodology: [turnbench/README.md](../turnbench/README.md). In brief:
   or thresholds — emit an event exactly when your deployed system would
   commit to acting on one.
 - Per task: recall, false-positive rate, latency p10/p50/p90. The leaderboard
-  gates on a false-positive budget of 0.1 evaluated on **dev** (the split the
-  operating point is selected on) and ranks in-budget submissions by test
-  recall. A test false-positive rate above 1.5× the budget (0.15) rejects the
-  submission as miscalibrated.
+  ranks submissions by test recall, subject to a 0.15 false-positive-rate
+  ceiling: a submission over the ceiling is still shown, ranked below all
+  qualifiers. Baseline operating points were selected on **dev** under a 0.1
+  false-positive budget.
 
 ## Score on the dev set
 

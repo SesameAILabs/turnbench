@@ -252,14 +252,22 @@ def test_qualifies():
         speaker_1_times=[2.2, 8.5],
     )
 
-    assert qualifies(passing, fp_budget=0.5, recall_floor=0.5)
-    assert not qualifies(failing, fp_budget=0.0, recall_floor=0.5)
+    assert qualifies(passing, fp_ceiling=0.15)
+    assert not qualifies(failing, fp_ceiling=0.15)
 
 
-def test_rank_key_prefers_lower_median_latency():
-    fast = TaskScore(tp=1, latencies_ms=[100.0])
-    slow = TaskScore(tp=1, latencies_ms=[500.0])
-    assert rank_key(fast) < rank_key(slow)
+def test_rank_key_over_ceiling_ranks_below_all_qualifiers():
+    # Dense firing: perfect recall, every negative fired -> over the ceiling.
+    spam = TaskScore(tp=2, fn=0, fp=10, tn=0, latencies_ms=[100.0, 100.0])
+    # Modest qualifier: half the recall, in budget.
+    modest = TaskScore(tp=1, fn=1, fp=0, tn=10, latencies_ms=[500.0])
+    assert rank_key(modest, fp_ceiling=0.15) < rank_key(spam, fp_ceiling=0.15)
+
+
+def test_rank_key_orders_qualifiers_by_recall():
+    high = TaskScore(tp=3, fn=1, fp=0, tn=10, latencies_ms=[900.0] * 3)
+    low = TaskScore(tp=1, fn=3, fp=0, tn=10, latencies_ms=[100.0])
+    assert rank_key(high, fp_ceiling=0.15) < rank_key(low, fp_ceiling=0.15)
 
 
 # ---- end-to-end: synthetic conversation -> scores ---------------------------
