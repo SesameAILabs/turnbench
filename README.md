@@ -123,3 +123,14 @@ The leaderboard site runs a TypeScript port of this scorer in the browser.
 `uv run python -m eval.parity <out>` emits `dev-gold.json` plus parity test
 vectors; the site vendors them and asserts the TS scorer reproduces the scores
 exactly (`scorer_sha` is the staleness tripwire).
+
+## License
+
+The code in this repository is released under the [MIT License](LICENSE).
+
+The data is licensed separately. The corpus, dev labels, and training set are
+distributed on Hugging Face under a custom non-commercial license that
+prohibits voice cloning; see the LICENSE file in each dataset repository
+(e.g. [mundo-ai/turn-benchmark-dev](https://huggingface.co/datasets/mundo-ai/turn-benchmark-dev)).
+The MIT license here covers the scorer, baselines, and analysis code only and
+grants no rights to the audio or annotations.
