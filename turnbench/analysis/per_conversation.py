@@ -9,7 +9,7 @@ Outputs:
 Reads the HF releases (dev + private golden test = the full 154-dialogue
 corpus): the raw three-annotator tracks with transcript text, the `metadata`
 column for conversation type and speaker genders, and the committed
-eval/durations artifact for durations. Column-projected at pinned revisions,
+turnbench/durations-{dev,test}.json artifact for durations. Column-projected at pinned revisions,
 no audio download; needs HF credentials (HF_TOKEN in the environment or
 repo-root `.env`).
 

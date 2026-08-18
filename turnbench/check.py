@@ -7,7 +7,7 @@ A baseline commits up to four files (see baselines/README.md):
 `python -m turnbench.check baselines/<name>` validates each one that is present and
 prints a pass/fail line per file, so a submitter can confirm a fresh clone is
 submission-ready before opening a PR. It needs no audio and no download — only the
-committed per-conversation durations (eval/durations-{dev,test}.json) for coverage,
+committed per-conversation durations (turnbench/durations-{dev,test}.json) for coverage,
 in-audio event times, and the probs frame grid. Validation only; it does not score
 (dev scores are turnbench.score). predictions-test.json can *only* be validated this way
 — it can't be scored locally, since test labels are withheld.
