@@ -14,4 +14,4 @@ jobs:
         with:
           enable-cache: true
       - name: Run eval test suite
-        run: uv run --extra dev pytest eval/ -q
+        run: uv run --extra dev --extra eval pytest eval/ -q
