@@ -109,9 +109,8 @@ uv run python -m turnbench.probs
 | `wavlm_base_causal` | Frozen WavLM-Base-Plus, fully causal (CMU) | 5-class @ 25 Hz, trained on Switchboard |
 | `wavlm_large_anchor` | Frozen WavLM-Large, 4 s windows, AR decoder (CMU) | 5-class @ 25 Hz, trained on Switchboard |
 | `wavlm_large_causal` | Frozen WavLM-Large, fully causal (CMU) | 5-class @ 25 Hz, trained on Switchboard + TurnBench |
-| `causal_wavlm_predictor` | Frozen WavLM base+large, causal per-channel (CMU) | 5-class @ 25 Hz (base + large variants) |
-| TODO: `gemini` | Full-duplex streaming dialogue | ASR/VAD-aligned timestamps over output audio |
-| TODO: `moshi` | Audio (full-duplex, 12.5 Hz) | Per-frame voice-activity on system stream |
+| `gemini_vad` | Gemini Live full-duplex sessions (recorded by `gemini/`) | pyannote VAD speech onsets over output audio → EOT |
+| `moshi_vad` | Moshi full-duplex sessions (recorded by `moshi/`) | pyannote VAD speech onsets over output audio → EOT |
 | TODO: `dualturn` | Qwen2.5-0.5B + Mimi codec (anyreach) | 12 per-channel classification heads |
 
 ## Reproduce the paper's numbers
