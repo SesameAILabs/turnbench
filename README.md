@@ -14,7 +14,7 @@ A submission is a single `predictions.json`: per conversation and speaker, the
 times your model commits to an EOT and an interruption.
 
 ```bash
-uv sync --extra eval --extra dev
+uv sync
 uv run python -m turnbench.score predictions.json     # score on the public dev set
 ```
 
@@ -122,10 +122,10 @@ private gold repo.
 
 | Paper artifact | Command |
 | --- | --- |
-| Table III (per-type corpus overview) | `uv run --extra eval python turnbench/analysis/consensus_by_type.py --latex` |
-| Table IV / leaderboard (test) | `uv run --extra eval python turnbench/analysis/results_by_conversation_type.py --dataset mundo-ai/turn-benchmark-test-golden --latex` |
-| Agreement stats (Cohen's/Fleiss' kappa, boundary F1) | `uv run --extra eval python turnbench/analysis/iaa_agreement.py` |
-| Timing distributions vs Switchboard (gap/pause/FTO) | `uv run --extra eval python turnbench/analysis/timing_distributions.py` |
+| Table III (per-type corpus overview) | `uv run python turnbench/analysis/consensus_by_type.py --latex` |
+| Table IV / leaderboard (test) | `uv run python turnbench/analysis/results_by_conversation_type.py --dataset mundo-ai/turn-benchmark-test-golden --latex` |
+| Agreement stats (Cohen's/Fleiss' kappa, boundary F1) | `uv run python turnbench/analysis/iaa_agreement.py` |
+| Timing distributions vs Switchboard (gap/pause/FTO) | `uv run python turnbench/analysis/timing_distributions.py` |
 | Fig. 2 threshold sweep + operating points | `uv run python -m turnbench.sweep baselines/<name>/probs-<task>.json` |
 
 ## Repo layout

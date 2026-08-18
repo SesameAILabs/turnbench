@@ -81,7 +81,7 @@ Full methodology: [turnbench/README.md](../turnbench/README.md). In brief:
 ## Score on the dev set
 
 ```bash
-uv sync --extra eval --extra dev
+uv sync
 
 uv run python -m turnbench.score predictions.json
 ```

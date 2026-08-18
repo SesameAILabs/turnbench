@@ -27,7 +27,7 @@ Output: stats_out/timing_distributions.json
   where each group holds {"fto": [...], "pause": [...]} in seconds (3 decimals).
 
 Usage:
-  uv run --extra eval python turnbench/analysis/timing_distributions.py
+  uv run python turnbench/analysis/timing_distributions.py
 """
 from __future__ import annotations
 

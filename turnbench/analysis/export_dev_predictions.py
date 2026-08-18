@@ -9,7 +9,7 @@ site serves: one validated predictions JSON per baseline plus an index.json
 manifest listing what exists. The folder is vendored into the website repo
 (like leaderboard.json) — regenerate and re-copy when baselines change:
 
-    uv run --extra eval python turnbench/analysis/export_dev_predictions.py <out>
+    uv run python turnbench/analysis/export_dev_predictions.py <out>
     # then copy into turn-benchmark:
     #   <out>/* -> site/public/predictions-dev/
 

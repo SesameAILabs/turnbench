@@ -19,10 +19,10 @@ near-balanced type used in the paper's noise-robustness paragraph; every
 number quoted there must come from this output — never hand-edit them.
 
     # test (gold is private — set HF_TOKEN to the gold-repo token first)
-    uv run --extra eval python turnbench/analysis/results_by_audio_status.py
+    uv run python turnbench/analysis/results_by_audio_status.py
 
     # the paper's slice
-    uv run --extra eval python turnbench/analysis/results_by_audio_status.py --type Instructional
+    uv run python turnbench/analysis/results_by_audio_status.py --type Instructional
 """
 from __future__ import annotations
 

@@ -20,7 +20,7 @@ Test-probs sources default to the staging dirs used by the run scripts; espnet's
 are banked in-place by its submit.py. Score with --score (dev locally, test
 against the gold dataset — needs the mundo-ai HF token).
 
-    uv run --extra eval python turnbench/analysis/finalize_ops.py [--write] [--score]
+    uv run python turnbench/analysis/finalize_ops.py [--write] [--score]
 """
 from __future__ import annotations
 

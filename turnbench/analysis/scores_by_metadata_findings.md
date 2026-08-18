@@ -5,11 +5,11 @@ and speaker-gender pairing. Numbers below are the **test set (116 conversations,
 golden gold)**; reproduce with:
 
 ```bash
-HF_TOKEN=<gold-token> uv run --extra eval python turnbench/analysis/results_by_conversation_type.py \
+HF_TOKEN=<gold-token> uv run python turnbench/analysis/results_by_conversation_type.py \
     --dataset mundo-ai/turn-benchmark-test-golden
 ```
 
-(Dev, `uv run --extra eval python turnbench/analysis/results_by_conversation_type.py`, runs token-free
+(Dev, `uv run python turnbench/analysis/results_by_conversation_type.py`, runs token-free
 but is thin at 38 conversations.) Cells are `recall / fp_rate / median-latency-ms`,
 pooling TP/FN/FP/TN within each group. See `per_conversation.py` for the complementary
 *dataset*-characterization stats.
@@ -97,7 +97,7 @@ dropped — it is ~model-constant across types); by-pairing cells are
 The two figures above (§3, §4) regenerate from the same scoring pass with:
 
 ```bash
-HF_TOKEN=<gold-token> uv run --extra eval --extra plot python turnbench/analysis/plot_by_metadata.py \
+HF_TOKEN=<gold-token> uv run --extra plot python turnbench/analysis/plot_by_metadata.py \
     --dataset mundo-ai/turn-benchmark-test-golden
 ```
 

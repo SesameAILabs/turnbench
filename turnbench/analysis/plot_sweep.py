@@ -14,7 +14,7 @@ handful of easy events (and can even go negative, from speculative pre-fires
 inside the matching tolerance). Neither recall nor fp_rate is monotone in the
 threshold under the rising-edge commit rule, so the curves need not be smooth.
 
-    uv run --extra eval --extra plot python turnbench/analysis/plot_sweep.py \
+    uv run --extra plot python turnbench/analysis/plot_sweep.py \
         baselines/<name>/probs-eot.json --out fig.png
 """
 from __future__ import annotations

@@ -15,23 +15,23 @@ column; it is present even in the public test parquet (labels stripped), so the
 metadata axis needs no gold token — only scoring does.
 
     # dev (public, no token)
-    uv run --extra eval python turnbench/analysis/results_by_conversation_type.py
+    uv run python turnbench/analysis/results_by_conversation_type.py
 
     # test (gold is private — set HF_TOKEN to the gold-repo token first)
-    uv run --extra eval python turnbench/analysis/results_by_conversation_type.py \
+    uv run python turnbench/analysis/results_by_conversation_type.py \
         --dataset mundo-ai/turn-benchmark-test-golden
 
     # the paper's Table IV (tab:by-type): the complete LaTeX table* environment,
     # regenerated from the committed predictions — paste the output verbatim.
     # Run on latest main; never hand-edit the numbers.
-    uv run --extra eval python turnbench/analysis/results_by_conversation_type.py \
+    uv run python turnbench/analysis/results_by_conversation_type.py \
         --dataset mundo-ai/turn-benchmark-test-golden --latex
 
     # the website artifact: results/leaderboard-test.json (from leaderboard.py
     # --json, run that first) with a per-model `by_type` block and top-level
     # `types` (n + gold event density) merged in — copy to the site's
     # src/lib/leaderboard.json.
-    uv run --extra eval python turnbench/analysis/results_by_conversation_type.py \
+    uv run python turnbench/analysis/results_by_conversation_type.py \
         --dataset mundo-ai/turn-benchmark-test-golden --json results/leaderboard-test.json
 
 The three-axis regime (acoustic high-recall/high-fp, semantic low/low, learned

@@ -22,7 +22,7 @@ Reads the HF releases column-projected, no audio download; needs HF
 credentials (HF_TOKEN in the environment or repo-root `.env`).
 
 Usage:
-    uv run --extra eval python turnbench/analysis/iaa_agreement.py
+    uv run python turnbench/analysis/iaa_agreement.py
 """
 from __future__ import annotations
 

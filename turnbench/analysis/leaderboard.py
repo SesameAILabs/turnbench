@@ -8,7 +8,7 @@ With --figure it also writes the tradeoff scatter (latency vs recall, fp encoded
 as the in/out-of-budget constraint, in-budget Pareto frontier drawn) — the figure
 that shows no baseline is simultaneously in-budget, high-recall, and low-latency.
 
-    HF_TOKEN=<gold-token> uv run --extra eval --extra plot python \
+    HF_TOKEN=<gold-token> uv run --extra plot python \
         turnbench/analysis/leaderboard.py --dataset mundo-ai/turn-benchmark-test-golden --figure tradeoff.png
 """
 from __future__ import annotations

@@ -6,7 +6,7 @@ partials (round-robin conversation split, ids[K::N]). This reassembles each task
 partials into `D/probs-{task}.json` in canonical dataset order and validates
 coverage against the split's durations.
 
-    uv run --extra eval python turnbench/analysis/merge_prob_shards.py \
+    uv run python turnbench/analysis/merge_prob_shards.py \
         predictions/wavlm_probs/wavlm_large_anchor_dev --split dev
 """
 from __future__ import annotations

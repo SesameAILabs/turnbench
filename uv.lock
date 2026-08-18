@@ -11,7 +11,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-08-11T19:56:26.136904Z"
+exclude-newer = "2026-08-11T20:47:37.024757Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -1835,40 +1835,42 @@ name = "turnbench"
 version = "0.0.0"
 source = { editable = "." }
 dependencies = [
-    { name = "numpy" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "pytest" },
-]
-eval = [
     { name = "datasets" },
     { name = "huggingface-hub" },
+    { name = "numpy" },
     { name = "pyarrow" },
     { name = "pydantic" },
     { name = "rich" },
     { name = "soundfile" },
     { name = "typer" },
 ]
+
+[package.optional-dependencies]
 plot = [
     { name = "matplotlib" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
 [package.metadata]
 requires-dist = [
-    { name = "datasets", marker = "extra == 'eval'", specifier = "==5.0.0" },
-    { name = "huggingface-hub", marker = "extra == 'eval'", specifier = "==1.17.0" },
+    { name = "datasets", specifier = "==5.0.0" },
+    { name = "huggingface-hub", specifier = "==1.17.0" },
     { name = "matplotlib", marker = "extra == 'plot'", specifier = "==3.11.0" },
     { name = "numpy", specifier = "==2.4.6" },
-    { name = "pyarrow", marker = "extra == 'eval'", specifier = "==24.0.0" },
-    { name = "pydantic", marker = "extra == 'eval'", specifier = "==2.13.4" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = "==9.0.3" },
-    { name = "rich", marker = "extra == 'eval'", specifier = "==15.0.0" },
-    { name = "soundfile", marker = "extra == 'eval'", specifier = "==0.13.1" },
-    { name = "typer", marker = "extra == 'eval'", specifier = "==0.25.1" },
+    { name = "pyarrow", specifier = "==24.0.0" },
+    { name = "pydantic", specifier = "==2.13.4" },
+    { name = "rich", specifier = "==15.0.0" },
+    { name = "soundfile", specifier = "==0.13.1" },
+    { name = "typer", specifier = "==0.25.1" },
 ]
-provides-extras = ["eval", "dev", "plot"]
+provides-extras = ["plot"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = "==9.0.3" }]
 
 [[package]]
 name = "typer"

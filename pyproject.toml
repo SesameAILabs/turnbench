@@ -6,24 +6,24 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
-    "numpy==2.4.6",
-]
-
-[project.optional-dependencies]
-eval = [
     "datasets==5.0.0",
     "huggingface-hub==1.17.0",
+    "numpy==2.4.6",
     "pyarrow==24.0.0",
     "pydantic==2.13.4",
     "rich==15.0.0",
     "soundfile==0.13.1",
     "typer==0.25.1",
 ]
-dev = [
-    "pytest==9.0.3",
-]
+
+[project.optional-dependencies]
 plot = [
     "matplotlib==3.11.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.0.3",
 ]
 
 [build-system]

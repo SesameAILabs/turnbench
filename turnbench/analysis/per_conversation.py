@@ -14,7 +14,7 @@ no audio download; needs HF credentials (HF_TOKEN in the environment or
 repo-root `.env`).
 
 Usage:
-    uv run --extra eval python turnbench/analysis/per_conversation.py
+    uv run python turnbench/analysis/per_conversation.py
     # STATS_DIR overrides the stats_out/ output directory
 
 Metrics computed per conversation (mean across annotators a/b/c unless noted):

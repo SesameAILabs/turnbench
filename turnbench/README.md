@@ -180,7 +180,7 @@ recall 0, infinite latency.
 
 ```bash
 # install eval + dev deps (once)
-uv sync --extra eval --extra dev
+uv sync
 
 # emit + score a baseline on dev (the dataset is fetched from HF and cached automatically)
 uv run python -m baselines.rms_vad.predict --out rms_vad_predictions.json

@@ -50,7 +50,7 @@ Then commit `predictions-{dev,test}.json` with your `eot` times generated at θ_
 **Render the figure** (all baselines that have probs, scored in memory — no intermediate file):
 
 ```bash
-uv run --extra eval --extra plot python turnbench/analysis/plot_sweep.py \
+uv run --extra plot python turnbench/analysis/plot_sweep.py \
     baselines/*/probs-eot.json --out sweep-eot.png
 ```
 

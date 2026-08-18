@@ -11,7 +11,7 @@ and gender-pairing groups (via results_by_conversation_type.compute), and render
                                      (the §4 finding: worse on female-female)
 
     # test (gold is private — set HF_TOKEN to the gold-repo token first)
-    uv run --extra eval --extra plot python turnbench/analysis/plot_by_metadata.py \
+    uv run --extra plot python turnbench/analysis/plot_by_metadata.py \
         --dataset mundo-ai/turn-benchmark-test-golden
 """
 from __future__ import annotations
