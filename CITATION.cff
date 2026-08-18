@@ -1,0 +1,89 @@
+cff-version: 1.2.0
+message: "If you use TurnBench, please cite the paper below."
+title: "TurnBench"
+repository-code: "https://github.com/cmu-sesame/turnbench"
+url: "https://turnbench.sesame.com"
+authors:
+  - family-names: Jiang
+    given-names: Freeman
+  - family-names: Sanabria
+    given-names: Ramon
+  - family-names: Deshmukh
+    given-names: Soham
+  - family-names: Veluri
+    given-names: Bandhav
+  - family-names: Williams
+    given-names: Simon Michael Vuch
+  - family-names: Suen
+    given-names: Elliott K.
+  - family-names: Lee
+    given-names: Garreth
+  - family-names: Choi
+    given-names: Kevin Yoonho
+  - family-names: Umeki
+    given-names: Takuya
+  - family-names: Kubo
+    given-names: Riku
+  - family-names: Udupa
+    given-names: Sathvik
+  - family-names: Huang
+    given-names: Chien-yu
+  - family-names: Kuan
+    given-names: Shih-Yun Shan
+  - family-names: Tao
+    given-names: Zhuoyan
+  - family-names: Krishna
+    given-names: Satyapriya
+  - family-names: Eskimez
+    given-names: Sefik Emre
+  - family-names: Tsao
+    given-names: Yu
+  - family-names: Lee
+    given-names: Hung-yi
+  - family-names: Watanabe
+    given-names: Shinji
+preferred-citation:
+  type: article
+  title: "TurnBench: A Multi-Domain Benchmark for Turn-Taking Dynamics in Spoken Dialogue"
+  year: 2026
+  status: submitted
+  url: "https://turnbench.sesame.com"
+  authors:
+    - family-names: Jiang
+      given-names: Freeman
+    - family-names: Sanabria
+      given-names: Ramon
+    - family-names: Deshmukh
+      given-names: Soham
+    - family-names: Veluri
+      given-names: Bandhav
+    - family-names: Williams
+      given-names: Simon Michael Vuch
+    - family-names: Suen
+      given-names: Elliott K.
+    - family-names: Lee
+      given-names: Garreth
+    - family-names: Choi
+      given-names: Kevin Yoonho
+    - family-names: Umeki
+      given-names: Takuya
+    - family-names: Kubo
+      given-names: Riku
+    - family-names: Udupa
+      given-names: Sathvik
+    - family-names: Huang
+      given-names: Chien-yu
+    - family-names: Kuan
+      given-names: Shih-Yun Shan
+    - family-names: Tao
+      given-names: Zhuoyan
+    - family-names: Krishna
+      given-names: Satyapriya
+    - family-names: Eskimez
+      given-names: Sefik Emre
+    - family-names: Tsao
+      given-names: Yu
+    - family-names: Lee
+      given-names: Hung-yi
+    - family-names: Watanabe
+      given-names: Shinji
