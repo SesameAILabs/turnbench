@@ -41,7 +41,7 @@ remains the INT source for Gemini.
 | Split | Track | Readout | recall | fp_rate | latency p10/p50/p90 (ms) |
 | --- | --- | --- | --- | --- | --- |
 | dev | **EOT** | **pyannote VAD (this)** | **0.665** | **0.047** | 747 / 1197 / 1937 |
-| **test** | **EOT** | **pyannote VAD (this)** | **0.657** | **0.022** | 847 / 1233 / 1951 |
+| **test** | **EOT** | **pyannote VAD (this)** | **0.657** | **0.022** | 847 / 1234 / 1951 |
 | dev | EOT | ASR words (`gemini`)* | 0.554 | 0.087 | 428 / 725 / 1189 |
 
 Test row scored against `mundo-ai/turn-benchmark-test-golden`; the

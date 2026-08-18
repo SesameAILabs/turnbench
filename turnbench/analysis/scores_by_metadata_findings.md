@@ -1,5 +1,11 @@
 # Baseline scores by conversation metadata — findings
 
+> **Stale (kept for the analysis narrative):** the model numbers in §§2–6
+> predate the shared dev-sweep operating points and disagree with the paper's
+> Table II and `results/leaderboard-test.json`. The gold-structure counts in
+> §1 are current. Regenerate everything with the command below before quoting
+> any model number from this file.
+
 Per-conversation scores for the committed baselines, pooled by `conversation_type`
 and speaker-gender pairing. Numbers below are the **test set (116 conversations,
 golden gold)**; reproduce with:

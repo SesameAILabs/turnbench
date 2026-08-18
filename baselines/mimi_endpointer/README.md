@@ -1,8 +1,8 @@
 # mimi_endpointer
 
-Two-stream LSTM over Kyutai Mimi embeddings, trained on SpokenWOZ with label-delayed supervision. Each speaker channel is encoded through Mimi (24 kHz, 8 quantizers, 25 Hz after upsample) and processed by a shared unidirectional 2-layer LSTM (512 hidden, 128 projection) with a 5-class head: `[bos, system_end, user_end, system, user]`.
+Two-stream LSTM over Kyutai Mimi embeddings, pre-trained on SpokenWOZ with label-delayed supervision and fine-tuned on the TurnBench 104 h train set. Each speaker channel is encoded through Mimi (24 kHz, 8 quantizers, 25 Hz after upsample) and processed by a shared unidirectional 2-layer LSTM (512 hidden, 128 projection) with a 5-class head: `[bos, system_end, user_end, system, user]`.
 
-**Model:** [`viks66/mimi-endpointer`](https://huggingface.co/viks66/mimi-endpointer) — oto_d1f checkpoint is the main submission.
+**Model:** [`viks66/mimi-endpointer`](https://huggingface.co/viks66/mimi-endpointer) — the TurnBench-fine-tuned oto_d1f checkpoint is the main submission (the checkpoint the paper scores).
 
 **Score direction:**
 - EOT: `1 - P(user)` (high = turn ending); fires when score rises above θ_eot.

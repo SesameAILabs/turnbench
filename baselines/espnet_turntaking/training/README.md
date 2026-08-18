@@ -1,12 +1,19 @@
 # Training the `espnet_turntaking` model
 
-This folder reproduces the turn-taking model that the
-[`espnet_turntaking`](../) and
+This folder holds the training recipe for the turn-taking model family that
+the [`espnet_turntaking`](../) and
 [`espnet_turntaking_perchannel`](../../espnet_turntaking_perchannel) baselines
 wrap — a frozen Whisper-medium encoder (~306 M) with a small 5-class head
 (*"Talking Turns"*, Arora et al., ICLR 2025), emitting per-40 ms (25 Hz)
 probabilities over {Continuation(C), Silence(NA), Interruption(I),
 Backchannel(BC), Turn-change(T)}.
+
+The packaged pipeline trains the **in-distribution TURN-104h variant**. The
+checkpoint the committed baselines actually score — the one the paper reports —
+is the published **Switchboard** model
+([`espnet/Turn_taking_prediction_SWBD`](https://huggingface.co/espnet/Turn_taking_prediction_SWBD)),
+scored as-is; its data prep is documented in §6 but not packaged (licensed
+corpus).
 
 The training **engine is ESPnet** (the same `espnet2` the inference baseline
 already imports to load the checkpoint). This folder holds only the **portable,

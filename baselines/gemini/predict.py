@@ -6,6 +6,11 @@ commercial voice agent. Gemini participates in the conversation directly,
 so its assessment of the conversational floor is read out from its output
 audio rather than from a classifier head.
 
+NOTE — superseded for the paper: the committed Gemini baseline is
+`baselines/gemini_vad` (pyannote-VAD readout of the same recorded sessions,
+EOT only). This ASR readout is kept as a secondary experiment; its events,
+including the INT readout below, are not among the paper's scored baselines.
+
 Evaluation follows the generative-model protocol: each speaker's channel
 is streamed into a Gemini Live session as the "user" (two runs per
 dialogue), the produced output audio is saved time-aligned with the input,

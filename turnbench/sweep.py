@@ -1,6 +1,6 @@
 """TurnBench dev threshold-sweep: the probabilities files and their validation.
 
-The sweep figure (paper Fig. 1) sweeps a single decision threshold over a model's
+The sweep figure (paper Fig. 2) sweeps a single decision threshold over a model's
 *continuous* per-frame probabilities on the dev set and scores each operating
 point with turnbench.score. To make that reproducible without re-running anyone's
 model, a submitter commits the raw per-frame probabilities — `probs-eot.json` for
@@ -10,7 +10,7 @@ probability per speaker, on a fixed frame grid. A model with only one head
 commits only that task's file. One schema serves both, discriminated by `task`.
 
 This module owns that schema and a strict, loud validator (mirroring
-eval/submission.py): every dev conversation present exactly once, both speakers,
+turnbench/submission.py): every dev conversation present exactly once, both speakers,
 every probability finite and in [0, 1], and exactly one probability per frame on
 the benchmark's canonical grid (`floor(duration * frame_rate_hz)`). The grid is
 the benchmark's, not the submitter's — so when the sweep commits events it reads

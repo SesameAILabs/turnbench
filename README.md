@@ -102,12 +102,12 @@ uv run python -m turnbench.probs
 | `openai_semantic_vad` | OpenAI Realtime `semantic_vad` (content-aware) | `speech_stopped`→EOT, `speech_started`→INT |
 | `espnet_turntaking` | Frozen Whisper-medium, mono two-speaker (CMU, Arora et al. ICLR 2025) | 5-class @ 25 Hz, trained on Switchboard |
 | `espnet_turntaking_perchannel` | Same model, per-channel inference | 5-class @ 25 Hz |
-| `mimi_endpointer` | Mimi codec, 12.5 Hz | 4-class per frame {user, user-end, system, system-end} |
+| `mimi_endpointer` | Mimi codec, 12.5 Hz | 5-class per frame {bos, system-end, user-end, system, user} |
 | `kyutai_semantic_vad` | Kyutai STT-1B VAD head + ASR | Binary EOT per frame |
 | `vap` | Two-stream voice-activity projection, 50 Hz (Ekstedt) | Continuous VA projection per speaker |
 | `smart_turn_v3` | Whisper-Tiny + linear head (Pipecat) | Binary per 8 s chunk (turn-complete) |
-| `wavlm_base_causal` | Frozen WavLM-Base-Plus, fully causal (CMU) | 5-class @ 25 Hz, trained on Switchboard |
-| `wavlm_large_anchor` | Frozen WavLM-Large, 4 s windows, AR decoder (CMU) | 5-class @ 25 Hz, trained on Switchboard |
+| `wavlm_base_causal` | Frozen WavLM-Base-Plus, fully causal (CMU) | 5-class @ 25 Hz, trained on Switchboard + TurnBench |
+| `wavlm_large_anchor` | Frozen WavLM-Large, 4 s windows, AR decoder (CMU) | 5-class @ 25 Hz, trained on TurnBench |
 | `wavlm_large_causal` | Frozen WavLM-Large, fully causal (CMU) | 5-class @ 25 Hz, trained on Switchboard + TurnBench |
 | `gemini_vad` | Gemini Live full-duplex sessions (recorded by `gemini/`) | pyannote VAD speech onsets over output audio → EOT |
 | `moshi_vad` | Moshi full-duplex sessions (recorded by `moshi/`) | pyannote VAD speech onsets over output audio → EOT |

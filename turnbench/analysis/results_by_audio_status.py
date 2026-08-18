@@ -15,13 +15,13 @@ Committed predictions already sit at each model's tuned operating point
 audio_status × conversation_type confound (noisy recordings over-index on
 argumentative/collaborative talk, and INT false positives concentrate in
 casual talk). The Instructional slice (10 clean / 9 noisy) is the
-near-balanced type used in the paper's noise-robustness paragraph; every
-number quoted there must come from this output — never hand-edit them.
+near-balanced type, the cleanest control for that confound. (The paper's
+noise-robustness paragraph was cut; nothing in the paper quotes this output.)
 
     # test (gold is private — set HF_TOKEN to the gold-repo token first)
     uv run python turnbench/analysis/results_by_audio_status.py
 
-    # the paper's slice
+    # the near-balanced slice
     uv run python turnbench/analysis/results_by_audio_status.py --type Instructional
 """
 from __future__ import annotations

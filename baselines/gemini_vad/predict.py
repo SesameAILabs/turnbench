@@ -19,8 +19,10 @@ decision, not the barge-in onset: its commit times are offset-anchored, so
 its latencies aren't comparable with the onset-anchored INT convention every
 other baseline uses (user speech onset; cf. baselines/openai_realtime.py),
 and it also fires at ordinary turn exchanges (agent stops, user replies
-within the window). The INT track is therefore out of scope here; the ASR
-readout in baselines/gemini remains the INT source for Gemini.
+within the window). The INT track is therefore out of scope: Gemini is
+scored EOT-only (INT is marked unsupported in the paper's Table II). The ASR
+readout in baselines/gemini emits INT events but is a secondary experiment,
+not a scored baseline.
 
 Runs per-file pyannote VAD once and caches the resulting regions to
 `--cache-dir` (default: `baselines/gemini/.vad_cache`). The cache key is

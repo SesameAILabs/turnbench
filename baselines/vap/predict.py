@@ -12,10 +12,10 @@ Score mapping:
   probs-int  =     p_now  (high ↔ speaker taking/holding floor)
 
 Usage:
-    bash baselines/vap/run.sh               # default: dev + test, pretrained
-    bash baselines/vap/run.sh --dev         # dev only
-    bash baselines/vap/run.sh --dev --oto   # dev, oto checkpoint
-    bash baselines/vap/run.sh --test --oto  # test only, oto checkpoint
+    bash baselines/vap/run.sh                      # default: dev + test, oto checkpoint
+    bash baselines/vap/run.sh --dev                # dev only, oto checkpoint
+    bash baselines/vap/run.sh --dev --pretrained   # dev, pretrained checkpoint
+    bash baselines/vap/run.sh --test --swbd-oto    # test only, swbd_oto checkpoint
 """
 from __future__ import annotations
 

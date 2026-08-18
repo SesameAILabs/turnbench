@@ -6,6 +6,11 @@ A multi-stream Transformer that natively models two audio streams (user
 and system) plus a text "inner monologue", operating at 12.5 Hz on top of
 Mimi codec tokens.
 
+NOTE — superseded for the paper: the committed Moshi baseline is
+`baselines/moshi_vad` (pyannote-VAD readout of the same recorded sessions,
+EOT only). This ASR readout is kept as a secondary experiment; its events,
+including the INT readout below, are not among the paper's scored baselines.
+
 Evaluation follows the generative-model protocol: each speaker's channel
 is streamed in real time into a Moshi server as the "user" (two runs per
 dialogue), the produced output audio is saved, and both streams are
