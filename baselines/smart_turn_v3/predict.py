@@ -57,19 +57,19 @@ _inference_mod.session = _inference_mod.build_session(_model_file)
 def predict_endpoint(audio_array):                                            # noqa: E402
     return _inference_mod.predict_endpoint(audio_array)
 
-from eval.data import (                                                       # noqa: E402
+from turnbench.data import (                                                       # noqa: E402
     DEV_DATASET,
     conversation,
     conversation_ids,
     resolve_dataset,
 )
-from eval.submission import (                                                 # noqa: E402
+from turnbench.submission import (                                                 # noqa: E402
     SCHEMA_VERSION,
     ConversationPrediction,
     SpeakerEvents,
     Submission,
 )
-from eval.sweep import (                                                      # noqa: E402
+from turnbench.sweep import (                                                      # noqa: E402
     ConversationProbs,
     ProbsFile,
     SpeakerProbs,

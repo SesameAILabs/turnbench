@@ -60,7 +60,7 @@ Moshi's brief, quiet floor-taking into many crisp onsets. Recall falls
 off above onset ≈ 0.9 (regions start vanishing) and monotonically below
 it (regions merge; the user-side gate also over-triggers).
 
-## Results (official `eval.score` of the committed predictions)
+## Results (official `turnbench.score` of the committed predictions)
 
 | Split | Track | recall | fp_rate | latency p10/p50/p90 (ms) |
 | --- | --- | --- | --- | --- |
@@ -127,7 +127,7 @@ python -m baselines.moshi_vad.predict --sample-runs <moshi_out>/dev \
 python -m baselines.moshi_vad.predict \
     --dataset mundo-ai/turn-benchmark-test --sample-runs <moshi_out>/test \
     --vad-workers 48 --out baselines/moshi_vad/predictions-test.json
-uv run python -m eval.check baselines/moshi_vad
+uv run python -m turnbench.check baselines/moshi_vad
 ```
 
 `--vad-workers` shards the segmentation passes round-robin across GPUs

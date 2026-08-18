@@ -15,17 +15,17 @@ times your model commits to an EOT and an interruption.
 
 ```bash
 uv sync --extra eval --extra dev
-uv run python -m eval.score predictions.json     # score on the public dev set
+uv run python -m turnbench.score predictions.json     # score on the public dev set
 ```
 
 Format and rules on causality are described in [`docs/SUBMISSION_FORMAT.md`](docs/SUBMISSION_FORMAT.md). A worked
 reference implementation: [`baselines/rms_vad/predict.py`](baselines/rms_vad/predict.py).
 
-## Gold (`eval/gold.py`)
+## Gold (`turnbench/gold.py`)
 
 Built on the fly from the three raw annotator tracks by **2/3 majority** with a ±200 ms endpoint tolerance. EOT positives are turn-ends where
 the floor passes to the other speaker. INT positives are floor-taking
-interruption onsets. Full methodology: [`eval/README.md`](eval/README.md).
+interruption onsets. Full methodology: [`turnbench/README.md`](turnbench/README.md).
 
 ## Dataset
 
@@ -52,8 +52,8 @@ numbers stop being comparable across teams.
 
 | File | Description | dev / test | Speaker overlap |
 | --- | --- | ---: | ---: |
-| `eval/splits/dev.txt` / `test.txt` | **Headline set.** Speaker-disjoint: every voice actor appears in exactly one partition. Type-balanced within ±1 of 25%. | 38 / 116 | **0** |
-| `eval/splits/random_dev.txt` / `random_test.txt` | Random partition baseline. Same target ratio, but speakers leak across dev and test (intentional, for ablation). | 38 / 116 | 58 |
+| `turnbench/splits/dev.txt` / `test.txt` | **Headline set.** Speaker-disjoint: every voice actor appears in exactly one partition. Type-balanced within ±1 of 25%. | 38 / 116 | **0** |
+| `turnbench/splits/random_dev.txt` / `random_test.txt` | Random partition baseline. Same target ratio, but speakers leak across dev and test (intentional, for ablation). | 38 / 116 | 58 |
 
 The 25% dev / 75% test target holds roughly per conversation type:
 
@@ -67,7 +67,7 @@ The 25% dev / 75% test target holds roughly per conversation type:
 | Task-Oriented/Transactional   |  6 |  16 |  22 | 27.3% |
 | **All**                       | **38** | **116** | **154** | **24.7%** |
 
-`eval/make_splits.py` regenerates them from the raw dataset with a fixed seed.
+`turnbench/make_splits.py` regenerates them from the raw dataset with a fixed seed.
 
 ## Baselines
 
@@ -86,7 +86,7 @@ The per-frame probability files behind the threshold sweeps are not in git
 [HF dataset](https://huggingface.co/datasets/freemanjiang/turnbench-baseline-probs):
 
 ```bash
-uv run python -m eval.probs
+uv run python -m turnbench.probs
 ```
 
 > `TODO:`-marked baselines are **stubs** — the model code is present but they do
@@ -122,16 +122,16 @@ private gold repo.
 
 | Paper artifact | Command |
 | --- | --- |
-| Table III (per-type corpus overview) | `uv run --extra eval python data_analysis/consensus_by_type.py --latex` |
-| Table IV / leaderboard (test) | `uv run --extra eval python data_analysis/results_by_conversation_type.py --dataset mundo-ai/turn-benchmark-test-golden --latex` |
-| Agreement stats (Cohen's/Fleiss' kappa, boundary F1) | `uv run --extra eval python data_analysis/iaa_agreement.py` |
-| Timing distributions vs Switchboard (gap/pause/FTO) | `uv run --extra eval python data_analysis/timing_distributions.py` |
-| Fig. 2 threshold sweep + operating points | `uv run python -m eval.sweep baselines/<name>/probs-<task>.json` |
+| Table III (per-type corpus overview) | `uv run --extra eval python turnbench/analysis/consensus_by_type.py --latex` |
+| Table IV / leaderboard (test) | `uv run --extra eval python turnbench/analysis/results_by_conversation_type.py --dataset mundo-ai/turn-benchmark-test-golden --latex` |
+| Agreement stats (Cohen's/Fleiss' kappa, boundary F1) | `uv run --extra eval python turnbench/analysis/iaa_agreement.py` |
+| Timing distributions vs Switchboard (gap/pause/FTO) | `uv run --extra eval python turnbench/analysis/timing_distributions.py` |
+| Fig. 2 threshold sweep + operating points | `uv run python -m turnbench.sweep baselines/<name>/probs-<task>.json` |
 
 ## Repo layout
 
 ```
-eval/                — the benchmark
+turnbench/           — the benchmark (installable package)
   gold.py              builds the gold event sets from the annotator tracks (2/3 majority)
   score.py             scores a predictions.json (recall / FP-rate / latency)
   submission.py        the predictions.json schema + validators
@@ -140,14 +140,15 @@ eval/                — the benchmark
   probs.py             fetches the baseline probs files from their pinned HF dataset
   parity.py            emits the website's gold + parity bundle
   make_splits.py       regenerates the speaker-disjoint dev/test splits
+  analysis/            corpus statistics, paper tables, and figures
 baselines/           — one directory per baseline (see above)
-data_analysis/       — corpus statistics, paper tables, and figures
+tests/               — the scorer/gold/schema test suite
 ```
 
-### Website parity (`eval.parity`)
+### Website parity (`turnbench.parity`)
 
 The leaderboard site runs a TypeScript port of this scorer in the browser.
-`uv run python -m eval.parity <out>` emits `dev-gold.json` plus parity test
+`uv run python -m turnbench.parity <out>` emits `dev-gold.json` plus parity test
 vectors; the site vendors them and asserts the TS scorer reproduces the scores
 exactly (`scorer_sha` is the staleness tripwire).
 

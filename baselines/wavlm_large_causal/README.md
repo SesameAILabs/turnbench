@@ -30,8 +30,8 @@ Declared lookahead: **0 ms**.
 ## Operating point (rule 2: highest recall at fp_rate ≤ 0.1)
 
 ```
-θ_eot ≈ 0.8323   (eval.sweep on probs-eot.json — score-quantile candidates)
-θ_int ≈ 0.1844   (eval.sweep on probs-int.json)
+θ_eot ≈ 0.8323   (turnbench.sweep on probs-eot.json — score-quantile candidates)
+θ_int ≈ 0.1844   (turnbench.sweep on probs-int.json)
 ```
 
 | task | split | recall | fp_rate |
@@ -41,10 +41,10 @@ Declared lookahead: **0 ms**.
 | INT | dev | 0.726 | 0.098 |
 | INT | test | 0.637 | 0.094 |
 
-Commitment: central rising-edge detector (`eval.sweep.commit_events`, refractory 2.0 s).
+Commitment: central rising-edge detector (`turnbench.sweep.commit_events`, refractory 2.0 s).
 `probs-{eot,int}.json` (dev) and `probs-test-{eot,int}.json` are emitted by this
 `predict.py` (`--probs-out-dir`); predictions are committed centrally from those
-files (`data_analysis/finalize_ops.py`), so artifacts and code stay self-consistent.
+files (`turnbench/analysis/finalize_ops.py`), so artifacts and code stay self-consistent.
 
 ## How to reproduce
 
@@ -91,8 +91,8 @@ python -m baselines.wavlm_large_causal.predict --out preds.json  # write predict
 ### 4. Get operating point
 
 ```bash
-uv run python -m eval.sweep baselines/wavlm_large_causal/probs-eot.json   # → θ_eot = 0.85
-uv run python -m eval.sweep baselines/wavlm_large_causal/probs-int.json   # → θ_int = 0.20
+uv run python -m turnbench.sweep baselines/wavlm_large_causal/probs-eot.json   # → θ_eot = 0.85
+uv run python -m turnbench.sweep baselines/wavlm_large_causal/probs-int.json   # → θ_int = 0.20
 ```
 
 ## Files

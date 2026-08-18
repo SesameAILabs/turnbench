@@ -4,8 +4,8 @@
 # Usage:
 #   bash baselines/mimi_endpointer/run.sh --dev  [--oto|--swbd|--swbd-oto]  # dev: probs + predictions + score + sweep tables
 #   bash baselines/mimi_endpointer/run.sh --test [--oto|--swbd|--swbd-oto]  # test: sweep existing probs → pick threshold → predictions
-#   bash baselines/mimi_endpointer/run.sh        [--oto|--swbd|--swbd-oto]  # full: --dev then --test + eval.check
-#   bash baselines/mimi_endpointer/run.sh --sweep [--oto|--swbd|--swbd-oto] # probs-only + eval.sweep tables
+#   bash baselines/mimi_endpointer/run.sh        [--oto|--swbd|--swbd-oto]  # full: --dev then --test + turnbench.check
+#   bash baselines/mimi_endpointer/run.sh --sweep [--oto|--swbd|--swbd-oto] # probs-only + turnbench.sweep tables
 #   bash baselines/mimi_endpointer/run.sh --probs [--oto|--swbd|--swbd-oto] # probs-only
 #
 # Checkpoint flag sets run name and output prefix; omit for pretrained (default).
@@ -35,15 +35,15 @@ TEST_DATASET=$(python -c "from huggingface_hub import snapshot_download; print(s
 OUT_DIR="baselines/mimi_endpointer"
 METRICS_FILE="$OUT_DIR/${PFX}predictions-dev-metrics.json"
 
-# Run eval.sweep on an existing probs file and return the operating-point theta.
+# Run turnbench.sweep on an existing probs file and return the operating-point theta.
 # Falls back to the predefined default if no threshold satisfies fp_budget ≤ 0.1.
 _pick_threshold() {
     local probs_path="$1"
     local fallback="$2"
     python -c "
 from pathlib import Path
-from eval.sweep import load_probs, sweep, operating_point
-from eval.data import resolve_dataset, DEV_DATASET
+from turnbench.sweep import load_probs, sweep, operating_point
+from turnbench.data import resolve_dataset, DEV_DATASET
 probs = load_probs(Path('$probs_path'))
 rows  = sweep(probs, resolve_dataset(source=DEV_DATASET))
 op    = operating_point(rows)
@@ -58,10 +58,10 @@ _run_dev() {
         $CKP_ARGS \
         --out "$OUT_DIR/${PFX}predictions-dev.json"
 
-    echo "=== eval.sweep: EOT ($RUN_NAME) ==="
-    python -m eval.sweep "$OUT_DIR/${PFX}probs-eot.json"
-    echo "=== eval.sweep: INT ($RUN_NAME) ==="
-    python -m eval.sweep "$OUT_DIR/${PFX}probs-int.json"
+    echo "=== turnbench.sweep: EOT ($RUN_NAME) ==="
+    python -m turnbench.sweep "$OUT_DIR/${PFX}probs-eot.json"
+    echo "=== turnbench.sweep: INT ($RUN_NAME) ==="
+    python -m turnbench.sweep "$OUT_DIR/${PFX}probs-int.json"
 }
 
 case "$MODE" in
@@ -80,13 +80,13 @@ case "$MODE" in
     FALLBACK_EOT=$(python -c "from baselines.mimi_endpointer.predict import CHECKPOINT_DEFAULTS; print(CHECKPOINT_DEFAULTS.get('$RUN_NAME', CHECKPOINT_DEFAULTS['pretrained'])[0])")
     FALLBACK_INT=$(python -c "from baselines.mimi_endpointer.predict import CHECKPOINT_DEFAULTS; print(CHECKPOINT_DEFAULTS.get('$RUN_NAME', CHECKPOINT_DEFAULTS['pretrained'])[1])")
 
-    echo "=== eval.sweep: EOT ($RUN_NAME) ==="
+    echo "=== turnbench.sweep: EOT ($RUN_NAME) ==="
     THR_EOT=$(_pick_threshold "$OUT_DIR/${PFX}probs-eot.json" "$FALLBACK_EOT")
-    python -m eval.sweep "$OUT_DIR/${PFX}probs-eot.json"
+    python -m turnbench.sweep "$OUT_DIR/${PFX}probs-eot.json"
 
-    echo "=== eval.sweep: INT ($RUN_NAME) ==="
+    echo "=== turnbench.sweep: INT ($RUN_NAME) ==="
     THR_INT=$(_pick_threshold "$OUT_DIR/${PFX}probs-int.json" "$FALLBACK_INT")
-    python -m eval.sweep "$OUT_DIR/${PFX}probs-int.json"
+    python -m turnbench.sweep "$OUT_DIR/${PFX}probs-int.json"
 
     echo "Thresholds: eot=$THR_EOT  int=$THR_INT"
 
@@ -100,7 +100,7 @@ case "$MODE" in
         --threshold-int "$THR_INT"
     ;;
 
-# ── probs-only + eval.sweep tables ──────────────────────────────────────────
+# ── probs-only + turnbench.sweep tables ──────────────────────────────────────────
 --sweep)
     echo "=== probs-only: $RUN_NAME ==="
     # shellcheck disable=SC2086
@@ -108,10 +108,10 @@ case "$MODE" in
         $CKP_ARGS \
         --probs-only
 
-    echo "=== eval.sweep: EOT ($RUN_NAME) ==="
-    python -m eval.sweep "$OUT_DIR/${PFX}probs-eot.json"
-    echo "=== eval.sweep: INT ($RUN_NAME) ==="
-    python -m eval.sweep "$OUT_DIR/${PFX}probs-int.json"
+    echo "=== turnbench.sweep: EOT ($RUN_NAME) ==="
+    python -m turnbench.sweep "$OUT_DIR/${PFX}probs-eot.json"
+    echo "=== turnbench.sweep: INT ($RUN_NAME) ==="
+    python -m turnbench.sweep "$OUT_DIR/${PFX}probs-int.json"
     ;;
 
 # ── probs only ───────────────────────────────────────────────────────────────
@@ -122,7 +122,7 @@ case "$MODE" in
         --probs-only
     ;;
 
-# ── default: dev then test + eval.check ──────────────────────────────────────
+# ── default: dev then test + turnbench.check ──────────────────────────────────────
 "")
     _run_dev
 
@@ -141,8 +141,8 @@ case "$MODE" in
         --threshold-eot "$THR_EOT" \
         --threshold-int "$THR_INT"
 
-    echo "=== eval.check ==="
-    python -m eval.check "$OUT_DIR"
+    echo "=== turnbench.check ==="
+    python -m turnbench.check "$OUT_DIR"
     ;;
 
 *)

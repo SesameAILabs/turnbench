@@ -11,7 +11,7 @@
 #   bash baselines/espnet_turntaking_perchannel/run.sh {dev|test} [shards_per_gpu]
 #
 #   dev : shard the model over GPUs -> per-frame cache -> probs-{eot,int}.json ->
-#         eval.sweep operating point -> predictions-dev.json
+#         turnbench.sweep operating point -> predictions-dev.json
 #   test: build the test cache -> commit predictions-test.json at the *dev* op
 #
 # TF32 is on by default (TT_TF32=1): ~2.3x on H100 tensor cores, ~5e-3 prob delta.
@@ -44,13 +44,13 @@ for j in $(seq 0 $(( NSHARD - 1 ))); do
 done
 for p in "${pids[@]}"; do wait "$p"; done
 
-# operating point from dev probs (highest recall at fp_rate <= 0.1; eval.sweep quantile candidates)
+# operating point from dev probs (highest recall at fp_rate <= 0.1; turnbench.sweep quantile candidates)
 _theta() {  # task -> theta on the committed dev probs
     $PY - "$1" <<'PY'
 import sys
 from pathlib import Path
-from eval.data import DEV_DATASET, resolve_dataset
-from eval.sweep import load_probs, sweep, operating_point
+from turnbench.data import DEV_DATASET, resolve_dataset
+from turnbench.sweep import load_probs, sweep, operating_point
 task = sys.argv[1]
 probs = load_probs(Path(f"baselines/espnet_turntaking_perchannel/probs-{task}.json"))
 op = operating_point(sweep(probs, resolve_dataset(source=DEV_DATASET, skip_audio=True)))
@@ -70,4 +70,4 @@ echo "[espnet_turntaking_perchannel] operating point: theta_eot=$TE theta_int=$T
 $PY -m "${MOD}.submit" predictions --split "$SPLIT" --cache-dir "$CACHE" \
     --theta-eot "$TE" --theta-int "$TI" --out "$HERE/predictions-${SPLIT}.json"
 
-$PY -m eval.check "$HERE" || true
+$PY -m turnbench.check "$HERE" || true

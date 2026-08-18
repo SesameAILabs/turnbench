@@ -36,22 +36,22 @@ share on its channel. EOT uses **`P_T` only** (NA omitted).
 
 The benchmark wants discrete committed times, not a score trace. Each
 per-speaker score channel is landed on the canonical 25 Hz grid and committed
-with the **central rule** shared by every baseline (`eval.sweep.commit_events`):
+with the **central rule** shared by every baseline (`turnbench.sweep.commit_events`):
 one event at each rising edge above a per-task threshold θ, deduped by a 2 s
 refractory, timestamped at the frame's end. The emitted time is the acoustic
 time the model has heard up to at that frame, so each commit depends only on
 audio up to that time. The per-task θ is the dev operating point picked centrally
-by `eval.sweep` (highest recall at `fp_rate ≤ 0.1`) — see below.
+by `turnbench.sweep` (highest recall at `fp_rate ≤ 0.1`) — see below.
 
 ## Results (dev, official operating point — highest recall at `fp_rate ≤ 0.1`)
 
-Operating point chosen centrally by `eval.sweep` (rule 2 in
+Operating point chosen centrally by `turnbench.sweep` (rule 2 in
 [`../README.md`](../README.md)): **θ_eot ≈ 0.000718**, **θ_int = 0.20**, committed
 with the standard single-threshold rising-edge rule (2 s refractory). The tiny
 θ_eot is expected, not a bug: the EOT score is `P_T × energy-hold` — a
 probability *attenuated* by an energy weight, concentrating its mass in
 [0, 0.05] (median 0.003) — so its operating point sits at the ~36th percentile
-of its own score distribution. `eval.sweep`'s quantile candidates find it; no
+of its own score distribution. `turnbench.sweep`'s quantile candidates find it; no
 fixed uniform grid can.
 
 | task | split | recall | fp_rate |
@@ -65,7 +65,7 @@ Reference `rms_vad` (energy VAD) on the same gold: EOT 0.595 / **0.547** /
 −98 ms, INT 0.994 / **0.390** / 137 ms — high recall bought with an fp_rate
 far over the budget. This model reaches higher EOT recall *inside* the budget.
 The full threshold→(recall, fp_rate, latency) curve is reproducible by sweeping
-`probs-eot.json` with `eval.sweep`.
+`probs-eot.json` with `turnbench.sweep`.
 
 ## How to run
 
@@ -74,8 +74,8 @@ derives the submission artifacts from that cache with no model re-run; the score
 runs in the repo's uv env. All share the HF dataset cache.
 
 **Quick reproduce.** `run.sh` shards `predict.py` over all visible GPUs → cache →
-`submit.py` probs → `eval.sweep` operating point (highest recall at fp ≤ 0.1, swept
-over score-quantile candidates) → `predictions-{split}.json`, then `eval.check`.
+`submit.py` probs → `turnbench.sweep` operating point (highest recall at fp ≤ 0.1, swept
+over score-quantile candidates) → `predictions-{split}.json`, then `turnbench.check`.
 TF32 is on by default
 (`TT_TF32=1`, ~2.3× on H100 tensor cores at ~5e-3 prob delta; set `TT_TF32=0` for
 bit-exact fp32):
@@ -101,8 +101,8 @@ python -m baselines.espnet_turntaking.predict \
 # --- 2) dev probs → operating point (rule 2: highest recall at fp_rate ≤ 0.1) ---
 python -m baselines.espnet_turntaking.submit probs --task eot --out baselines/espnet_turntaking/probs-eot.json
 python -m baselines.espnet_turntaking.submit probs --task int --out baselines/espnet_turntaking/probs-int.json
-uv run python -m eval.sweep baselines/espnet_turntaking/probs-eot.json   # → θ_eot (≈0.000718)
-uv run python -m eval.sweep baselines/espnet_turntaking/probs-int.json   # → θ_int (0.20)
+uv run python -m turnbench.sweep baselines/espnet_turntaking/probs-eot.json   # → θ_eot (≈0.000718)
+uv run python -m turnbench.sweep baselines/espnet_turntaking/probs-int.json   # → θ_int (0.20)
 
 # --- 3) committed predictions at (θ_eot, θ_int) ---
 python -m baselines.espnet_turntaking.submit predictions --split dev  --theta-eot 0.0007176333522367602 --theta-int 0.20 \
@@ -111,7 +111,7 @@ python -m baselines.espnet_turntaking.submit predictions --split test --theta-eo
     --cache-dir predictions/espnet_turntaking_test/cache --out baselines/espnet_turntaking/predictions-test.json
 
 # --- 4) validate every committed file (only way to check the test file) ---
-uv run python -m eval.check baselines/espnet_turntaking
+uv run python -m turnbench.check baselines/espnet_turntaking
 ```
 
 `predict.py` follows the reference baseline shape (`--dataset` = gated HF dev set
@@ -120,7 +120,7 @@ or a local parquet dir; model from `ESPNET_TT_EXP` = HF
 per-frame cache only: it maps the softmax to per-speaker EOT (`P_T·hold`) /
 interruption (`P_I·onset`) scores, lands them on the canonical grid `floor(dur·25)`
 by left-padding the 5-frame (0.2 s) model pre-roll, writes `probs-*.json`, and
-commits events with the central `eval.sweep.commit_events` rule.
+commits events with the central `turnbench.sweep.commit_events` rule.
 
 **Environment (reproducible).** The engine is **stock upstream ESPnet**
 (`github.com/espnet/espnet`, `master`) — *not a fork*. Pin: commit `750e3749`
@@ -148,5 +148,5 @@ committed `predictions-dev.json` **bit-for-bit**.
   steady-state 30 s windows are encoded in batches (bit-exact with the per-frame
   reference). Runtime ~9 min per ~12 min conversation on an H100/GH200-class GPU;
   cached thereafter.
-- Dev numbers here were produced with the official `eval.score` over the public
+- Dev numbers here were produced with the official `turnbench.score` over the public
   dev annotations; the eval server runs the same scorer on the private test set.

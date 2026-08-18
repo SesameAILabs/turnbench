@@ -17,7 +17,7 @@ Model weights are loaded from `kyutai/stt-1b-en_fr-candle` (cached in `$HF_HOME`
 ## Run
 
 ```bash
-bash baselines/kyutai_semantic_vad/run.sh          # dev + test + eval.check
+bash baselines/kyutai_semantic_vad/run.sh          # dev + test + turnbench.check
 bash baselines/kyutai_semantic_vad/run.sh --dev    # dev probs + predictions only
 bash baselines/kyutai_semantic_vad/run.sh --test   # sweep existing probs → test predictions
 ```

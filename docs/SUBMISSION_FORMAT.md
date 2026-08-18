@@ -59,7 +59,7 @@ follows this rule.
 
 ## Scoring
 
-Full methodology: [eval/README.md](../eval/README.md). In brief:
+Full methodology: [turnbench/README.md](../turnbench/README.md). In brief:
 
 - For each gold event at time `t`, the window `[t − 0.25 s, min(t + 3.0 s,
   next)]` is searched for one of your events: found → true positive with
@@ -83,7 +83,7 @@ Full methodology: [eval/README.md](../eval/README.md). In brief:
 ```bash
 uv sync --extra eval --extra dev
 
-uv run python -m eval.score predictions.json
+uv run python -m turnbench.score predictions.json
 ```
 
 The dev set ([`mundo-ai/turn-benchmark-dev`](https://huggingface.co/datasets/mundo-ai/turn-benchmark-dev),
@@ -108,9 +108,9 @@ exposes an in-memory entry point so you can score a candidate operating point
 without writing a file:
 
 ```python
-from eval.data import resolve_dataset
-from eval.score import score_submission
-from eval.submission import SCHEMA_VERSION, ConversationPrediction, SpeakerEvents, Submission
+from turnbench.data import resolve_dataset
+from turnbench.score import score_submission
+from turnbench.submission import SCHEMA_VERSION, ConversationPrediction, SpeakerEvents, Submission
 
 dataset = resolve_dataset()  # public dev set; or resolve_dataset("<hf repo|local dir>")
 

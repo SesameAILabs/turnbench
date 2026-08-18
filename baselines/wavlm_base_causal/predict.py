@@ -33,9 +33,9 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from eval.data import DEV_DATASET, Conversation, conversation, conversation_ids, resolve_dataset  # noqa: E402
-from eval.submission import SCHEMA_VERSION, ConversationPrediction, SpeakerEvents, Submission  # noqa: E402
-from eval.sweep import ConversationProbs, ProbsFile, REFRACTORY_S, SpeakerProbs, commit_events  # noqa: E402
+from turnbench.data import DEV_DATASET, Conversation, conversation, conversation_ids, resolve_dataset  # noqa: E402
+from turnbench.submission import SCHEMA_VERSION, ConversationPrediction, SpeakerEvents, Submission  # noqa: E402
+from turnbench.sweep import ConversationProbs, ProbsFile, REFRACTORY_S, SpeakerProbs, commit_events  # noqa: E402
 
 HF_REPO = "ZhuoyanTao/causal-wavlm-turn-taking"
 CKPT_DIR = "tt_pred_base_turn_swbd_res"
@@ -44,7 +44,7 @@ FRAME_HZ = 25.0        # 40 ms stride after stride-2 subsampling
 FIRST_FRAME_S = 0.20   # skip first 200 ms (5 frames)
 C_IDX, NA_IDX, I_IDX, BC_IDX, T_IDX = 0, 1, 2, 3, 4
 
-# Operating point (rule 2: highest recall at fp_rate ≤ 0.1, from eval.sweep)
+# Operating point (rule 2: highest recall at fp_rate ≤ 0.1, from turnbench.sweep)
 EOT_THETA = 0.95
 INT_THETA = 0.20
 
@@ -239,7 +239,7 @@ def main() -> int:
         print(f"Wrote {len(predictions)} predictions to {args.out}")
         return 0
 
-    from eval.score import score_submission, task_cells
+    from turnbench.score import score_submission, task_cells
     scores = score_submission(submission, dataset)
     print(f"wavlm_base_causal — {len(predictions)} conversations")
     for name, s in (("EOT", scores.task_eot), ("INT", scores.task_int)):

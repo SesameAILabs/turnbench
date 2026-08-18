@@ -22,7 +22,7 @@ from pathlib import Path
 import soundfile as sf
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-from eval.data import DEV_DATASET, conversation, conversation_ids, resolve_dataset
+from turnbench.data import DEV_DATASET, conversation, conversation_ids, resolve_dataset
 
 SPLIT_SOURCES = {"dev": DEV_DATASET, "test": "mundo-ai/turn-benchmark-test"}
 

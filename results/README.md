@@ -8,7 +8,7 @@ predictions or operating points change.
   benchmark's fp budget. Regenerate with:
 
   ```
-  uv run python data_analysis/leaderboard.py \
+  uv run python turnbench/analysis/leaderboard.py \
       --dataset mundo-ai/turn-benchmark-test-golden \
       --json results/leaderboard-test.json
   ```

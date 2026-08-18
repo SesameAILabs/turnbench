@@ -23,11 +23,11 @@ interruption_speaker_K = commit(P_I on speaker_K_audio)   # K interrupting
 No mix, no energy attribution: the per-channel run *is* the per-speaker signal.
 Each channel's per-frame `P_T` (EOT) / `P_I` (interruption) is the continuous
 score; the committed submission (`submit.py`) thresholds it with the central
-single-threshold rising-edge rule (2 s refractory), per `eval.sweep`.
+single-threshold rising-edge rule (2 s refractory), per `turnbench.sweep`.
 
 ## Submission (dev operating point — highest recall at `fp_rate ≤ 0.1`)
 
-Operating point chosen centrally by `eval.sweep` (rule 2 in
+Operating point chosen centrally by `turnbench.sweep` (rule 2 in
 [`../README.md`](../README.md)): **θ_eot ≈ 0.309**, **θ_int ≈ 0.217**. Reproduce
 via [How to run](#how-to-run).
 
@@ -62,8 +62,8 @@ and per-channel costs 2× the inference compute (two passes per conversation).
 derives the submission artifacts from that cache with no model re-run.
 
 **Quick reproduce.** `run.sh` shards `predict.py` over all visible GPUs → cache →
-`submit.py` probs → `eval.sweep` operating point (highest recall at fp ≤ 0.1, swept
-over score-quantile candidates) → `predictions-{split}.json` + `eval.check`. TF32 on by default (`TT_TF32=1`,
+`submit.py` probs → `turnbench.sweep` operating point (highest recall at fp ≤ 0.1, swept
+over score-quantile candidates) → `predictions-{split}.json` + `turnbench.check`. TF32 on by default (`TT_TF32=1`,
 ~2.3× on H100; `TT_TF32=0` for bit-exact fp32). Runs the model twice per
 conversation (one pass per channel):
 
@@ -87,8 +87,8 @@ python -m baselines.espnet_turntaking_perchannel.predict \
 # --- 2) dev probs → operating point (rule 2: highest recall at fp_rate ≤ 0.1) ---
 python -m baselines.espnet_turntaking_perchannel.submit probs --task eot --out baselines/espnet_turntaking_perchannel/probs-eot.json
 python -m baselines.espnet_turntaking_perchannel.submit probs --task int --out baselines/espnet_turntaking_perchannel/probs-int.json
-uv run python -m eval.sweep baselines/espnet_turntaking_perchannel/probs-eot.json   # → θ_eot (≈0.309)
-uv run python -m eval.sweep baselines/espnet_turntaking_perchannel/probs-int.json   # → θ_int (≈0.217)
+uv run python -m turnbench.sweep baselines/espnet_turntaking_perchannel/probs-eot.json   # → θ_eot (≈0.309)
+uv run python -m turnbench.sweep baselines/espnet_turntaking_perchannel/probs-int.json   # → θ_int (≈0.217)
 
 # --- 3) committed predictions at (θ_eot, θ_int) ---
 python -m baselines.espnet_turntaking_perchannel.submit predictions --split dev  --theta-eot 0.3091361972333867 --theta-int 0.21735300794389617 \
@@ -97,7 +97,7 @@ python -m baselines.espnet_turntaking_perchannel.submit predictions --split test
     --out baselines/espnet_turntaking_perchannel/predictions-test.json
 
 # --- 4) validate every committed file (only way to check the test file) ---
-uv run python -m eval.check baselines/espnet_turntaking_perchannel
+uv run python -m turnbench.check baselines/espnet_turntaking_perchannel
 ```
 
 `predict.py` runs the model twice per conversation (once per isolated channel);
@@ -105,7 +105,7 @@ uv run python -m eval.check baselines/espnet_turntaking_perchannel
 (`--cache-dir`, default `predictions/espnet_turntaking_perchannel/cache`, holding
 dev + test) makes `submit.py` instant. `submit.py` reads each channel's `P_T`/`P_I`,
 lands them on the canonical grid `floor(dur·25)` by left-padding the 5-frame (0.2 s)
-model pre-roll, and commits with the central `eval.sweep.commit_events` rule.
+model pre-roll, and commits with the central `turnbench.sweep.commit_events` rule.
 
 **Environment (reproducible).** The engine is **stock upstream ESPnet**
 (`github.com/espnet/espnet`, `master`) — *not a fork*. Pin: commit `750e3749`

@@ -15,7 +15,7 @@ speaker's turn ended. Two turn-detection modes give two baselines:
                           position when it arrives (folding in that delay).
 
 Each speaker channel is run independently and scored on its own channel — exactly
-how eval.score works. Causal by construction: the model only ever sees audio up to
+how turnbench.score works. Causal by construction: the model only ever sees audio up to
 the current append, and the commit time folds in the detection wait. Both tasks
 come from the same VAD stream, per channel: `speech_stopped` -> EOT (turn end),
 `speech_started` -> interruption (speech onset / floor-taking attempt). The scorer
@@ -161,7 +161,7 @@ def _shard_files(source: str, revision: str | None) -> list[str]:
     """Parquet shards for a split — a local directory, or an HF dataset snapshot."""
     if Path(source).is_dir():
         return sorted(str(p) for p in Path(source).glob("*.parquet"))
-    from eval.data import PINNED_REVISIONS
+    from turnbench.data import PINNED_REVISIONS
 
     snapshot = snapshot_download(
         source, repo_type="dataset", revision=revision or PINNED_REVISIONS.get(source),
@@ -226,8 +226,8 @@ def run_openai_baseline(vad_mode: str, baseline_dir: Path) -> int:
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from eval.data import DEV_DATASET
-    from eval.submission import (
+    from turnbench.data import DEV_DATASET
+    from turnbench.submission import (
         SCHEMA_VERSION,
         ConversationPrediction,
         SpeakerEvents,
@@ -330,8 +330,8 @@ def run_openai_baseline(vad_mode: str, baseline_dir: Path) -> int:
         print(f"Wrote {len(done)} predictions to {out_path}", file=sys.stderr)
         return 0
 
-    from eval.data import resolve_dataset  # only for optional in-process dev scoring
-    from eval.score import score_submission, task_cells
+    from turnbench.data import resolve_dataset  # only for optional in-process dev scoring
+    from turnbench.score import score_submission, task_cells
 
     scores = score_submission(assembled(), resolve_dataset(source=args.dataset, skip_audio=True))
     print(f"openai_{vad_mode} — {len(done)} conversations")

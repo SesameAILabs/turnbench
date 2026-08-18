@@ -19,7 +19,7 @@ python3 -c "from transformers import AutoModel; AutoModel.from_pretrained('anyre
 ## Run
 
 ```bash
-python3 baselines/dualturn/predict.py --split eval/splits/dev.txt --run-name dualturn_dev
+python3 baselines/dualturn/predict.py --split turnbench/splits/dev.txt --run-name dualturn_dev
 ```
 
 ## Output signals

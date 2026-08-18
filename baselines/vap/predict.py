@@ -34,19 +34,19 @@ _REPO = _HERE.parent.parent
 sys.path.insert(0, str(_REPO))
 sys.path.insert(0, str(_HERE / "VoiceActivityProjection"))
 
-from eval.data import (                                                      # noqa: E402
+from turnbench.data import (                                                      # noqa: E402
     DEV_DATASET,
     conversation,
     conversation_ids,
     resolve_dataset,
 )
-from eval.submission import (                                                # noqa: E402
+from turnbench.submission import (                                                # noqa: E402
     SCHEMA_VERSION,
     ConversationPrediction,
     SpeakerEvents,
     Submission,
 )
-from eval.sweep import (                                                     # noqa: E402
+from turnbench.sweep import (                                                     # noqa: E402
     ConversationProbs,
     ProbsFile,
     SpeakerProbs,

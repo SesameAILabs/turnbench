@@ -2,7 +2,7 @@
 # baselines/smart_turn_v3/run.sh — Smart Turn v3 prediction entry point
 #
 # Usage:
-#   bash baselines/smart_turn_v3/run.sh          # default: dev + test + eval.check
+#   bash baselines/smart_turn_v3/run.sh          # default: dev + test + turnbench.check
 #   bash baselines/smart_turn_v3/run.sh --dev    # dev: infer + probs + sweep + predictions-dev.json
 #   bash baselines/smart_turn_v3/run.sh --test   # test: sweep existing probs → pick theta → predictions-test.json
 #   bash baselines/smart_turn_v3/run.sh --probs  # dev inference → probs files only (no predictions)
@@ -15,7 +15,7 @@ _HERE="baselines/smart_turn_v3"
 MODE="${1:-}"
 TEST_DATASET=$(python -c "from huggingface_hub import snapshot_download; print(snapshot_download('mundo-ai/turn-benchmark-test', repo_type='dataset', local_files_only=True))")/data
 
-# ── Helper: pick threshold from existing dev probs via eval.sweep ──────────
+# ── Helper: pick threshold from existing dev probs via turnbench.sweep ──────────
 _pick_threshold() {
     local task="$1"
     local fallback="$2"
@@ -24,8 +24,8 @@ _pick_threshold() {
     python -c "
 import sys
 from pathlib import Path
-from eval.sweep import load_probs, sweep, operating_point
-from eval.data import resolve_dataset, DEV_DATASET
+from turnbench.sweep import load_probs, sweep, operating_point
+from turnbench.data import resolve_dataset, DEV_DATASET
 probs = load_probs(Path('$probs_path'))
 rows = sweep(probs, resolve_dataset(source=DEV_DATASET))
 op = operating_point(rows)
@@ -85,7 +85,7 @@ case "$MODE" in
         --threshold-eot "$THR_EOT" \
         --threshold-int "$THR_INT"
 
-    python -m eval.check "$_HERE"
+    python -m turnbench.check "$_HERE"
     ;;
 
 *)

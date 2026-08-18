@@ -28,7 +28,7 @@ pip install -r baselines/smart_turn_v3/requirements.txt
 ## Run
 
 ```bash
-bash baselines/smart_turn_v3/run.sh          # dev + test + eval.check
+bash baselines/smart_turn_v3/run.sh          # dev + test + turnbench.check
 bash baselines/smart_turn_v3/run.sh --dev    # dev probs + predictions only
 bash baselines/smart_turn_v3/run.sh --test   # sweep existing probs → test predictions
 ```

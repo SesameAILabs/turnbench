@@ -2,7 +2,7 @@
 """Oracle baseline + reference for the in-memory scoring interface.
 
 Emits the gold events themselves as the prediction, then scores them with
-`eval.score.score_submission`. By construction this is a perfect submission
+`turnbench.score.score_submission`. By construction this is a perfect submission
 (recall 1.0, fp_rate 0.0) — so it doubles as an end-to-end sanity check on the
 scorer, and as the worked example of how a model author scores discrete events
 without writing a predictions JSON to disk.
@@ -30,16 +30,16 @@ from pathlib import Path
 # eval/ is two levels up (baselines/oracle_annotator/predict.py).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from eval.data import (  # noqa: E402
+from turnbench.data import (  # noqa: E402
     DEV_DATASET,
     Dataset,
     conversation,
     conversation_ids,
     resolve_dataset,
 )
-from eval.gold import events_for_conversation  # noqa: E402
-from eval.score import score_submission, task_cells  # noqa: E402
-from eval.submission import (  # noqa: E402
+from turnbench.gold import events_for_conversation  # noqa: E402
+from turnbench.score import score_submission, task_cells  # noqa: E402
+from turnbench.submission import (  # noqa: E402
     SCHEMA_VERSION,
     ConversationPrediction,
     SpeakerEvents,

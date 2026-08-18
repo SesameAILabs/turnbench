@@ -36,7 +36,7 @@ and it also fires at ordinary turn exchanges (agent stops, user replies
 within the window). The ASR readout in [`baselines/gemini`](../gemini)
 remains the INT source for Gemini.
 
-## Results (official `eval.score` of the committed predictions)
+## Results (official `turnbench.score` of the committed predictions)
 
 | Split | Track | Readout | recall | fp_rate | latency p10/p50/p90 (ms) |
 | --- | --- | --- | --- | --- | --- |
@@ -103,7 +103,7 @@ uv run --extra eval python -m baselines.gemini_vad.predict \
     --out baselines/gemini_vad/predictions-test.json
 
 # validate
-uv run python -m eval.check baselines/gemini_vad
+uv run python -m turnbench.check baselines/gemini_vad
 ```
 
 `predict.py` runs pyannote VAD once per audio file and caches regions to

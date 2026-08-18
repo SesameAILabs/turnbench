@@ -55,7 +55,7 @@ _DEFAULT_OUT = _HERE.parent / "sample_runs"
 
 
 def _split_ids(split: str) -> list[str]:
-    split_file = _REPO / "eval" / "splits" / f"{split}.txt"
+    split_file = _REPO / "turnbench" / "splits" / f"{split}.txt"
     return [ln.strip() for ln in split_file.read_text().splitlines()
             if ln.strip() and not ln.startswith("#")]
 
@@ -66,7 +66,7 @@ def _shard_files(source: str) -> list[str]:
     """Parquet shards for a split — a local directory, or an HF dataset snapshot."""
     if Path(source).is_dir():
         return sorted(str(p) for p in Path(source).glob("*.parquet"))
-    from eval.data import PINNED_REVISIONS
+    from turnbench.data import PINNED_REVISIONS
     snapshot = snapshot_download(
         source, repo_type="dataset", revision=PINNED_REVISIONS.get(source),
         allow_patterns="*.parquet",

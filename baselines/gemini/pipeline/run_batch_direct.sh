@@ -11,7 +11,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../../.." && pwd)"
 
 DATA_DIR="${DATA_DIR:?set DATA_DIR to the Mundo delivery root (numbered folders with speaker audio)}"
-SPLIT_FILE="${SPLIT_FILE:-$REPO/eval/splits/dev.txt}"
+SPLIT_FILE="${SPLIT_FILE:-$REPO/turnbench/splits/dev.txt}"
 OUT_DIR="${OUT_DIR:-$REPO/baselines/gemini/sample_runs}"
 MAX_PAR="${MAX_PAR:-10}"
 PY="${PY:-python}"

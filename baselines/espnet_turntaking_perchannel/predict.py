@@ -45,17 +45,17 @@ from pathlib import Path
 
 import numpy as np
 
-# eval/ is two levels up (baselines/espnet_turntaking_perchannel/predict.py).
+# the repo root is two levels up (baselines/espnet_turntaking_perchannel/predict.py).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from eval.data import (  # noqa: E402
+from turnbench.data import (  # noqa: E402
     DEV_DATASET,
     Conversation,
     conversation,
     conversation_ids,
     resolve_dataset,
 )
-from eval.submission import (  # noqa: E402
+from turnbench.submission import (  # noqa: E402
     SCHEMA_VERSION,
     ConversationPrediction,
     SpeakerEvents,
@@ -233,7 +233,7 @@ def predict(conv: Conversation, cache_dir: Path, *,
 
 def _sweep(dataset, cache_dir, ids):
     """Tune per-track thresholds on the official scorer (no model re-run)."""
-    from eval.score import score_submission
+    from turnbench.score import score_submission
     cached = [(conversation(dataset, i)) for i in ids]
     for c in cached:
         channel_probs(c, cache_dir)  # ensure cached
@@ -300,7 +300,7 @@ def main() -> int:
         print(f"Wrote {len(submission.predictions)} predictions to {args.out}", file=sys.stderr)
         return 0
 
-    from eval.score import score_submission, task_cells
+    from turnbench.score import score_submission, task_cells
     scores = score_submission(submission, dataset)
     print(f"espnet_turntaking_perchannel — {len(submission.predictions)} conversations")
     for name, s in (("EOT", scores.task_eot), ("INT", scores.task_int)):

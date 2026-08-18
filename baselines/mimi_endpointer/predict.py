@@ -50,21 +50,21 @@ _REPO = _HERE.parent.parent
 sys.path.insert(0, str(_REPO))
 sys.path.insert(0, str(_HERE))
 
-from eval.data import (                                                      # noqa: E402
+from turnbench.data import (                                                      # noqa: E402
     DEV_DATASET,
     Dataset,
     conversation,
     conversation_ids,
     resolve_dataset,
 )
-from eval.score import score_submission                                       # noqa: E402
-from eval.submission import (                                                # noqa: E402
+from turnbench.score import score_submission                                       # noqa: E402
+from turnbench.submission import (                                                # noqa: E402
     SCHEMA_VERSION,
     ConversationPrediction,
     SpeakerEvents,
     Submission,
 )
-from eval.sweep import (                                                     # noqa: E402
+from turnbench.sweep import (                                                     # noqa: E402
     ConversationProbs as _ConversationProbs,
     ProbsFile as _ProbsFile,
     SCHEMA_VERSION as _PROBS_SCHEMA_VERSION,
@@ -87,7 +87,7 @@ TARGET_SR  = AUDIO_DEFAULTS["sr"]              # 24000
 # (eot_thr, int_thr) in probs space:
 #   eot: prob = 1 - p_user,  fire when (1-p_user) > eot_thr
 #   int: prob = p_user,       fire when  p_user    > int_thr
-# Fallbacks only — on dev, thresholds are auto-selected by eval.sweep.operating_point.
+# Fallbacks only — on dev, thresholds are auto-selected by turnbench.sweep.operating_point.
 CHECKPOINT_DEFAULTS: dict[str, tuple[float, float]] = {
     "pretrained":   (0.95, 0.20),
     "oto_d1f":      (0.85, 0.10),
@@ -185,7 +185,7 @@ def _make_submission(
     thr_int: float,
     conv_probs: list[tuple[str, np.ndarray, np.ndarray, float]],
 ) -> Submission:
-    """Build Submission using eval.sweep.commit_events (consistent with probs sweep).
+    """Build Submission using turnbench.sweep.commit_events (consistent with probs sweep).
 
     thr_eot: threshold in probs-eot space (1-p_user, high = EOT)
     thr_int: threshold in probs-int space (p_user, high = taking floor)
@@ -266,7 +266,7 @@ def main(
         _write_probs(conv_probs, out.parent / f"{_pfx}probs-eot.json", "eot")
         _write_probs(conv_probs, out.parent / f"{_pfx}probs-int.json", "int")
 
-        # Auto-pick operating point for each task via eval.sweep
+        # Auto-pick operating point for each task via turnbench.sweep
         if threshold_eot is None:
             rows = _eval_sweep(_build_probs_file(conv_probs, "eot"), dataset)
             op   = _operating_point(rows)

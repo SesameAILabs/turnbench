@@ -50,7 +50,7 @@ from asr_floor import (  # noqa: E402
 
 _HERE = Path(__file__).resolve().parent
 _REPO = _HERE.parent.parent
-_SPLIT_FILE = _REPO / "eval" / "splits" / "dev.txt"
+_SPLIT_FILE = _REPO / "turnbench" / "splits" / "dev.txt"
 _DEFAULT_OUT = _HERE / "moshi_pred.json"
 
 

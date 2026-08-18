@@ -4,11 +4,11 @@ from the per-frame probability cache — no model re-run.
 
 The new baseline flow (`baselines/#readme`):
   * `probs-{eot,int}.json` — per-frame continuous scores on the **dev** set, on
-    the canonical grid (`floor(duration_s * 25)` frames/speaker). `eval.sweep`
+    the canonical grid (`floor(duration_s * 25)` frames/speaker). `turnbench.sweep`
     scores these centrally and picks the operating point (highest recall at
     `fp_rate <= 0.1`), giving theta_eot / theta_int.
   * `predictions-{dev,test}.json` — events committed at those thresholds with the
-    central rule `eval.sweep.commit_events` (single rising-edge theta + 2 s
+    central rule `turnbench.sweep.commit_events` (single rising-edge theta + 2 s
     refractory).
 
 Continuous signal, per speaker channel K: `eot = P_T`, `int = P_I`, read straight
@@ -24,8 +24,8 @@ conversation, so this lands exactly on the grid and keeps the time axis exact.
     python -m baselines.espnet_turntaking_perchannel.submit probs --task int \
         --out baselines/espnet_turntaking_perchannel/probs-int.json
     # 2) operating point
-    uv run python -m eval.sweep baselines/espnet_turntaking_perchannel/probs-eot.json  # -> theta_eot
-    uv run python -m eval.sweep baselines/espnet_turntaking_perchannel/probs-int.json  # -> theta_int
+    uv run python -m turnbench.sweep baselines/espnet_turntaking_perchannel/probs-eot.json  # -> theta_eot
+    uv run python -m turnbench.sweep baselines/espnet_turntaking_perchannel/probs-int.json  # -> theta_int
     # 3) committed predictions at (theta_eot, theta_int)
     python -m baselines.espnet_turntaking_perchannel.submit predictions --split dev \
         --theta-eot T1 --theta-int T2 \
@@ -44,9 +44,9 @@ from pathlib import Path
 
 import numpy as np
 
-from eval.durations import load_durations
-from eval.submission import ConversationPrediction, SpeakerEvents, Submission
-from eval.sweep import (
+from turnbench.durations import load_durations
+from turnbench.submission import ConversationPrediction, SpeakerEvents, Submission
+from turnbench.sweep import (
     ConversationProbs,
     ProbsFile,
     SpeakerProbs,

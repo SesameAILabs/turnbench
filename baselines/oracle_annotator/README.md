@@ -2,7 +2,7 @@
 
 Replays the gold events as the prediction (no training or parameters): reads the
 three annotator tracks and emits the 2/3-majority consensus events, the same gold
-the scorer builds via `eval.gold`. Perfect by construction (recall 1.0, fp-rate
+the scorer builds via `turnbench.gold`. Perfect by construction (recall 1.0, fp-rate
 0.0) — the ceiling of the benchmark and a sanity check on the scorer.
 
 ## Input

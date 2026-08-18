@@ -1,0 +1,458 @@
+#!/usr/bin/env python3
+"""Model scores broken down by conversation metadata.
+
+Complements `per_conversation.py` (which characterizes the *dataset* — event/
+backchannel/interruption rates, IAA — per conversation type). This one scores the
+committed *baselines* (`baselines/*/predictions-<split>.json`) per conversation
+against the gold, then pools TP/FN/FP/TN + latencies within metadata groups —
+conversation_type and speaker-gender pairing — and prints group-level recall /
+fp_rate / median-latency. It also prints the baseline-independent gold event density
+per type. Pooling counts within a group (not averaging per-conversation rates) is
+the statistically correct aggregation.
+
+Metadata (conversation_type, per-speaker gender) rides in the dataset's `metadata`
+column; it is present even in the public test parquet (labels stripped), so the
+metadata axis needs no gold token — only scoring does.
+
+    # dev (public, no token)
+    uv run --extra eval python turnbench/analysis/results_by_conversation_type.py
+
+    # test (gold is private — set HF_TOKEN to the gold-repo token first)
+    uv run --extra eval python turnbench/analysis/results_by_conversation_type.py \
+        --dataset mundo-ai/turn-benchmark-test-golden
+
+    # the paper's Table IV (tab:by-type): the complete LaTeX table* environment,
+    # regenerated from the committed predictions — paste the output verbatim.
+    # Run on latest main; never hand-edit the numbers.
+    uv run --extra eval python turnbench/analysis/results_by_conversation_type.py \
+        --dataset mundo-ai/turn-benchmark-test-golden --latex
+
+    # the website artifact: results/leaderboard-test.json (from leaderboard.py
+    # --json, run that first) with a per-model `by_type` block and top-level
+    # `types` (n + gold event density) merged in — copy to the site's
+    # src/lib/leaderboard.json.
+    uv run --extra eval python turnbench/analysis/results_by_conversation_type.py \
+        --dataset mundo-ai/turn-benchmark-test-golden --json results/leaderboard-test.json
+
+The three-axis regime (acoustic high-recall/high-fp, semantic low/low, learned
+balanced) holds within every type; the interesting movement is in *where* each
+model's false positives concentrate — see the accompanying findings note.
+"""
+from __future__ import annotations
+
+import argparse
+import statistics
+import sys
+from collections import defaultdict
+from pathlib import Path
+from typing import NamedTuple
+
+
+import pyarrow as pa  # noqa: E402
+import pyarrow.parquet as pq  # noqa: E402
+from rich import box  # noqa: E402
+from rich.console import Console  # noqa: E402
+from rich.table import Table  # noqa: E402
+
+from turnbench.analysis.discovery import discover  # noqa: E402
+from turnbench.data import (  # noqa: E402
+    DEV_DATASET,
+    GOLD_DATASET,
+    conversation,
+    conversation_ids,
+    read_columns_projected,
+    resolve_dataset,
+)
+from turnbench.gold import events_for_conversation  # noqa: E402
+from turnbench.score import TaskScore, merge, score_conversation  # noqa: E402
+from turnbench.submission import load_submission  # noqa: E402
+
+PAIRING = {("female", "female"): "FF", ("male", "male"): "MM"}
+LEADERBOARD_JSON = Path(__file__).resolve().parents[2] / "results" / "leaderboard-test.json"
+
+# Paper display names for --latex, in table order; None = \midrule group break.
+# Baselines missing from this list are appended (unmapped) at the end so new
+# models are never silently dropped.
+PAPER_ROWS: list[tuple[str, str] | None] = [
+    ("rms_vad", "RMS VAD"),
+    None,
+    ("openai_server_vad", "OpenAI Realtime (Server VAD)"),
+    ("openai_semantic_vad", "OpenAI Realtime (Semantic VAD)"),
+    ("kyutai_semantic_vad", "Kyutai SVAD"),
+    ("smart_turn_v3", "SmartTurn v3"),
+    None,
+    ("vap", "VAP"),
+    ("mimi_endpointer", "Mimi-EP"),
+    ("espnet_turntaking", "ESPnet TT-pred.\\"),
+    ("espnet_turntaking_perchannel", "ESPnet TT-pred.\\ (per-ch.)"),
+    None,
+    ("wavlm_base_causal", "WavLM-Base (causal)"),
+    ("wavlm_large_causal", "WavLM-Large (causal)"),
+    ("wavlm_large_anchor", "WavLM-Large (anchor)"),
+    None,
+    ("gemini_vad", "Gemini 3.1 Live"),
+    ("moshi_vad", "Moshi"),
+]
+
+
+def metadata_repo(source: str) -> str:
+    """A source whose parquet carries the `metadata` column without the gold token:
+    the private gold repo publishes none, so read metadata from the public test
+    parquet (same conversation ids, metadata intact)."""
+    return "mundo-ai/turn-benchmark-test" if source == GOLD_DATASET else source
+
+
+def metadata_structs(source: str) -> dict[str, dict[str, str]]:
+    """{conversation_id: raw metadata struct} from the parquet (conversation_type,
+    speaker_{1,2}_actor_id/_actor_gender). Read column-projected over HTTP range
+    requests — never snapshotting the shards, whose audio would dominate the
+    download and memory."""
+    repo = metadata_repo(source)
+    if Path(repo).is_dir():
+        table = pa.concat_tables([
+            pq.ParquetFile(shard).read(columns=["conversation_id", "metadata"])
+            for shard in sorted(Path(repo).glob("*.parquet"))
+        ])
+    else:
+        table = read_columns_projected(repo, None, ["conversation_id", "metadata"])
+    return dict(zip(table["conversation_id"].to_pylist(), table["metadata"].to_pylist()))
+
+
+def load_metadata(source: str) -> dict[str, dict[str, str]]:
+    """{conversation_id: {"type": ..., "pairing": FF|MM|mixed}} from the parquet."""
+    out: dict[str, dict[str, str]] = {}
+    for cid, m in metadata_structs(source).items():
+        genders = (m["speaker_1_actor_gender"], m["speaker_2_actor_gender"])
+        out[cid] = {
+            "type": m["conversation_type"],
+            "pairing": PAIRING.get(tuple(sorted(genders)), "mixed"),
+        }
+    return out
+
+
+def fmt(ts: TaskScore, *, with_lat: bool = True) -> str:
+    """Rich-markup cell `recall / fp [/ lat_ms]`; fp over the 0.10 budget shows red."""
+    if ts.tp + ts.fn == 0:
+        return "[dim]—[/]"
+    recall = ts.tp / (ts.tp + ts.fn)
+    if ts.fp + ts.tn:
+        fp = ts.fp / (ts.fp + ts.tn)
+        fp_str = f"[red]{fp:.2f}[/]" if fp > 0.10 else f"[green]{fp:.2f}[/]"
+    else:
+        fp_str = "[dim]—[/]"
+    out = f"{recall:.2f}/{fp_str}"
+    if with_lat:
+        lat = statistics.median(ts.latencies_ms) if ts.latencies_ms else float("nan")
+        out += f"/[dim]{'—' if lat != lat else f'{lat:.0f}'}[/]"
+    return out
+
+
+class MetadataScores(NamedTuple):
+    """Everything the table-printer and the plotter both need.
+
+    ids: scored conversation ids (present in both meta and the dataset).
+    types: sorted conversation_type labels.
+    baselines: {label: predictions_path}.
+    density: {type: [EOT+, EOT-, INT+, INT-]} gold-event counts (baseline-independent).
+    pooled: {(label, axis, key, task): TaskScore} — axis in {"type","pairing"},
+        key a type name or FF/MM/mixed, task in {"EOT","INT"}; TP/FN/FP/TN pooled within group.
+    n_type: {type: n_conversations}.
+    """
+    ids: list[str]
+    types: list[str]
+    baselines: dict[str, Path]
+    density: dict[str, list[int]]
+    pooled: dict[tuple, TaskScore]
+    n_type: dict[str, int]
+
+
+def compute(dataset_source: str, split: str,
+            submissions: Path | None = None) -> MetadataScores:
+    """Score every discovered model for `split` against the gold at `dataset_source`,
+    pooling TP/FN/FP/TN + latencies into conversation_type and gender-pairing groups.
+    Returns a MetadataScores; raises SystemExit if no predictions files are found."""
+    meta = load_metadata(dataset_source)
+    dataset = resolve_dataset(source=dataset_source, skip_audio=True)
+    ids = [c for c in conversation_ids(dataset) if c in meta]
+    types = sorted({meta[c]["type"] for c in ids})
+    baselines = discover(split, submissions)
+    if not baselines:
+        raise SystemExit(f"no */predictions-{split}*.json found")
+
+    # gold event density per type (baseline-independent)
+    density: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0, 0])
+    for cid in ids:
+        ev = events_for_conversation(conversation(dataset, cid))
+        d = density[meta[cid]["type"]]
+        d[0] += len(ev.eot_positive_events); d[1] += len(ev.eot_negative_spans)
+        d[2] += len(ev.int_positive_events); d[3] += len(ev.int_negative_spans)
+
+    # per-baseline, per-conversation scoring pooled into metadata groups
+    pooled: dict[tuple, TaskScore] = defaultdict(TaskScore)
+    for label, path in baselines.items():
+        by_conv = load_submission(path).by_conversation()
+        for cid in ids:
+            if cid not in by_conv:
+                continue
+            sc = score_conversation(by_conv[cid], conversation(dataset, cid))
+            for axis, key in (("type", meta[cid]["type"]), ("pairing", meta[cid]["pairing"])):
+                merge(pooled[(label, axis, key, "EOT")], sc.task_eot)
+                merge(pooled[(label, axis, key, "INT")], sc.task_int)
+
+    n_type = {t: sum(meta[c]["type"] == t for c in ids) for t in types}
+    return MetadataScores(ids, types, baselines, density, pooled, n_type)
+
+
+def latex_table(ms: MetadataScores) -> str:
+    """The paper's complete per-conversation-type table (tab:by-type): the full
+    table* environment, one row per baseline in PAPER_ROWS order — per-type
+    `recall/fpr` cells for EOT and INT (leading zeros stripped, 1.00 shown as
+    1.0), then the overall pooled recall/fpr (three decimals, so the abstract's
+    headline numbers appear verbatim) and overall median-latency Δt columns,
+    both read from results/leaderboard-test.json so the two committed artifacts
+    cannot disagree."""
+    import json
+
+    payload = json.loads(LEADERBOARD_JSON.read_text())
+    leaderboard = {m["model"]: m for m in payload["models"]}
+    fp_budget = payload["fp_budget"]
+    p50 = {
+        label: (m["eot"]["latency_ms"]["p50"], m["int"]["latency_ms"]["p50"])
+        for label, m in leaderboard.items()
+    }
+
+    # Bold winners are picked among budget-qualified models only (dev fp_rate
+    # within the budget — the same gate the leaderboard ranks by), so degenerate
+    # high-recall/high-fp operating points are never highlighted.
+    def qualified(label: str, task: str) -> bool:
+        if label not in leaderboard:  # e.g. oracle_annotator on a dev run
+            return False
+        row = leaderboard[label][task.lower()]
+        fp = row.get("dev_fp_rate", row["fp_rate"])
+        return row["recall"] is not None and fp is not None and fp <= fp_budget
+    # A track a model does not support (e.g. an EOT-only baseline) is null in
+    # the leaderboard; render its cells as em-dashes rather than 0-recall.
+    supported = {
+        label: {task for task in ("EOT", "INT") if m[task.lower()]["recall"] is not None}
+        for label, m in leaderboard.items()
+    }
+
+    def num(x: float) -> str:
+        s = f"{x:.2f}"
+        return "1.0" if s == "1.00" else s.lstrip("0")
+
+    def num3(x: float) -> str:
+        s = f"{x:.3f}"
+        return "1.0" if s == "1.000" else s.lstrip("0")
+
+    def cell(ts: TaskScore) -> str:
+        return f"{num(ts.tp / (ts.tp + ts.fn))}/{num(ts.fp / (ts.fp + ts.tn))}"
+
+    def overall_cell(label: str, task: str) -> str:
+        row = leaderboard.get(label, {}).get(task.lower())
+        if row is None or row["recall"] is None:
+            return "---"
+        return f"{num3(row['recall'])}/{num3(row['fp_rate'])}"
+
+    def lat(x: float | None) -> str:
+        if x is None:
+            return "---"
+        v = round(x)
+        return f"$-${abs(v)}" if v < 0 else str(v)
+
+    # Per (type, task): the budget-qualified model with the highest recall.
+    best: dict[tuple[str, str], str] = {}
+    for t in ms.types:
+        for task in ("EOT", "INT"):
+            recalls = {
+                label: ts.tp / (ts.tp + ts.fn)
+                for label in ms.baselines
+                if qualified(label, task)
+                for ts in [ms.pooled[(label, "type", t, task)]]
+                if ts.tp + ts.fn
+            }
+            if recalls:
+                best[(t, task)] = max(recalls, key=lambda k: recalls[k])
+
+    # Per task: the budget-qualified model with the highest overall pooled recall.
+    best_overall: dict[str, str] = {}
+    for task in ("EOT", "INT"):
+        recalls = {
+            label: leaderboard[label][task.lower()]["recall"]
+            for label in ms.baselines
+            if qualified(label, task)
+        }
+        if recalls:
+            best_overall[task] = max(recalls, key=lambda k: recalls[k])
+    mapped = [r[0] for r in PAPER_ROWS if r]
+    rows: list[tuple[str, str] | None] = [
+        r for r in PAPER_ROWS if r is None or r[0] in ms.baselines
+    ] + [(label, label) for label in ms.baselines if label not in mapped]
+
+    width = max(len(name) for row in rows if row for _, name in [row])
+    lines = []
+    for row in rows:
+        if row is None:
+            lines.append("\\midrule")
+            continue
+        label, name = row
+        cells = []
+        for t in ms.types:
+            for task in ("EOT", "INT"):
+                if task not in supported.get(label, {"EOT", "INT"}):
+                    cells.append("---")
+                    continue
+                text = cell(ms.pooled[(label, "type", t, task)])
+                cells.append(f"\\textbf{{{text}}}" if best.get((t, task)) == label else text)
+        for task in ("EOT", "INT"):
+            text = overall_cell(label, task)
+            cells.append(f"\\textbf{{{text}}}" if best_overall.get(task) == label else text)
+        le, li = p50.get(label, (None, None))
+        lines.append(f"{name:<{width}} & " + " & ".join(cells) + f" & {lat(le)} & {lat(li)} \\\\")
+
+    n = len(ms.types)
+    type_heads = " & ".join(
+        f"\\multicolumn{{2}}{{c{'|' if i < n - 1 else '|'}}}{{\\ctype{{{t.split('/')[0]}}}}}"
+        for i, t in enumerate(ms.types)
+    )
+    cmidrules = "".join(f"\\cmidrule(lr){{{2 * i + 2}-{2 * i + 3}}}" for i in range(n + 2))
+    return "\n".join([
+        "\\begin{table*}[!tbp]",
+        "\\centering",
+        "\\scriptsize",
+        "\\setlength{\\tabcolsep}{3pt}",
+        "\\renewcommand{\\arraystretch}{1.1}",
+        "\\caption{Per-conversation-type results, per baseline (test set). Per-type sub-columns "
+        "EOT and INT (Interruption) report recall\\,/\\,fpr (leading zeros omitted); the "
+        "\\textsc{Overall} columns report the pooled test recall\\,/\\,fpr and the median "
+        "latency (ms), $\\Delta t = t_\\text{pred}-t_\\text{gold}$, for each track. "
+        "fpr is the false-positive rate; "
+        "--- marks a track the baseline does not support. Bold: best recall "
+        "per column among models within the 0.1 dev false-positive budget.}",
+        "\\label{tab:by-type}",
+        "\\begin{tabular*}{\\textwidth}{@{\\extracolsep{\\fill}}l" + "|cc" * (n + 2) + "@{}}",
+        "\\toprule",
+        f"& {type_heads} & \\multicolumn{{2}}{{c|}}{{Overall}} "
+        f"& \\multicolumn{{2}}{{c}}{{Overall $\\Delta t$}} \\\\",
+        cmidrules,
+        "Baseline & " + " & ".join(["EOT & INT"] * (n + 2)) + " \\\\",
+        "\\midrule",
+        *lines,
+        "\\bottomrule",
+        "\\end{tabular*}",
+        "\\end{table*}",
+    ])
+
+
+def write_json(ms: MetadataScores, out: Path) -> None:
+    """Merge the per-type breakdown into the leaderboard artifact at `out`
+    (produced by leaderboard.py --json) and rewrite it in place: each model row
+    gains `by_type` — {type: {eot, int}} in the same {recall, fp_rate,
+    latency_ms} shape as the overall row, pooled within the type — and the
+    payload gains top-level `types` with n_conversations + gold event density.
+    A track that is null on the overall row (not supported by the model) stays
+    null per type, so the website's dash convention carries over."""
+    import json
+    import math
+
+    def num(x: float) -> float | None:
+        return None if math.isnan(x) else round(x, 6)
+
+    def task_entry(ts: TaskScore) -> dict:
+        lat = ts.latency()
+        return {
+            "recall": num(ts.recall),
+            "fp_rate": num(ts.fp_rate),
+            "latency_ms": {"p10": num(lat.p10), "p50": num(lat.p50), "p90": num(lat.p90)},
+        }
+
+    null_entry = {"recall": None, "fp_rate": None,
+                  "latency_ms": {"p10": None, "p50": None, "p90": None}}
+
+    payload = json.loads(out.read_text())
+    for m in payload["models"]:
+        label = m["model"]
+        m["by_type"] = {
+            t: {
+                task_key: (null_entry if m[task_key]["recall"] is None
+                           else task_entry(ms.pooled[(label, "type", t, task)]))
+                for task_key, task in (("eot", "EOT"), ("int", "INT"))
+            }
+            for t in ms.types
+        }
+    payload["types"] = {
+        t: {
+            "n_conversations": ms.n_type[t],
+            "eot_positives": ms.density[t][0], "eot_negatives": ms.density[t][1],
+            "int_positives": ms.density[t][2], "int_negatives": ms.density[t][3],
+        }
+        for t in ms.types
+    }
+    out.write_text(json.dumps(payload, indent=2) + "\n")
+    print(f"merged by_type into -> {out} ({len(ms.types)} types, {len(payload['models'])} models)")
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--dataset", default=DEV_DATASET, help="gold source (HF repo or local dir)")
+    ap.add_argument("--split", default=None, choices=["dev", "test"],
+                    help="which predictions-<split>.json to score (default: inferred from --dataset)")
+    ap.add_argument("--latex", action="store_true",
+                    help="print the paper's tab:by-type LaTeX rows instead of the rich tables")
+    ap.add_argument("--json", type=Path, default=None, dest="json_out",
+                    help="merge `by_type` + `types` into this leaderboard.py --json artifact")
+    ap.add_argument("--submissions", type=Path, default=None,
+                    help="external submissions dir (same <name>/predictions-<split>.json layout)")
+    args = ap.parse_args()
+    split = args.split or ("test" if ("test" in args.dataset or "golden" in args.dataset) else "dev")
+
+    scores = compute(args.dataset, split, submissions=args.submissions)
+    if args.json_out:
+        write_json(scores, args.json_out)
+        return
+    if args.latex:
+        print(latex_table(scores))
+        return
+    ids, types, baselines, density, pooled, n_type = scores
+    console = Console()
+    console.rule(
+        f"[bold]{args.dataset}[/]  ·  {split}  ·  {len(ids)} conversations  ·  {len(baselines)} baselines"
+    )
+
+    density_table = Table(
+        title="gold event density by conversation type", box=box.SIMPLE_HEAVY,
+        title_style="bold", header_style="bold cyan",
+    )
+    density_table.add_column("conversation_type", style="cyan")
+    for col in ("n", "EOT+", "EOT-", "INT+", "INT-", "INT+/conv"):
+        density_table.add_column(col, justify="right")
+    for t in types:
+        d = density[t]
+        density_table.add_row(t, str(n_type[t]), str(d[0]), str(d[1]), str(d[2]), str(d[3]),
+                              f"[bold]{d[2] / n_type[t]:.1f}[/]")
+    console.print(density_table)
+
+    def block(axis: str, keys: list[str], headers: list[str], *, with_lat: bool) -> None:
+        metrics = "recall / [green]fp[/] / [dim]lat_ms[/]" if with_lat else "recall / [green]fp[/]"
+        for task in ("EOT", "INT"):
+            table = Table(
+                title=f"{task} by {axis}", box=box.SIMPLE_HEAVY, title_style="bold",
+                header_style="bold cyan",
+                caption=f"{metrics}   ·   [red]red fp[/] = over 0.10 budget",
+                caption_style="dim",
+            )
+            table.add_column("baseline", style="bold")
+            for h in headers:
+                table.add_column(h, justify="right")
+            for label in baselines:
+                table.add_row(label, *(fmt(pooled[(label, axis, k, task)], with_lat=with_lat) for k in keys))
+            console.print(table)
+
+    # by-type: 6 columns → drop latency for width (it's ~model-constant across types);
+    # by-pairing: 3 columns → room for full recall/fp/latency.
+    block("type", types, [t.split("/")[0][:8] for t in types], with_lat=False)  # full names in density table
+    block("pairing", ["FF", "MM", "mixed"], ["FF", "MM", "mixed"], with_lat=True)
+
+
+if __name__ == "__main__":
+    main()

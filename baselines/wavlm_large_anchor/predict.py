@@ -37,9 +37,9 @@ import torch.nn.functional as F
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from eval.data import DEV_DATASET, Conversation, conversation, conversation_ids, resolve_dataset  # noqa: E402
-from eval.submission import SCHEMA_VERSION, ConversationPrediction, SpeakerEvents, Submission  # noqa: E402
-from eval.sweep import ConversationProbs, ProbsFile, REFRACTORY_S, SpeakerProbs, commit_events  # noqa: E402
+from turnbench.data import DEV_DATASET, Conversation, conversation, conversation_ids, resolve_dataset  # noqa: E402
+from turnbench.submission import SCHEMA_VERSION, ConversationPrediction, SpeakerEvents, Submission  # noqa: E402
+from turnbench.sweep import ConversationProbs, ProbsFile, REFRACTORY_S, SpeakerProbs, commit_events  # noqa: E402
 
 HF_REPO = "ZhuoyanTao/causal-wavlm-turn-taking"
 CKPT_DIR = "universa_turn_taking_only_turn_a40"
@@ -285,7 +285,7 @@ def main() -> int:
         print(f"Wrote {len(predictions)} predictions to {args.out}")
         return 0
 
-    from eval.score import score_submission, task_cells
+    from turnbench.score import score_submission, task_cells
     scores = score_submission(submission, dataset)
     print(f"wavlm_large_anchor — {len(predictions)} conversations")
     for name, s in (("EOT", scores.task_eot), ("INT", scores.task_int)):

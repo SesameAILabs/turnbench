@@ -13,7 +13,7 @@ probs-eot.json:  prob = score        (P turn ending);   commit when prob > θ_eo
 probs-int.json:  prob = 1 - score    (P taking floor);  commit when prob > θ_int
 
 Thresholds in CHECKPOINT_DEFAULTS are in probs space. On dev, thresholds are
-auto-selected by eval.sweep.operating_point.
+auto-selected by turnbench.sweep.operating_point.
 
 Parallel inference (N shards):
     # Each shard writes probs for 1/N conversations:
@@ -47,21 +47,21 @@ sys.path.insert(0, str(_REPO))
 import moshi.models                     # noqa: E402
 import moshi.models.loaders as loaders  # noqa: E402
 
-from eval.data import (                                                       # noqa: E402
+from turnbench.data import (                                                       # noqa: E402
     DEV_DATASET,
     Dataset,
     conversation,
     conversation_ids,
     resolve_dataset,
 )
-from eval.score import score_submission                                        # noqa: E402
-from eval.submission import (                                                 # noqa: E402
+from turnbench.score import score_submission                                        # noqa: E402
+from turnbench.submission import (                                                 # noqa: E402
     SCHEMA_VERSION,
     ConversationPrediction,
     SpeakerEvents,
     Submission,
 )
-from eval.sweep import (                                                      # noqa: E402
+from turnbench.sweep import (                                                      # noqa: E402
     ConversationProbs as _ConversationProbs,
     ProbsFile as _ProbsFile,
     SCHEMA_VERSION as _PROBS_SCHEMA_VERSION,
@@ -186,7 +186,7 @@ def _make_submission(
     thr_int: float,
     conv_scores: list[tuple[str, np.ndarray, np.ndarray, float]],
 ) -> Submission:
-    """Build Submission using eval.sweep.commit_events (consistent with probs sweep).
+    """Build Submission using turnbench.sweep.commit_events (consistent with probs sweep).
 
     thr_eot: threshold in probs-eot space (score, P turn ending)
     thr_int: threshold in probs-int space (1 - score, P taking floor)

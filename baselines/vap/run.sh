@@ -31,7 +31,7 @@ PFX=""; [[ "$RUN_NAME" != "oto" ]] && PFX="${RUN_NAME}-"
 
 TEST_DATASET="mundo-ai/turn-benchmark-test"
 
-# ── Helper: pick threshold from existing probs file via eval.sweep ─────────
+# ── Helper: pick threshold from existing probs file via turnbench.sweep ─────────
 _pick_threshold() {
     local task="$1"
     local fallback="$2"
@@ -40,8 +40,8 @@ _pick_threshold() {
     python -c "
 import sys
 from pathlib import Path
-from eval.sweep import load_probs, sweep, operating_point
-from eval.data import resolve_dataset, DEV_DATASET
+from turnbench.sweep import load_probs, sweep, operating_point
+from turnbench.data import resolve_dataset, DEV_DATASET
 probs = load_probs(Path('$probs_path'))
 rows = sweep(probs, resolve_dataset(source=DEV_DATASET))
 op = operating_point(rows)
@@ -118,7 +118,7 @@ print(d[1])
         --threshold-eot "$THR_EOT" \
         --threshold-int "$THR_INT"
 
-    python -m eval.check "$_HERE"
+    python -m turnbench.check "$_HERE"
     ;;
 
 *)

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Build local parquet shards matching the mundo-ai/turn-benchmark-dev schema
-from the SRTs + WAVs under a Mundo delivery root (--data). Lets eval.score
+from the SRTs + WAVs under a Mundo delivery root (--data). Lets turnbench.score
 run without HF access:
 
-    python -m eval.score baselines/gemini/gemini_pred.json \
+    python -m turnbench.score baselines/gemini/gemini_pred.json \
         --dataset baselines/gemini/.local_dev_parquet
 
 Columns produced (per eval/data.py):
@@ -58,7 +58,7 @@ def main() -> int:
                     help="Mundo delivery root (numbered folders with "
                          "speaker audio + metadata)")
     ap.add_argument("--split", type=Path,
-                    default=Path(__file__).resolve().parents[2] / "eval" / "splits" / "dev.txt")
+                    default=Path(__file__).resolve().parents[2] / "turnbench" / "splits" / "dev.txt")
     ap.add_argument("--out", type=Path,
                     default=Path(__file__).resolve().parent / ".local_dev_parquet")
     args = ap.parse_args()

@@ -24,7 +24,7 @@ that frame, so each commit depends only on audio up to that time.
 
 This is the standard baseline shape (cf. `baselines/rms_vad/predict.py`): a
 self-contained predictor returning one `ConversationPrediction` per
-conversation, scored by `eval.score`.
+conversation, scored by `turnbench.score`.
 
     python -m baselines.espnet_turntaking.predict                 # score on dev
     python -m baselines.espnet_turntaking.predict --out preds.json # write a JSON
@@ -46,14 +46,14 @@ import numpy as np
 # eval/ is two levels up (baselines/espnet_turntaking/predict.py).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from eval.data import (  # noqa: E402
+from turnbench.data import (  # noqa: E402
     DEV_DATASET,
     Conversation,
     conversation,
     conversation_ids,
     resolve_dataset,
 )
-from eval.submission import (  # noqa: E402
+from turnbench.submission import (  # noqa: E402
     SCHEMA_VERSION,
     ConversationPrediction,
     SpeakerEvents,
@@ -339,7 +339,7 @@ def main() -> int:
               file=sys.stderr)
         return 0
 
-    from eval.score import score_submission, task_cells  # lazy: needs typer/rich
+    from turnbench.score import score_submission, task_cells  # lazy: needs typer/rich
 
     scores = score_submission(submission, dataset)
     print(f"espnet_turntaking — {len(submission.predictions)} conversations")

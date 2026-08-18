@@ -9,7 +9,7 @@ false-positive rate, the opposite corner of the tradeoff from never firing.
 
 This is the reference shape for a baseline in the discrete benchmark: a
 self-contained, standalone predictor that returns one `ConversationPrediction`
-per conversation and is scored by `eval.score`. A real model baseline does the
+per conversation and is scored by `turnbench.score`. A real model baseline does the
 same, with its own model in place of the RMS rule and its own continuous->
 discrete step in place of the threshold + edge detection here.
 
@@ -28,15 +28,15 @@ import numpy as np
 # eval/ is two levels up (baselines/rms_vad/predict.py).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from eval.data import (  # noqa: E402
+from turnbench.data import (  # noqa: E402
     DEV_DATASET,
     Conversation,
     conversation,
     conversation_ids,
     resolve_dataset,
 )
-from eval.score import score_submission, task_cells  # noqa: E402
-from eval.submission import (  # noqa: E402
+from turnbench.score import score_submission, task_cells  # noqa: E402
+from turnbench.submission import (  # noqa: E402
     SCHEMA_VERSION,
     ConversationPrediction,
     SpeakerEvents,

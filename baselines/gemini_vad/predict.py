@@ -50,8 +50,8 @@ import io  # noqa: E402
 import pyarrow.parquet as pq  # noqa: E402
 from huggingface_hub import snapshot_download  # noqa: E402
 
-from eval.data import DEV_DATASET, PINNED_REVISIONS  # noqa: E402
-from eval.submission import (  # noqa: E402
+from turnbench.data import DEV_DATASET, PINNED_REVISIONS  # noqa: E402
+from turnbench.submission import (  # noqa: E402
     SCHEMA_VERSION,
     ConversationPrediction,
     SpeakerEvents,
@@ -392,9 +392,9 @@ def main() -> int:
         )
         return 0
 
-    # scoring needs gold labels — score the written JSON with eval.score instead
-    from eval.data import resolve_dataset  # noqa: E402  (dev-sized, labels only)
-    from eval.score import score_submission, task_cells  # noqa: E402
+    # scoring needs gold labels — score the written JSON with turnbench.score instead
+    from turnbench.data import resolve_dataset  # noqa: E402  (dev-sized, labels only)
+    from turnbench.score import score_submission, task_cells  # noqa: E402
 
     scores = score_submission(submission, resolve_dataset(source=args.dataset, skip_audio=True))
     print(f"gemini_vad — {len(submission.predictions)} conversations")

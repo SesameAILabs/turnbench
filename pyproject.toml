@@ -1,8 +1,9 @@
 [project]
-name = "tt-benchmark"
+name = "turnbench"
 version = "0.0.0"
 description = "TurnBench — a turn-taking benchmark for end-of-turn and interruption detection in two-channel conversations."
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "numpy==2.4.6",
@@ -25,6 +26,12 @@ plot = [
     "matplotlib==3.11.0",
 ]
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["turnbench"]
+
 [tool.pytest.ini_options]
-testpaths = ["eval"]
-pythonpath = ["."]
+testpaths = ["tests"]
