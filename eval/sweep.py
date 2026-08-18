@@ -34,6 +34,7 @@ import typer
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from eval.durations import load_durations
+from eval.probs import BASELINES_DIR, FETCH_HINT
 
 SCHEMA_VERSION = 1
 
@@ -86,8 +87,14 @@ class ProbsFile(BaseModel):
 
 
 def load_probs(path: Path) -> ProbsFile:
-    """Parse and schema-validate a probabilities JSON file."""
-    return ProbsFile.model_validate(json.loads(Path(path).read_text(encoding="utf-8")))
+    """Parse and schema-validate a probabilities JSON file.
+
+    Baseline probs files are not in git; a missing path under baselines/ means
+    the pinned files have not been fetched yet (see eval/probs.py)."""
+    path = Path(path)
+    if not path.exists() and BASELINES_DIR in path.resolve().parents:
+        raise FileNotFoundError(f"{path} not found — {FETCH_HINT}")
+    return ProbsFile.model_validate(json.loads(path.read_text(encoding="utf-8")))
 
 
 def frame_count(duration_s: float, frame_rate_hz: float) -> int:
