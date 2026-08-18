@@ -12,7 +12,7 @@ In `baselines/<name>/`:
 | --- | --- |
 | `predictions-dev.json` | committed events at your declared operating point (dev) |
 | `predictions-test.json` | same, test split (audio-only — scored by the eval server, not locally) |
-| `probs-eot.json` / `probs-int.json` | per-frame EOT / interruption probabilities for the dev sweep — only if your model has a continuous score (see below); prob-less models (Gemini, binary SmartTurn) skip them and appear as a single point |
+| `probs-eot.json` / `probs-int.json` | per-frame EOT / interruption probabilities for the dev sweep — only if your model has a continuous score (see below); prob-less models (Gemini, binary SmartTurn) skip them and appear as a single point. Not committed to git: `uv run python -m eval.probs` fetches the pinned set, and new files are uploaded to the [probs dataset](https://huggingface.co/datasets/freemanjiang/turnbench-baseline-probs) (`eval/probs.py`) |
 | `README.md` | machine requirements + exact commands to reproduce all of the above on a fresh clone.|
 
 ## Rules
@@ -23,7 +23,7 @@ In `baselines/<name>/`:
 
 ## Dev threshold sweep
 
-To illustrate the latency vs false-interruption trade-off, the paper sweeps a decision threshold over the raw per-frame probabilities for the EOT / interruption task (the figure plots a uniform threshold grid; the *marked operating point* comes from the full quantile candidate set of rule 2, so it always reflects the committed submission). If your model produces continuous probabilities, commit `probs-eot.json` and/or `probs-int.json` with the per-frame dev-set probabilities to be included in this analysis — the same sweep then picks your operating point (rule 2 above) and is scored centrally.
+To illustrate the latency vs false-interruption trade-off, the paper sweeps a decision threshold over the raw per-frame probabilities for the EOT / interruption task (the figure plots a uniform threshold grid; the *marked operating point* comes from the full quantile candidate set of rule 2, so it always reflects the committed submission). If your model produces continuous probabilities, add `probs-eot.json` and/or `probs-int.json` with the per-frame dev-set probabilities to be included in this analysis; the same sweep then picks your operating point (rule 2 above) and is scored centrally. Probs files live in the [probs dataset](https://huggingface.co/datasets/freemanjiang/turnbench-baseline-probs), not in git: upload yours there and bump `REVISION` in `eval/probs.py` (instructions in its docstring).
 
 ```json
 {

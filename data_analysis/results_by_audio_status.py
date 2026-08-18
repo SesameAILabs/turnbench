@@ -53,7 +53,7 @@ from eval.score import TaskScore, merge, score_conversation  # noqa: E402
 from eval.submission import load_submission  # noqa: E402
 
 BASELINES_DIR = REPO / "baselines"
-AUDIO_STATUS_CSV = REPO / "audio_status_metadata.csv"
+AUDIO_STATUS_CSV = REPO / "data_analysis" / "audio_status_metadata.csv"
 SPLIT_SOURCE = {"test": GOLD_DATASET, "dev": DEV_DATASET}
 
 

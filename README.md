@@ -5,6 +5,9 @@ A turn-taking benchmark: detecting **end-of-turn (EOT)** and **interruption
 false-positive rate, and detection latency. The corpus is 154 dyadic
 conversations (~30 h, 106 speakers, 6 types), each triple-annotated.
 
+**Leaderboard, self-serve dev scoring, and interactive conversation viewer:
+[turnbench.sesame.com](https://turnbench.sesame.com)**
+
 ## Submit / evaluate
 
 A submission is a single `predictions.json`: per conversation and speaker, the
@@ -78,6 +81,14 @@ no central runner. `baselines/rms_vad/` is the minimal reference.
 for the author checklist — what to commit, the causal/reproducibility rules, and
 the dev threshold-sweep files (`probs-eot.json` / `probs-int.json`).
 
+The per-frame probability files behind the threshold sweeps are not in git
+(~1 GB). Fetch them once from their pinned
+[HF dataset](https://huggingface.co/datasets/freemanjiang/turnbench-baseline-probs):
+
+```bash
+uv run python -m eval.probs
+```
+
 > `TODO:`-marked baselines are **stubs** — the model code is present but they do
 > not yet emit a submission. `oracle_annotator` is a dev-only sanity check (it
 > replays the gold, so has no test predictions); every other baseline runs on
@@ -103,6 +114,20 @@ the dev threshold-sweep files (`probs-eot.json` / `probs-int.json`).
 | TODO: `moshi` | Audio (full-duplex, 12.5 Hz) | Per-frame voice-activity on system stream |
 | TODO: `dualturn` | Qwen2.5-0.5B + Mimi codec (anyreach) | 12 per-channel classification heads |
 
+## Reproduce the paper's numbers
+
+Every number in the paper regenerates from a committed script. Dev-split runs
+need only the gated public datasets; test-split runs need access to the
+private gold repo.
+
+| Paper artifact | Command |
+| --- | --- |
+| Table III (per-type corpus overview) | `uv run --extra eval python data_analysis/consensus_by_type.py --latex` |
+| Table IV / leaderboard (test) | `uv run --extra eval python data_analysis/results_by_conversation_type.py --dataset mundo-ai/turn-benchmark-test-golden --latex` |
+| Agreement stats (Cohen's/Fleiss' kappa, boundary F1) | `uv run --extra eval python data_analysis/iaa_agreement.py` |
+| Timing distributions vs Switchboard (gap/pause/FTO) | `uv run --extra eval python data_analysis/timing_distributions.py` |
+| Fig. 2 threshold sweep + operating points | `uv run python -m eval.sweep baselines/<name>/probs-<task>.json` |
+
 ## Repo layout
 
 ```
@@ -111,10 +136,12 @@ eval/                — the benchmark
   score.py             scores a predictions.json (recall / FP-rate / latency)
   submission.py        the predictions.json schema + validators
   data.py              resolves the dataset (HF dev set by default, or --dataset)
+  sweep.py             threshold sweep + operating-point selection over probs files
+  probs.py             fetches the baseline probs files from their pinned HF dataset
   parity.py            emits the website's gold + parity bundle
   make_splits.py       regenerates the speaker-disjoint dev/test splits
 baselines/           — one directory per baseline (see above)
-data_analysis/       — corpus statistics & figures
+data_analysis/       — corpus statistics, paper tables, and figures
 ```
 
 ### Website parity (`eval.parity`)
@@ -123,6 +150,11 @@ The leaderboard site runs a TypeScript port of this scorer in the browser.
 `uv run python -m eval.parity <out>` emits `dev-gold.json` plus parity test
 vectors; the site vendors them and asserts the TS scorer reproduces the scores
 exactly (`scorer_sha` is the staleness tripwire).
+
+## Citation
+
+If you use TurnBench, please cite the paper (see [`CITATION.cff`](CITATION.cff);
+the venue reference will be updated on publication).
 
 ## License
 
