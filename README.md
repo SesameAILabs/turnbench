@@ -51,21 +51,6 @@ dataset and emits a `predictions.json` at its own operating point.
 | Timing distributions vs Switchboard (gap/pause/FTO) | `uv run python turnbench/analysis/timing_distributions.py` |
 | Fig. 2 threshold sweep + operating points | `uv run python -m turnbench.sweep baselines/<name>/probs-<task>.json` |
 
-## Repo layout
-
-```
-turnbench/           — the benchmark (installable package)
-  gold.py              builds the gold event sets from the annotator tracks (2/3 majority)
-  score.py             scores a predictions.json (recall / FP-rate / latency)
-  submission.py        the predictions.json schema + validators
-  data.py              resolves the dataset (HF dev set by default, or --dataset)
-  sweep.py             threshold sweep + operating-point selection over probs files
-  probs.py             fetches the baseline probs files from their pinned HF dataset
-  analysis/            corpus statistics, paper tables, and figures
-baselines/           — one directory per baseline
-tests/               — the scorer/gold/schema test suite
-```
-
 ## Citation
 
 ```bibtex
