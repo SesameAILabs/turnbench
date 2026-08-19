@@ -1,125 +1,49 @@
 # TurnBench
 
-A turn-taking benchmark: detecting **end-of-turn (EOT)** and **interruption
-(INT)** events in two-channel recorded conversations, scored on recall,
-false-positive rate, and detection latency. The corpus is 154 dyadic
-conversations (~30 h, 106 speakers, 6 types), each triple-annotated.
+[![ci](https://github.com/cmu-sesame/turnbench/actions/workflows/ci.yml/badge.svg)](https://github.com/cmu-sesame/turnbench/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Leaderboard, self-serve dev scoring, and interactive conversation viewer:
+A turn-taking benchmark for **end-of-turn (EOT)** and **interruption (INT)** detection in recorded, two-channel human conversations, scored on recall,
+false-positive rate, and detection latency. This corpus contains 154 dyadic
+conversations (~30 h, 106 speakers, 6 conversation types), each
+triple-annotated.
+
+**Leaderboard and interactive conversation viewer:
 [turnbench.sesame.com](https://turnbench.sesame.com)**
 
-## Submit / evaluate
+## Submission
 
-A submission is a single `predictions.json`: per conversation and speaker, the
-times your model commits to an EOT and an interruption.
+A submission is a single `predictions.json` containing the timestamps of your model's EOT and INT detections for each conversation and speaker.
 
 ```bash
 uv sync
 uv run python -m turnbench.score predictions.json     # score on the public dev set
 ```
 
-Format and rules on causality are described in [`docs/SUBMISSION_FORMAT.md`](docs/SUBMISSION_FORMAT.md). A worked
-reference implementation: [`baselines/rms_vad/predict.py`](baselines/rms_vad/predict.py).
-
-## Gold (`turnbench/gold.py`)
-
-Built on the fly from the three raw annotator tracks by **2/3 majority** with a ±200 ms endpoint tolerance. EOT positives are turn-ends where
-the floor passes to the other speaker. INT positives are floor-taking
-interruption onsets. Full methodology: [`turnbench/README.md`](turnbench/README.md).
+- Format and rules on causality: [`docs/SUBMISSION_FORMAT.md`](docs/SUBMISSION_FORMAT.md)
+- Scoring methodology: [`turnbench/README.md`](turnbench/README.md)
+- A worked reference implementation: [`baselines/rms_vad/predict.py`](baselines/rms_vad/predict.py)
 
 ## Dataset
 
-Dev scoring is based on: [mundo-ai/turn-benchmark-dev](https://huggingface.co/datasets/mundo-ai/turn-benchmark-dev). Since annotations are published for dev, the scorer can be run locally against predictions to provide a signal to develop against. Test scoring is based on: [mundo-ai/turn-benchmark-test](https://huggingface.co/datasets/mundo-ai/turn-benchmark-test). Annotations are not provided.
+**Dev dataset:** [mundo-ai/turn-benchmark-dev](https://huggingface.co/datasets/mundo-ai/turn-benchmark-dev) (audio + labels, scoreable locally)  
+**Test dataset:** [mundo-ai/turn-benchmark-test](https://huggingface.co/datasets/mundo-ai/turn-benchmark-test) (audio only, labels withheld)
 
-Both HF datasets are gated and require authentication to access — run
-`huggingface-cli login`, or put `HF_TOKEN=<token>` in a repo-root `.env` (the
-scorer auto-loads it).
-
-**The HF releases are the source of truth** — all published numbers are
-computed from them at pinned revisions. The raw delivery archive is the gated
-GCS bucket `gs://sesame-cmu-tt-benchmark-dev/full_delivery_with_metadata/`
-(per-`task_id` dirs: audio, six SRTs, `metadata.json`); its SRTs carry
-un-normalized label variants (e.g. `Regular Turn` for `Normal Turn`), and only
-the scripts reading `TT_BENCHMARK_DATA` / `DATA_ROOT` from `.env` use it. The
-six types: `Argumentative/Deliberative`, `Casual/Spontaneous`,
-`Collaborative/Problem-Solving`, `Instructional`, `Narrative/Storytelling`,
-`Task-Oriented/Transactional`.
+Both datasets are gated and require a Hugging Face token to access.
 
 ## Splits
 
-**Use the `task_id`s the lists below define — don't re-split locally**, or
-numbers stop being comparable across teams.
-
-| File | Description | dev / test | Speaker overlap |
-| --- | --- | ---: | ---: |
-| `turnbench/splits/dev.txt` / `test.txt` | **Headline set.** Speaker-disjoint: every voice actor appears in exactly one partition. Type-balanced within ±1 of 25%. | 38 / 116 | **0** |
-| `turnbench/splits/random_dev.txt` / `random_test.txt` | Random partition baseline. Same target ratio, but speakers leak across dev and test (intentional, for ablation). | 38 / 116 | 58 |
-
-The 25% dev / 75% test target holds roughly per conversation type:
-
-| Conversation type | dev | test | total | dev % |
-| --- | ---: | ---: | ---: | ---: |
-| Argumentative/Deliberative    |  8 |  24 |  32 | 25.0% |
-| Casual/Spontaneous            |  7 |  22 |  29 | 24.1% |
-| Collaborative/Problem-Solving |  6 |  20 |  26 | 23.1% |
-| Instructional                 |  6 |  19 |  25 | 24.0% |
-| Narrative/Storytelling        |  5 |  15 |  20 | 25.0% |
-| Task-Oriented/Transactional   |  6 |  16 |  22 | 27.3% |
-| **All**                       | **38** | **116** | **154** | **24.7%** |
-
-`turnbench/make_splits.py` regenerates them from the raw dataset with a fixed seed.
+**Dev split:** [`turnbench/splits/dev.txt`](turnbench/splits/dev.txt)  
+**Test split:** [`turnbench/splits/test.txt`](turnbench/splits/test.txt) 
 
 ## Baselines
 
-Each baseline is a standalone predictor under `baselines/`: it runs its model
-over the dataset and emits a `predictions.json`
-([format](docs/SUBMISSION_FORMAT.md)), including its own continuous→discrete
-thresholding. The benchmark only sees committed events — no shared trace format,
-no central runner. `baselines/rms_vad/` is the minimal reference.
+One directory per baseline under `baselines/`. Each baseline runs its model over the
+dataset and emits a `predictions.json` at its own operating point.
 
-**Adding or updating a baseline?** See [`baselines/README.md`](baselines/README.md)
-for the author checklist — what to commit, the causal/reproducibility rules, and
-the dev threshold-sweep files (`probs-eot.json` / `probs-int.json`).
+## Scripts
 
-The per-frame probability files behind the threshold sweeps are not in git
-(~1 GB). Fetch them once from their pinned
-[HF dataset](https://huggingface.co/datasets/freemanjiang/turnbench-baseline-probs):
-
-```bash
-uv run python -m turnbench.probs
-```
-
-> `TODO:`-marked baselines are **stubs** — the model code is present but they do
-> not yet emit a submission. `oracle_annotator` is a dev-only sanity check (it
-> replays the gold, so has no test predictions); every other baseline runs on
-> dev + test today.
-
-| Baseline | Modality | Native output |
-| --- | --- | --- |
-| `rms_vad` | Energy VAD | Speech on/off edges → discrete events |
-| `oracle_annotator` | Sanity check | Replays the gold events |
-| `openai_server_vad` | OpenAI Realtime `server_vad` (acoustic silence) | `speech_stopped`→EOT, `speech_started`→INT |
-| `openai_semantic_vad` | OpenAI Realtime `semantic_vad` (content-aware) | `speech_stopped`→EOT, `speech_started`→INT |
-| `espnet_turntaking` | Frozen Whisper-medium, mono two-speaker (CMU, Arora et al. ICLR 2025) | 5-class @ 25 Hz, trained on Switchboard |
-| `espnet_turntaking_perchannel` | Same model, per-channel inference | 5-class @ 25 Hz |
-| `mimi_endpointer` | Mimi codec, 12.5 Hz | 5-class per frame {bos, system-end, user-end, system, user} |
-| `kyutai_semantic_vad` | Kyutai STT-1B VAD head + ASR | Binary EOT per frame |
-| `vap` | Two-stream voice-activity projection, 50 Hz (Ekstedt) | Continuous VA projection per speaker |
-| `smart_turn_v3` | Whisper-Tiny + linear head (Pipecat) | Binary per 8 s chunk (turn-complete) |
-| `wavlm_base_causal` | Frozen WavLM-Base-Plus, fully causal (CMU) | 5-class @ 25 Hz, trained on Switchboard + TurnBench |
-| `wavlm_large_anchor` | Frozen WavLM-Large, 4 s windows, AR decoder (CMU) | 5-class @ 25 Hz, trained on TurnBench |
-| `wavlm_large_causal` | Frozen WavLM-Large, fully causal (CMU) | 5-class @ 25 Hz, trained on Switchboard + TurnBench |
-| `gemini_vad` | Gemini Live full-duplex sessions (recorded by `gemini/`) | pyannote VAD speech onsets over output audio → EOT |
-| `moshi_vad` | Moshi full-duplex sessions (recorded by `moshi/`) | pyannote VAD speech onsets over output audio → EOT |
-| TODO: `dualturn` | Qwen2.5-0.5B + Mimi codec (anyreach) | 12 per-channel classification heads |
-
-## Reproduce the paper's numbers
-
-Every number in the paper regenerates from a committed script. Dev-split runs
-need only the gated public datasets; test-split runs need access to the
-private gold repo.
-
-| Paper artifact | Command |
+| Artifact | Command |
 | --- | --- |
 | Table III (per-type corpus overview) | `uv run python turnbench/analysis/consensus_by_type.py --latex` |
 | Table IV / leaderboard (test) | `uv run python turnbench/analysis/results_by_conversation_type.py --dataset mundo-ai/turn-benchmark-test-golden --latex` |
@@ -137,32 +61,30 @@ turnbench/           — the benchmark (installable package)
   data.py              resolves the dataset (HF dev set by default, or --dataset)
   sweep.py             threshold sweep + operating-point selection over probs files
   probs.py             fetches the baseline probs files from their pinned HF dataset
-  parity.py            emits the website's gold + parity bundle
-  make_splits.py       regenerates the speaker-disjoint dev/test splits
   analysis/            corpus statistics, paper tables, and figures
-baselines/           — one directory per baseline (see above)
+baselines/           — one directory per baseline
 tests/               — the scorer/gold/schema test suite
 ```
 
-### Website parity (`turnbench.parity`)
-
-The leaderboard site runs a TypeScript port of this scorer in the browser.
-`uv run python -m turnbench.parity <out>` emits `dev-gold.json` plus parity test
-vectors; the site vendors them and asserts the TS scorer reproduces the scores
-exactly (`scorer_sha` is the staleness tripwire).
-
 ## Citation
 
-If you use TurnBench, please cite the paper (see [`CITATION.cff`](CITATION.cff);
-the venue reference will be updated on publication).
+```bibtex
+@misc{jiang2026turnbench,
+  title  = {TurnBench: A Multi-Domain Benchmark for Turn-Taking Dynamics in Spoken Dialogue},
+  author = {Jiang, Freeman and Sanabria, Ramon and Deshmukh, Soham and Veluri, Bandhav and
+            Williams, Simon Michael Vuch and Suen, Elliott K. and Lee, Garreth and
+            Choi, Kevin Yoonho and Umeki, Takuya and Kubo, Riku and Udupa, Sathvik and
+            Huang, Chien-yu and Kuan, Shih-Yun Shan and Tao, Zhuoyan and Krishna, Satyapriya and
+            Eskimez, Sefik Emre and Tsao, Yu and Lee, Hung-yi and Watanabe, Shinji},
+  year   = {2026},
+  note   = {Under review}
+}
+```
+
+See [`CITATION.cff`](CITATION.cff) for the complete citation.
 
 ## License
 
-The code in this repository is released under the [MIT License](LICENSE).
+The code in this repository is released under the [MIT License](LICENSE). 
 
-The data is licensed separately. The corpus, dev labels, and training set are
-distributed on Hugging Face under a custom non-commercial license that
-prohibits voice cloning; see the LICENSE file in each dataset repository
-(e.g. [mundo-ai/turn-benchmark-dev](https://huggingface.co/datasets/mundo-ai/turn-benchmark-dev)).
-The MIT license here covers the scorer, baselines, and analysis code only and
-grants no rights to the audio or annotations.
+The data is hosted on Hugging Face and licensed separately with a non-commercial license that prohibits voice cloning (see the LICENSE file in each dataset repository).

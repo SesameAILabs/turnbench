@@ -25,9 +25,8 @@ bash baselines/vap/run.sh --dev --pretrained   # dev, pretrained checkpoint
 bash baselines/vap/run.sh --test        # test (needs prior --dev run for probs)
 ```
 
-## Results (oto checkpoint, swept operating point @ fp ≤ 0.1)
+## Operating point (oto checkpoint, swept @ fp ≤ 0.1)
 
-| Task | θ | dev recall/fp | test recall/fp |
-| --- | ---: | ---: | ---: |
-| EOT | 0.9161 | 0.841 / 0.045 | 0.845 / 0.055 |
-| INT | 0.8591 | 0.957 / 0.100 | 0.945 / 0.107 |
+θ_eot = 0.9161, θ_int = 0.8591 (`turnbench.sweep`).
+
+Scores: [leaderboard](https://turnbench.sesame.com) · `results/leaderboard-test.json`.

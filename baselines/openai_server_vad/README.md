@@ -27,12 +27,9 @@ conversations fan out in parallel (`--concurrency`), and `--resume` skips those
 already in `--out`. Commit time = audio position heard when the event arrived
 (causal; folds in the decision delay).
 
-## Results (dev)
+## Results
 
-| Task | Recall | FP-rate | Latency p10/50/90 (ms) |
-| --- | ---: | ---: | ---: |
-| EOT | 0.933 | 0.563 | 61 / 281 / 403 |
-| INT | 0.994 | 0.508 | 115 / 191 / 549 |
+Scores: [leaderboard](https://turnbench.sesame.com) · `results/leaderboard-test.json`.
 
 ## Caveats
 

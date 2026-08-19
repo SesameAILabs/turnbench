@@ -33,14 +33,12 @@ bash baselines/smart_turn_v3/run.sh --dev    # dev probs + predictions only
 bash baselines/smart_turn_v3/run.sh --test   # sweep existing probs → test predictions
 ```
 
-## Results (swept operating point @ fp ≤ 0.1)
+## Operating point (swept @ fp ≤ 0.1)
 
-| Task | θ | dev recall/fp | test recall/fp |
-| --- | ---: | ---: | ---: |
-| EOT | 0.0082 | 0.754 / 0.100 | 0.752 / 0.047 |
-| INT | 0.0155 | 0.118 / 0.096 | 0.107 / 0.093 |
+θ_eot = 0.0082, θ_int = 0.0155 (`turnbench.sweep`).
 
-Test is scored against the gold set and tracks dev closely. INT recall is real
-but weak (0.118): this is primarily an end-of-turn detector, and the small
-in-budget interruption signal only becomes visible with quantile-resolution
-threshold candidates (a fixed grid found none).
+Scores: [leaderboard](https://turnbench.sesame.com) · `results/leaderboard-test.json`.
+
+Test tracks dev closely. INT recall is real but weak: this is primarily an
+end-of-turn detector, and the small in-budget interruption signal only becomes
+visible with quantile-resolution threshold candidates (a fixed grid found none).

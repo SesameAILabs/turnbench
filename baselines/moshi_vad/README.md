@@ -60,27 +60,22 @@ Moshi's brief, quiet floor-taking into many crisp onsets. Recall falls
 off above onset ≈ 0.9 (regions start vanishing) and monotonically below
 it (regions merge; the user-side gate also over-triggers).
 
-## Results (official `turnbench.score` of the committed predictions)
+## Results
 
-| Split | Track | recall | fp_rate | latency p10/p50/p90 (ms) |
-| --- | --- | --- | --- | --- |
-| dev | EOT | 0.212 | 0.066 | −125 / 771 / 2371 |
-| **test** | EOT | **0.233** | **0.044** | −132 / 702 / 2489 |
+Scores: [leaderboard](https://turnbench.sesame.com) · `results/leaderboard-test.json`.
 
-Test row scored against `mundo-ai/turn-benchmark-test-golden` at the
-dev-frozen operating point; the dev→test transfer is clean (EOT recall
-+0.021 at lower fp).
+Test is scored against `mundo-ai/turn-benchmark-test-golden` at the
+dev-frozen operating point; the dev→test transfer is clean.
 
-For reference, the ASR readout in PR #58 scored dev EOT 0.243 at
-fp_rate 0.119 — **over the 0.1 budget**, hence not a valid operating
-point.
+For reference, the ASR readout in PR #58 landed over the 0.1 dev budget,
+hence not a valid operating point.
 
 The honest headline: even with a generous acoustic readout at its swept
 optimum, Moshi rarely takes the floor at the right moments in
 human-human material. An oracle readout that fires on *every* agent
-speech onset reaches only 0.298 test EOT recall (at fp 0.132) on these
-recordings — the same oracle over the Gemini recordings reaches 0.725 at
-fp 0.032 — so the gap is the model's behaviour, not the readout.
+speech onset still recovers only a small fraction of the recall the same
+oracle achieves over the Gemini recordings, so the gap is the model's
+behaviour, not the readout.
 
 Two mechanisms, separable in the recordings:
 

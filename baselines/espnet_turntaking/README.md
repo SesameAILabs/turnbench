@@ -43,7 +43,7 @@ time the model has heard up to at that frame, so each commit depends only on
 audio up to that time. The per-task θ is the dev operating point picked centrally
 by `turnbench.sweep` (highest recall at `fp_rate ≤ 0.1`) — see below.
 
-## Results (dev, official operating point — highest recall at `fp_rate ≤ 0.1`)
+## Operating point (highest recall at `fp_rate ≤ 0.1`)
 
 Operating point chosen centrally by `turnbench.sweep` (rule 2 in
 [`../README.md`](../README.md)): **θ_eot ≈ 0.000718**, **θ_int = 0.20**, committed
@@ -54,16 +54,10 @@ probability *attenuated* by an energy weight, concentrating its mass in
 of its own score distribution. `turnbench.sweep`'s quantile candidates find it; no
 fixed uniform grid can.
 
-| task | split | recall | fp_rate |
-| --- | --- | --- | --- |
-| EOT | dev | 0.836 | 0.074 |
-| EOT | test | 0.826 | 0.078 |
-| INT | dev | 0.637 | 0.091 |
-| INT | test | 0.573 | 0.080 |
+Scores: [leaderboard](https://turnbench.sesame.com) · `results/leaderboard-test.json`.
 
-Reference `rms_vad` (energy VAD) on the same gold: EOT 0.595 / **0.547** /
-−98 ms, INT 0.994 / **0.390** / 137 ms — high recall bought with an fp_rate
-far over the budget. This model reaches higher EOT recall *inside* the budget.
+Reference `rms_vad` (energy VAD) buys its high recall with an fp_rate far over
+the budget. This model reaches higher EOT recall *inside* the budget.
 The full threshold→(recall, fp_rate, latency) curve is reproducible by sweeping
 `probs-eot.json` with `turnbench.sweep`.
 

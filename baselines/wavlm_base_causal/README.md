@@ -34,12 +34,7 @@ Declared lookahead: **0 ms**.
 θ_int ≈ 0.1072   (turnbench.sweep on probs-int.json)
 ```
 
-| task | split | recall | fp_rate |
-| --- | --- | --- | --- |
-| EOT | dev | 0.485 | 0.100 |
-| EOT | test | 0.403 | 0.061 |
-| INT | dev | 0.859 | 0.100 |
-| INT | test | 0.820 | 0.111 |
+Scores: [leaderboard](https://turnbench.sesame.com) · `results/leaderboard-test.json`.
 
 Commitment: central rising-edge detector (`turnbench.sweep.commit_events`, refractory 2.0 s).
 `probs-{eot,int}.json` (dev) and `probs-test-{eot,int}.json` are emitted by this

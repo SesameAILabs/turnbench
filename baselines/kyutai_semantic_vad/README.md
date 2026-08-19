@@ -22,9 +22,8 @@ bash baselines/kyutai_semantic_vad/run.sh --dev    # dev probs + predictions onl
 bash baselines/kyutai_semantic_vad/run.sh --test   # sweep existing probs → test predictions
 ```
 
-## Results (pretrained, swept operating point @ fp ≤ 0.1)
+## Operating point (pretrained, swept @ fp ≤ 0.1)
 
-| Task | θ | dev recall/fp | test recall/fp |
-| --- | ---: | ---: | ---: |
-| EOT | 0.8125 | 0.803 / 0.100 | 0.773 / 0.059 |
-| INT | 0.9734 | 0.934 / 0.085 | 0.898 / 0.081 |
+θ_eot = 0.8125, θ_int = 0.9734 (`turnbench.sweep`).
+
+Scores: [leaderboard](https://turnbench.sesame.com) · `results/leaderboard-test.json`.

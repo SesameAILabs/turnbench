@@ -35,12 +35,7 @@ prediction at 200 ms. Declared lookahead: **0 ms**.
 θ_int ≈ 0.1214   (turnbench.sweep on probs-int.json)
 ```
 
-| task | split | recall | fp_rate |
-| --- | --- | --- | --- |
-| EOT | dev | 0.825 | 0.100 |
-| EOT | test | 0.800 | 0.054 |
-| INT | dev | 0.899 | 0.042 |
-| INT | test | 0.868 | 0.054 |
+Scores: [leaderboard](https://turnbench.sesame.com) · `results/leaderboard-test.json`.
 
 `probs-{eot,int}.json` (dev) and `probs-test-{eot,int}.json` are emitted by
 `predict.py --probs-out-dir` (sharded via `--shard K N`, merged with

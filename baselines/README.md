@@ -4,6 +4,31 @@ Each baseline is a standalone predictor under `baselines/<name>/` that emits a
 `predictions.json` scored by `turnbench.score`
 ([format](../docs/SUBMISSION_FORMAT.md)). `rms_vad/` is the minimal reference.
 
+## Roster
+
+| Baseline | What it is |
+| --- | --- |
+| `rms_vad` | Energy VAD floor: speech on/off edges as discrete events |
+| `oracle_annotator` | Dev-only sanity check that replays the gold events |
+| `openai_server_vad` | OpenAI Realtime `server_vad` (acoustic silence endpointing) |
+| `openai_semantic_vad` | OpenAI Realtime `semantic_vad` (content-aware endpointing) |
+| `espnet_turntaking` | ESPnet Switchboard turn-taking model, mono two-speaker input |
+| `espnet_turntaking_perchannel` | Same model, per-channel inference |
+| `mimi_endpointer` | Endpointer over Mimi codec tokens |
+| `kyutai_semantic_vad` | Kyutai STT-1B VAD head + streaming ASR |
+| `vap` | Voice activity projection (two-stream) |
+| `smart_turn_v3` | Pipecat Smart Turn v3 chunk-level turn-completion |
+| `wavlm_base_causal` | Frozen WavLM-Base-Plus, fully causal predictor |
+| `wavlm_large_causal` | Frozen WavLM-Large, fully causal predictor |
+| `wavlm_large_anchor` | Frozen WavLM-Large, windowed AR decoder (ANCHOR-adapted) |
+| `gemini_vad` | Gemini Live full-duplex sessions, VAD readout over output audio |
+| `moshi_vad` | Moshi full-duplex sessions, VAD readout over output audio |
+| TODO: `dualturn` | Stub: model code present, no submission yet |
+
+Details, checkpoints, and exact reproduction commands live in each baseline's
+own README. Scores live on the [leaderboard](https://turnbench.sesame.com) and
+in `results/leaderboard-test.json` only.
+
 ## What to commit
 
 In `baselines/<name>/`:

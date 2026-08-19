@@ -26,9 +26,5 @@ uv run python -m baselines.oracle_annotator.predict --out baselines/oracle_annot
 Needs HF access to the gated dev repo. **Dev only:** the test set's gold is
 withheld (annotation columns are empty), so there is nothing to replay.
 
-## Results (dev)
-
-| Task | Recall | FP-rate | Latency p10 | Latency p50 | Latency p90 |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| EOT | 1.000 | 0.000 | 0 | 0 | 0 |
-| INT | 1.000 | 0.000 | 0 | 0 | 0 |
+Perfect scores are the design property, not a finding: the predictor replays
+the gold, so recall is 1, fp-rate is 0, and latency is 0 by construction.

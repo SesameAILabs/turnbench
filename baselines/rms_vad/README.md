@@ -26,10 +26,6 @@ uv run python -m baselines.rms_vad.predict \
     --out baselines/rms_vad/predictions-test.json
 ```
 
-## Results (dev)
+## Results
 
-
-| Task | Recall | FP-rate | Latency p10 | Latency p50 | Latency p90 |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| EOT | 0.595 | 0.547 | -220 | -98 | 2161 |
-| INT | 0.994 | 0.390 | 55 | 137 | 602 |
+Scores: [leaderboard](https://turnbench.sesame.com) · `results/leaderboard-test.json`.

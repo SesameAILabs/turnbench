@@ -34,9 +34,8 @@ bash baselines/mimi_endpointer/run.sh --dev --swbd-oto
 bash baselines/mimi_endpointer/run.sh --dev          # pretrained (prefixed outputs)
 ```
 
-## Results (oto_d1f, swept operating point @ fp ≤ 0.1)
+## Operating point (oto_d1f, swept @ fp ≤ 0.1)
 
-| Task | θ | dev recall/fp | test recall/fp |
-| --- | ---: | ---: | ---: |
-| EOT | 0.92 | 0.759 / 0.047 | 0.782 / 0.078 |
-| INT | 0.9224 | 0.876 / 0.100 | 0.899 / 0.106 |
+θ_eot = 0.92, θ_int = 0.9224 (`turnbench.sweep`).
+
+Scores: [leaderboard](https://turnbench.sesame.com) · `results/leaderboard-test.json`.

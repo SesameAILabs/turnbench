@@ -33,27 +33,21 @@ not the barge-in onset. Its commit times are offset-anchored, so its
 latencies are not comparable with the onset-anchored INT convention every
 other baseline uses (user speech onset; cf. `baselines/openai_realtime.py`),
 and it also fires at ordinary turn exchanges (agent stops, user replies
-within the window). The ASR readout in [`baselines/gemini`](../gemini)
-remains the INT source for Gemini.
+within the window). The superseded ASR readout in [`baselines/gemini`](../gemini) is kept for
+reference only. Gemini is scored EOT-only: the benchmark has no INT
+methodology for full-duplex models.
 
-## Results (official `turnbench.score` of the committed predictions)
+## Results
 
-| Split | Track | Readout | recall | fp_rate | latency p10/p50/p90 (ms) |
-| --- | --- | --- | --- | --- | --- |
-| dev | **EOT** | **pyannote VAD (this)** | **0.665** | **0.047** | 747 / 1197 / 1937 |
-| **test** | **EOT** | **pyannote VAD (this)** | **0.657** | **0.022** | 847 / 1234 / 1951 |
-| dev | EOT | ASR words (`gemini`)* | 0.554 | 0.087 | 428 / 725 / 1189 |
+Scores: [leaderboard](https://turnbench.sesame.com) · `results/leaderboard-test.json`.
 
-Test row scored against `mundo-ai/turn-benchmark-test-golden`; the
-dev→test recall delta (−0.008) is noise-level.
+The pyannote VAD readout (this baseline) outperformed the ASR-word readout
+(`baselines/gemini`) on dev EOT recall over the same recordings, so the VAD
+readout is the committed variant. The ASR-readout predictions are not
+committed. The dev→test recall transfer is noise-level.
 
-\* The ASR row is from the same recordings run through the
-`baselines/gemini` word-timestamp readout; those predictions are not yet
-committed, so treat it as indicative until they are.
-
-Operating point: `onset=0.5, offset=0.363` (fixed; not swept). It sits
-at fp_rate 0.047 on dev, under the 0.1 budget, so no threshold sweep was
-run.
+Operating point: `onset=0.5, offset=0.363` (fixed; not swept). It landed
+under the 0.1 dev budget, so no threshold sweep was run.
 
 ### Observations
 
@@ -61,7 +55,7 @@ run.
    filler vocalisations) is real turn-holding and gets picked up by
    acoustic VAD but not by ASR.
 2. **The cost is latency.** pyannote is non-causal (~2 s of bidirectional
-   context inside the segmentation model), so p50 latency is ~450 ms
+   context inside the segmentation model), so p50 latency is substantially
    higher than the ASR readout. This is inherent to the VAD, not to the
    readout rules — swapping in a causal VAD would reclaim it.
 

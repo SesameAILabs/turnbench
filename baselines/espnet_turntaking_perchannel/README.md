@@ -25,33 +25,23 @@ Each channel's per-frame `P_T` (EOT) / `P_I` (interruption) is the continuous
 score; the committed submission (`submit.py`) thresholds it with the central
 single-threshold rising-edge rule (2 s refractory), per `turnbench.sweep`.
 
-## Submission (dev operating point — highest recall at `fp_rate ≤ 0.1`)
+## Operating point (highest recall at `fp_rate ≤ 0.1`)
 
 Operating point chosen centrally by `turnbench.sweep` (rule 2 in
 [`../README.md`](../README.md)): **θ_eot ≈ 0.309**, **θ_int ≈ 0.217**. Reproduce
 via [How to run](#how-to-run).
 
-| task | split | recall | fp_rate |
-| --- | --- | --- | --- |
-| EOT | dev | 0.640 | 0.100 |
-| EOT | test | 0.711 | 0.081 |
-| INT | dev | 0.585 | 0.096 |
-| INT | test | 0.611 | 0.135 |
+Scores: [leaderboard](https://turnbench.sesame.com) · `results/leaderboard-test.json`.
 
 ## Mix vs. individual-channel (each at its `fp_rate ≤ 0.1` operating point)
 
-Same model, same dev set; only the inference strategy differs. Each baseline is
-scored at its own swept operating point (`recall / fp_rate`, dev):
-
-| task | mix + attribution (`espnet_turntaking`) | individual-channel (this) |
-| --- | --- | --- |
-| EOT | **0.836 / 0.074** | 0.640 / 0.100 |
-| INT | **0.637 / 0.091** | 0.585 / 0.096 |
+Same model, same dev set; only the inference strategy differs. Each variant is
+scored at its own swept operating point.
 
 At the swept operating points **the mix wins both tracks** — a reversal of the
 comparison at earlier, coarser operating points, driven entirely by the mix's
 EOT score (`P_T × energy-hold`): its optimum lives at θ ≈ 0.0007, which coarse
-threshold grids could not reach (it was previously stuck at 0.347 recall).
+threshold grids could not reach.
 Per-channel inference remains the *architecturally* cleaner single-speaker EOT
 signal, but the energy-weighted mix score turns out to rank turn-ends better —
 and per-channel costs 2× the inference compute (two passes per conversation).
