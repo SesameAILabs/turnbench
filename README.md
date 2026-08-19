@@ -1,6 +1,6 @@
 # TurnBench
 
-[![ci](https://github.com/cmu-sesame/turnbench/actions/workflows/ci.yml/badge.svg)](https://github.com/cmu-sesame/turnbench/actions/workflows/ci.yml)
+[![ci](https://github.com/SesameAILabs/turnbench/actions/workflows/ci.yml/badge.svg)](https://github.com/SesameAILabs/turnbench/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A turn-taking benchmark for **end-of-turn (EOT)** and **interruption (INT)** detection in recorded, two-channel human conversations, scored on recall,

@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "If you use TurnBench, please cite the paper below."
 title: "TurnBench"
-repository-code: "https://github.com/cmu-sesame/turnbench"
+repository-code: "https://github.com/SesameAILabs/turnbench"
 url: "https://turnbench.sesame.com"
 authors:
   - family-names: Jiang
