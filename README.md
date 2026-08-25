@@ -27,9 +27,10 @@ uv run python -m turnbench.score predictions.json     # score on the public dev 
 ## Dataset
 
 **Dev dataset:** [mundo-ai/turn-benchmark-dev](https://huggingface.co/datasets/mundo-ai/turn-benchmark-dev) (audio + labels, scoreable locally)  
-**Test dataset:** [mundo-ai/turn-benchmark-test](https://huggingface.co/datasets/mundo-ai/turn-benchmark-test) (audio only, labels withheld)
+**Test dataset:** [mundo-ai/turn-benchmark-test](https://huggingface.co/datasets/mundo-ai/turn-benchmark-test) (audio only, labels withheld)  
+**Training dataset:** [otoearth/otoSpeech-full-duplex-turn-104h](https://huggingface.co/datasets/otoearth/otoSpeech-full-duplex-turn-104h) (~104 h, speaker-disjoint from the benchmark, same annotation protocol; used for the TurnBench-trained baselines)
 
-Both datasets are gated and require a Hugging Face token to access.
+All datasets are gated and require a Hugging Face token to access.
 
 ## Splits
 
