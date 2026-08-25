@@ -47,7 +47,9 @@ dataset and emits a `predictions.json` at its own operating point.
 | --- | --- |
 | Table III (per-type corpus overview) | `uv run python turnbench/analysis/consensus_by_type.py --latex` |
 | Table IV / leaderboard (test) | `uv run python turnbench/analysis/results_by_conversation_type.py --dataset mundo-ai/turn-benchmark-test-golden --latex` |
+| Table III (raw per-annotator dynamics) | `uv run python turnbench/analysis/per_conversation.py` |
 | Agreement stats (Cohen's/Fleiss' kappa, boundary F1) | `uv run python turnbench/analysis/iaa_agreement.py` |
+| Human latency reference (floor-transfer offsets, INT yield) | `uv run python turnbench/analysis/human_baseline.py` |
 | Timing distributions vs Switchboard (gap/pause/FTO) | `uv run python turnbench/analysis/timing_distributions.py` |
 | Fig. 2 threshold sweep + operating points | `uv run python -m turnbench.sweep baselines/<name>/probs-<task>.json` |
 
