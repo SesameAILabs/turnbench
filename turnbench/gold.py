@@ -67,11 +67,13 @@ import typer
 
 from turnbench.data import (
     ANNOTATORS,
+    DEV_DATASET,
     DEV_REVISION,
     SPEAKERS,
     Conversation,
     conversation,
     conversation_ids,
+    read_columns_projected,
     resolve_dataset,
 )
 
@@ -547,16 +549,24 @@ def export() -> None:
 
     The artifact is a derived cache — code stays the source of truth;
     regenerate after any gold change. Each conversation is ConversationEvents
-    serialised verbatim plus the audio duration; the artifact is stamped with
-    the scorer commit and dataset revision that fully determine it, so
-    consumers never read audio, SRTs, or this repo's constants.
+    serialised verbatim plus the audio duration and the dataset's `metadata`
+    struct (conversation_type, per-speaker actor id/gender); the artifact is
+    stamped with the scorer commit and dataset revision that fully determine
+    it, so consumers never read audio, SRTs, or this repo's constants.
     """
     dataset = resolve_dataset(skip_audio=True)
+    meta_table = read_columns_projected(
+        DEV_DATASET, DEV_REVISION, ["conversation_id", "metadata"]
+    )
+    metadata = dict(
+        zip(meta_table["conversation_id"].to_pylist(), meta_table["metadata"].to_pylist())
+    )
     conversations = {}
     for task_id in conversation_ids(dataset):
         conv = conversation(dataset, task_id)
         conversations[task_id] = {
             "duration_s": conv.duration_s,
+            "metadata": metadata[task_id],
             **asdict(events_for_conversation(conv)),
         }
     artifact = {
