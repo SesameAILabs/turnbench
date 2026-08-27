@@ -1,7 +1,7 @@
 # TurnBench
 
-[![arXiv](https://img.shields.io/badge/arXiv-2608.25218-b31b1b.svg)](https://arxiv.org/abs/2608.25218)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![arXiv](https://img.shields.io/badge/arXiv-2608.25218-b31b1b.svg)](https://arxiv.org/abs/2608.25218)
 
 A turn-taking benchmark for **end-of-turn (EOT)** and **interruption (INT)** detection in recorded, two-channel human conversations, scored on recall,
 false-positive rate, and detection latency. This corpus contains 154 dyadic
