@@ -69,8 +69,7 @@ dataset and emits a `predictions.json` at its own operating point.
   eprint        = {2608.25218},
   archivePrefix = {arXiv},
   primaryClass  = {eess.AS},
-  url           = {https://arxiv.org/abs/2608.25218},
-  note          = {Under review}
+  url           = {https://arxiv.org/abs/2608.25218}
 }
 ```
 
