@@ -1,6 +1,5 @@
 # TurnBench
 
-[![ci](https://github.com/SesameAILabs/turnbench/actions/workflows/ci.yml/badge.svg)](https://github.com/SesameAILabs/turnbench/actions/workflows/ci.yml)
 [![arXiv](https://img.shields.io/badge/arXiv-2608.25218-b31b1b.svg)](https://arxiv.org/abs/2608.25218)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
