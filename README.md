@@ -1,6 +1,7 @@
 # TurnBench
 
 [![ci](https://github.com/SesameAILabs/turnbench/actions/workflows/ci.yml/badge.svg)](https://github.com/SesameAILabs/turnbench/actions/workflows/ci.yml)
+[![arXiv](https://img.shields.io/badge/arXiv-2608.25218-b31b1b.svg)](https://arxiv.org/abs/2608.25218)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A turn-taking benchmark for **end-of-turn (EOT)** and **interruption (INT)** detection in recorded, two-channel human conversations, scored on recall,
@@ -58,14 +59,18 @@ dataset and emits a `predictions.json` at its own operating point.
 
 ```bibtex
 @misc{jiang2026turnbench,
-  title  = {TurnBench: A Multi-Domain Benchmark for Turn-Taking Dynamics in Spoken Dialogue},
-  author = {Jiang, Freeman and Sanabria, Ramon and Deshmukh, Soham and Veluri, Bandhav and
-            Williams, Simon Michael Vuch and Suen, Elliott K. and Lee, Garreth and
-            Choi, Kevin Yoonho and Umeki, Takuya and Kubo, Riku and Udupa, Sathvik and
-            Huang, Chien-yu and Kuan, Shih-Yun Shan and Tao, Zhuoyan and Krishna, Satyapriya and
-            Eskimez, Sefik Emre and Tsao, Yu and Lee, Hung-yi and Watanabe, Shinji},
-  year   = {2026},
-  note   = {Under review}
+  title         = {TurnBench: A Multi-Domain Benchmark for Turn-Taking Dynamics in Spoken Dialogue},
+  author        = {Jiang, Freeman and Sanabria, Ramon and Deshmukh, Soham and Veluri, Bandhav and
+                   Williams, Simon Michael Vuch and Suen, Elliott K. and Lee, Garreth and
+                   Choi, Kevin Yoonho and Umeki, Takuya and Kubo, Riku and Udupa, Sathvik and
+                   Huang, Chien-yu and Kuan, Shih-Yun Shan and Tao, Zhuoyan and Krishna, Satyapriya and
+                   Eskimez, Sefik Emre and Tsao, Yu and Lee, Hung-yi and Watanabe, Shinji},
+  year          = {2026},
+  eprint        = {2608.25218},
+  archivePrefix = {arXiv},
+  primaryClass  = {eess.AS},
+  url           = {https://arxiv.org/abs/2608.25218},
+  note          = {Under review}
 }
 ```
 

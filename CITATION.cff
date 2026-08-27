@@ -47,7 +47,13 @@ preferred-citation:
   title: "TurnBench: A Multi-Domain Benchmark for Turn-Taking Dynamics in Spoken Dialogue"
   year: 2026
   status: submitted
-  url: "https://turnbench.sesame.com"
+  url: "https://arxiv.org/abs/2608.25218"
+  identifiers:
+    - type: doi
+      value: "10.48550/arXiv.2608.25218"
+    - type: other
+      value: "arXiv:2608.25218"
+      description: "arXiv preprint"
   authors:
     - family-names: Jiang
       given-names: Freeman
