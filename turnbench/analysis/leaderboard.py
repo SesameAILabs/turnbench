@@ -209,8 +209,9 @@ def main() -> None:
     tag = f"{args.dataset.split('/')[-1]} · {split}"
     print_table(scored, tag)
     if args.json_out:
-        # qualification (dev fp ≤ budget) comes from each model's dev submission —
-        # the split the operating point was selected on.
+        # dev_fp_rate is displayed next to test fp so dev→test drift is visible;
+        # it comes from each model's dev submission, the split the operating
+        # point was selected on. It is not a qualification gate.
         dev_scored = (score_all(resolve_dataset(source=DEV_DATASET, skip_audio=True), "dev",
                                 submissions=args.submissions)
                       if split == "test" else scored)

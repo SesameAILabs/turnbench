@@ -143,9 +143,9 @@ not a false-alarms-per-hour measure over all behaviour.
 
 ### Ranking
 
-The leaderboard ranks submissions by test recall, subject to a 0.15 `fp_rate`
-ceiling. A submission over the ceiling is still displayed, but it ranks below
-all qualifiers: firing densely buys recall 1.0 and last place, so the board
+The leaderboard ranks each task separately by test recall. A task qualifies
+when its test `fp_rate` is at most 0.15. A submission over the ceiling is
+still displayed, but it ranks below all qualifiers: firing densely buys recall 1.0 and last place, so the board
 cannot be gamed. The 0.1 budget is the operating-point selection protocol,
 not a leaderboard gate: each baseline's threshold is the highest-recall point
 whose dev `fp_rate` stays within 0.1 (dev is the split operating points are

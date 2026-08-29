@@ -73,10 +73,10 @@ Full methodology: [turnbench/README.md](../turnbench/README.md). In brief:
   or thresholds — emit an event exactly when your deployed system would
   commit to acting on one.
 - Per task: recall, false-positive rate, latency p10/p50/p90. The leaderboard
-  ranks submissions by test recall, subject to a 0.15 false-positive-rate
-  ceiling: a submission over the ceiling is still shown, ranked below all
-  qualifiers. Baseline operating points were selected on **dev** under a 0.1
-  false-positive budget.
+  ranks each task separately by test recall. A task qualifies when its test
+  false-positive rate is at most 0.15; a submission over that ceiling is still
+  shown, ranked below all qualifiers. Baseline operating points were
+  selected on **dev** under a 0.1 false-positive budget.
 
 ## Score on the dev set
 
@@ -98,6 +98,34 @@ A reference baseline emits a valid predictions file:
 ```bash
 uv run python -m baselines.rms_vad.predict --out rms_vad_predictions.json
 ```
+
+## Submission policy
+
+For an official submission, email turnbench@sesame.com with:
+
+1. Model display name for the leaderboard
+2. Organization name
+3. `predictions-dev.json` and `predictions-test.json`
+
+We will accept only one submission per model, with the operating point baked
+in ahead of time. Entries cannot be withdrawn, and an entry over the FPR
+ceiling is ranked below qualifiers. We accept new entries for different models, but each
+entry must be a materially different model. Please indicate any changes if it
+is not obvious.
+
+Qualification is per task (EOT vs. INT) and judged on the test split. A
+submission qualifies on its task when its test false-positive rate is at most
+0.15, and then is ranked among other systems based on its task's test recall.
+A submission can qualify on one task and rank below the qualifiers on the
+other.
+
+A public write-up or repository documenting the system and how its operating
+point was chosen is encouraged, not required.
+
+We reserve the right to reasonably decline a submission (eg. invalid or
+non-causal files, duplicates of an existing entry), and to keep the
+leaderboard up to date by pruning entries that do not belong (eg. outdated
+models).
 
 ## Sweeping in memory (no JSON files)
 
