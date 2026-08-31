@@ -110,8 +110,9 @@ For an official submission, email turnbench@sesame.com with:
 We will accept only one submission per model, with the operating point baked
 in ahead of time. Entries cannot be withdrawn, and an entry over the FPR
 ceiling is ranked below qualifiers. We accept new entries for different models, but each
-entry must be a materially different model. Please indicate any changes if it
-is not obvious.
+entry must be a materially different model, and must be the output of the
+submitter's own system running on the benchmark audio. Please indicate any
+changes if it is not obvious.
 
 Qualification is per task (EOT vs. INT) and judged on the test split. A
 submission qualifies on its task when its test false-positive rate is at most
