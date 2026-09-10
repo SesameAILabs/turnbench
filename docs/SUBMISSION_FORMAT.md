@@ -121,9 +121,8 @@ A submission can qualify on one task and rank below the qualifiers on the
 other.
 
 A public write-up or repository documenting the system and how its operating
-point was chosen is encouraged, not required. For an entry that would rank
-first on a task, we ask for public documentation of the system before
-listing it.
+point was chosen is encouraged, not required. We reserve the right to ask
+for public documentation of the system before listing an entry.
 
 We reserve the right to reasonably decline a submission (eg. invalid or
 non-causal files, duplicates of an existing entry), and to keep the
