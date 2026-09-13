@@ -106,6 +106,7 @@ For an official submission, email turnbench@sesame.com with:
 1. Model display name for the leaderboard
 2. Organization name
 3. `predictions-dev.json` and `predictions-test.json`
+4. A publicly accessible link to a write-up of your system.
 
 We will accept only one submission per model, with the operating point baked
 in ahead of time. Entries cannot be withdrawn, and an entry over the FPR
@@ -120,9 +121,8 @@ submission qualifies on its task when its test false-positive rate is at most
 A submission can qualify on one task and rank below the qualifiers on the
 other.
 
-A public write-up or repository documenting the system and how its operating
-point was chosen is encouraged, not required. We reserve the right to ask
-for public documentation of the system before listing an entry.
+A publicly accessible write-up documenting the system and how its operating
+point was chosen is required, and will be linked from the leaderboard entry. We recommend a blog post, paper, or model card.
 
 We reserve the right to reasonably decline a submission (eg. invalid or
 non-causal files, duplicates of an existing entry), and to keep the
