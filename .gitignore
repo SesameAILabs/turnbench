@@ -26,3 +26,5 @@ baselines/gemini_vad/.vad_cache/
 # Moshi VAD readout: per-file pyannote segmentation-score cache (local only)
 baselines/moshi_vad/.vad_cache/
 baselines/**/*probs*.json
+baselines/gpt_live_1/recordings/
+baselines/gpt_live_1/.vad_cache/

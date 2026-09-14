@@ -1,0 +1,7 @@
+# Recorder deps (record.py); the scorer's own deps (soundfile, pyarrow,
+# huggingface_hub, numpy) come from the repo's pyproject. The readout
+# (predict.py) reuses baselines/gemini_vad and needs its pyannote/torch stack.
+# openai 3.13.0 (2026-09-10) is the first release with Live support.
+openai[realtime]==3.13.0
+scipy==1.18.1
+python-dotenv==1.2.3
