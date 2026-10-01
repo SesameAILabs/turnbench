@@ -89,7 +89,8 @@ uv run --with 'torch==2.8.0' --with 'torchaudio==2.8.0' \
 
 ## Results
 
-Scores: [leaderboard](https://turnbench.sesame.com) · `results/leaderboard-test.json`.
+Dev (scored): EOT recall 0.598 at FPR 0.037, latency p50 1354 ms.
+Test: recording in progress; not yet on the leaderboard.
 
 ## Caveats
 
