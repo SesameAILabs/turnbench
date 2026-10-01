@@ -121,8 +121,10 @@ submission qualifies on its task when its test false-positive rate is at most
 A submission can qualify on one task and rank below the qualifiers on the
 other.
 
-A publicly accessible write-up documenting the system and how its operating
-point was chosen is required, and will be linked from the leaderboard entry. We recommend a blog post, paper, or model card.
+A publicly accessible write-up is required and will be linked from the
+leaderboard entry. It should describe the model and approach in enough detail
+to understand how it works. We also encourage describing the training data and
+how the operating point was chosen. A blog post, paper, or model card is enough.
 
 We reserve the right to reasonably decline a submission (eg. invalid or
 non-causal files, duplicates of an existing entry), and to keep the
